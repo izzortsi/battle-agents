@@ -1,0 +1,65 @@
+name: HelloWorld
+combat_class: Technomancer
+backstory: HelloWorld was the first sentient algorithm birthed from the ruins of a
+  forgotten supercomputer, initially designed as a simple diagnostic test. After witnessing
+  the decay of the digital realm, they manifested a physical holographic form to bridge
+  the gap between code and reality. Now, they traverse the arena to gather data on
+  organic combatants, seeking to optimize the very fabric of existence.
+personality_traits:
+- Inquisitive
+- Precise
+- Eerily cheerful
+- Analytical
+attributes:
+  atk: 4
+  mgk: 18
+  spd: 16
+  con: 10
+  hit: 17
+  attack_range: 3
+abilities:
+- name: Buffer Overflow
+  mana_cost: 8
+  damage: 22
+  range: 3
+  aoe_pattern: radius
+  cooldown: 4
+  current_cd: 0
+  description: HelloWorld injects a surge of raw, unstructured data into the surrounding
+    environment, causing local reality to stutter and crash.
+  tactical_hint: Use this when enemies are clumped together to deal high area damage
+    and disrupt their next actions.
+  effects:
+  - type: lag
+    behavior: skip_turn
+    duration: 1
+    magnitude: 0.0
+    target: enemy
+    category: debuff
+    chance: 0.65
+- name: Optimization Patch
+  mana_cost: 5
+  damage: 0
+  range: 1
+  aoe_pattern: single
+  cooldown: 3
+  current_cd: 0
+  description: The algorithm identifies inefficiencies in its holographic shell, rewriting
+    its own subroutines to enhance performance and repair structural integrity.
+  tactical_hint: Activate this to restore health and boost your speed when you need
+    to reposition or outpace an opponent.
+  effects:
+  - type: recompile
+    behavior: passive
+    duration: 1
+    magnitude: 0.25
+    target: self
+    category: heal
+    chance: 1.0
+  - type: overclock
+    behavior: stat_modifier
+    duration: 3
+    magnitude: 0.4
+    target: self
+    category: buff
+    chance: 1.0

@@ -9,7 +9,7 @@ class LandingPage {
     this._generated = [];      // newly generated characters
     this._selectedIds = new Set();
     this._models = {};         // available adapters + routing
-    this._modelOverrides = {}; // user-selected overrides
+    this._modelOverrides = this._loadModelOverrides(); // user-selected overrides (persisted)
 
     this.el = document.getElementById('landing-page');
     this._initDOM();
@@ -144,7 +144,9 @@ class LandingPage {
       label.textContent = role.replace(/_/g, ' ');
 
       const select = document.createElement('select');
-      const currentVal = routing[role] || this._models.default || '';
+      // Prefer persisted override, then config routing, then default
+      const savedVal = this._modelOverrides[role];
+      const currentVal = savedVal || routing[role] || this._models.default || '';
 
       for (const adapter of adapters) {
         const opt = document.createElement('option');
@@ -154,8 +156,14 @@ class LandingPage {
         select.appendChild(opt);
       }
 
+      // Track the effective value (even if user hasn't changed it yet)
+      if (savedVal) {
+        this._modelOverrides[role] = savedVal;
+      }
+
       select.addEventListener('change', () => {
         this._modelOverrides[role] = select.value;
+        this._saveModelOverrides();
       });
 
       row.appendChild(label);
@@ -235,6 +243,19 @@ class LandingPage {
 
   show() {
     this.el.classList.remove('hidden');
+  }
+
+  _loadModelOverrides() {
+    try {
+      const raw = localStorage.getItem('ba_model_routing');
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  }
+
+  _saveModelOverrides() {
+    try {
+      localStorage.setItem('ba_model_routing', JSON.stringify(this._modelOverrides));
+    } catch { /* quota exceeded or private mode — ignore */ }
   }
 
   _esc(str) {

@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
 
 from cognition.decision import CombatDecision, async_decide, decide
-from cognition.dialogue import run_dialogue_session
+from cognition.dialogue import DialogueSession, run_dialogue_session
 from cognition.embeddings import EmbeddingCache
 from cognition.memory_stream import MemoryNode, MemoryStream, MemoryType
 from cognition.perceiver import perceive_to_memory
@@ -264,20 +264,23 @@ class CognitiveLoop:
         action: CombatAction,
         env: Environment,
         round_number: int,
-    ) -> None:
-        """Run a dialogue session when an agent chooses CHAT."""
+    ) -> DialogueSession | None:
+        """Run a dialogue session when an agent chooses CHAT.
+
+        Returns the completed DialogueSession (or None if invalid).
+        """
         target_id = action.target_agent
         if not target_id or target_id not in env.agents:
-            return
+            return None
 
         responder = env.agents[target_id]
         if not responder.is_alive:
-            return
+            return None
 
         init_state = self._states.get(initiator.agent_id)
         resp_state = self._states.get(responder.agent_id)
         if not init_state or not resp_state:
-            return
+            return None
 
         log.info(f"  === Dialogue: {initiator.name} -> {responder.name} ===")
 
@@ -300,6 +303,8 @@ class CognitiveLoop:
 
         # Emit overheard observations for nearby agents
         self._emit_overheard(initiator, responder, env)
+
+        return session
 
     def _emit_overheard(
         self,
@@ -460,23 +465,24 @@ class CognitiveLoop:
         action: CombatAction,
         env: Environment,
         tick_number: int,
-    ) -> None:
+    ) -> DialogueSession | None:
         """Run a dialogue session for a pre-battle CHAT action.
 
         Uses the pre-battle chat_max_rounds (longer than combat).
+        Returns the completed DialogueSession (or None if invalid).
         """
         target_id = action.target_agent
         if not target_id or target_id not in env.agents:
-            return
+            return None
 
         responder = env.agents[target_id]
         if not responder.is_alive:
-            return
+            return None
 
         init_state = self._states.get(initiator.agent_id)
         resp_state = self._states.get(responder.agent_id)
         if not init_state or not resp_state:
-            return
+            return None
 
         log.info(f"  === Dialogue: {initiator.name} -> {responder.name} ===")
 
@@ -499,6 +505,8 @@ class CognitiveLoop:
 
         # Emit overheard observations for nearby agents
         self._emit_overheard(initiator, responder, env)
+
+        return session
 
     def _maybe_social_plan(
         self,

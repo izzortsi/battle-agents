@@ -94,15 +94,26 @@ def generate_lore(
         if not isinstance(data, dict):
             raise ValueError(f"Expected dict, got {type(data).__name__}")
     except ValueError as e:
-        log.error(f"Lore JSON parse failed: {e}")
-        # Fall back to raw text
-        return LoreContext(raw_text=raw.strip())
+        log.warning(f"Lore JSON parse failed, using raw text: {e}")
+        # Fall back to raw text as world_description
+        return LoreContext(world_description=raw.strip(), raw_text=raw.strip())
 
+    # Accept common alternative keys the LLM might use
+    world_desc = (
+        data.get("world_description")
+        or data.get("description")
+        or data.get("world")
+        or data.get("setting")
+        or ""
+    )
     lore = LoreContext(
-        world_description=data.get("world_description", ""),
+        world_description=world_desc,
         key_facts=data.get("key_facts", []),
         character_connections=data.get("character_connections", []),
     )
+    # If structured fields are empty but we have raw text, use it
+    if not lore.world_description:
+        lore.world_description = raw.strip()
     lore.raw_text = lore.to_prompt_text()
 
     log.info(f"Generated world lore ({len(lore.raw_text)} chars)")
