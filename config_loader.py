@@ -9,7 +9,7 @@ from typing import Any
 import yaml
 
 from agent.agent import Agent
-from agent.attributes import Attributes
+from agent.attributes import Attributes, BalanceConfig, set_balance
 from agent.identity import Identity
 
 CONFIG_DIR = Path(__file__).parent / "config"
@@ -30,6 +30,19 @@ def load_llm_config(path: str | Path | None = None) -> dict[str, Any]:
     return load_yaml(p)
 
 
+def load_balance_config(game_cfg: dict[str, Any] | None = None) -> BalanceConfig:
+    """Build a BalanceConfig from the 'balance' section of game_config.yaml.
+
+    Also calls set_balance() so that Attributes derived properties use it.
+    """
+    if game_cfg is None:
+        game_cfg = load_game_config()
+    raw = game_cfg.get("balance", {})
+    cfg = BalanceConfig(**{k: v for k, v in raw.items() if k in BalanceConfig.__dataclass_fields__})
+    set_balance(cfg)
+    return cfg
+
+
 def load_character(path: str | Path) -> Agent:
     """Load a single character YAML into an Agent."""
     data = load_yaml(path)
@@ -41,14 +54,11 @@ def load_character(path: str | Path) -> Agent:
     )
     attrs_data = data.get("attributes", {})
     attributes = Attributes(
-        max_hp=attrs_data.get("max_hp", 100),
-        hp=attrs_data.get("hp", attrs_data.get("max_hp", 100)),
-        max_mana=attrs_data.get("max_mana", 50),
-        mana=attrs_data.get("mana", attrs_data.get("max_mana", 50)),
-        attack=attrs_data.get("attack", 15),
-        defense=attrs_data.get("defense", 5),
-        speed=attrs_data.get("speed", 10),
-        move_range=attrs_data.get("move_range", 3),
+        atk=attrs_data.get("atk", 10),
+        mgk=attrs_data.get("mgk", 10),
+        spd=attrs_data.get("spd", 10),
+        con=attrs_data.get("con", 10),
+        hit=attrs_data.get("hit", 10),
         attack_range=attrs_data.get("attack_range", 1),
     )
     agent_id = data["name"].lower().replace(" ", "_")

@@ -11,12 +11,9 @@ personality_traits:
   - treacherous
   - survival-focused
 attributes:
-  max_hp: 90
-  hp: 90
-  max_mana: 40
-  mana: 40
-  attack: 16
-  defense: 5
-  speed: 15
-  move_range: 4
+  atk: 13
+  mgk: 3
+  spd: 16
+  con: 7
+  hit: 14
   attack_range: 1

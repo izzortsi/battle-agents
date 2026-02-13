@@ -11,12 +11,9 @@ personality_traits:
   - protective of the weak
   - quietly fierce
 attributes:
-  max_hp: 85
-  hp: 85
-  max_mana: 70
-  mana: 70
-  attack: 10
-  defense: 6
-  speed: 10
-  move_range: 3
+  atk: 6
+  mgk: 12
+  spd: 10
+  con: 9
+  hit: 9
   attack_range: 2

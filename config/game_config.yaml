@@ -27,6 +27,58 @@ alliance:
 victory:
   mode: "last_standing"
 
+balance:
+  # -- HP derivation --
+  hp_base: 40                  # base HP for all characters
+  hp_per_con: 8                # HP gained per CON point
+
+  # -- Mana derivation --
+  mana_base: 10                # base mana for all characters
+  mana_per_mgk: 3              # mana gained per MGK point
+
+  # -- Movement --
+  move_base: 3                 # base move range (tiles)
+  spd_move_threshold: 14       # SPD at which bonus move starts
+  spd_move_divisor: 2          # +1 move per this many SPD above threshold
+
+  # -- CT-inspired damage formula --
+  # Physical:  ATK * atk_multiplier - phys_def * def_multiplier
+  # Magical:   MGK * atk_multiplier - mag_def * def_multiplier
+  atk_multiplier: 2.0          # stat×2
+  def_multiplier: 0.667        # def×2/3
+  damage_variance_low: 0.9     # minimum damage roll multiplier
+  damage_variance_high: 1.1    # maximum damage roll multiplier
+
+  # -- Defense derivation (CT Stamina-inspired) --
+  # phys_def = CON + ATK / 2
+  # mag_def  = CON + MGK / 2
+  con_def_weight: 1.0          # CON contribution to defense
+  stat_def_weight: 0.5         # secondary-stat contribution to defense
+
+  # -- Hit / Evasion --
+  # accuracy = HIT - SPD + hit_base_bonus  (clamped hit_floor..hit_ceiling)
+  # hit% = accuracy / 100
+  hit_base_bonus: 80           # additive base so that equal HIT/SPD ≈ 80%
+  hit_floor: 20                # minimum hit chance (%)
+  hit_ceiling: 99              # maximum hit chance (%)
+
+  # -- Critical hits --
+  crit_base_chance: 6          # base crit chance (%)
+  crit_per_spd: 0.5            # +% crit per point of SPD
+  crit_multiplier: 2.0         # damage multiplier on crit
+
+  # -- Counter-attacks --
+  counter_base_chance: 0       # base counter chance (%)
+  counter_per_hit: 1.5         # +% counter per point of HIT
+  counter_damage_multiplier: 0.5  # counter deals this fraction of a normal attack
+
+  # -- Mana regen --
+  mana_regen_per_round: 2      # mana restored at end of each round
+
+  # -- Defend action --
+  defend_bonus_fraction: 0.5   # defend adds this fraction of base defense
+  defend_diminishing: 0.5      # halve bonus per consecutive defend
+
 campaign:
   battle_count: 5
   memory_carry: true

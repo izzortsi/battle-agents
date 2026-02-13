@@ -11,12 +11,9 @@ personality_traits:
   - proud
   - cautiously diplomatic
 attributes:
-  max_hp: 80
-  hp: 80
-  max_mana: 80
-  mana: 80
-  attack: 20
-  defense: 4
-  speed: 12
-  move_range: 2
+  atk: 4
+  mgk: 16
+  spd: 12
+  con: 6
+  hit: 8
   attack_range: 3

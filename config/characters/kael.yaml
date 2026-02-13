@@ -10,12 +10,9 @@ personality_traits:
   - secretly honorable
   - intimidating
 attributes:
-  max_hp: 120
-  hp: 120
-  max_mana: 30
-  mana: 30
-  attack: 18
-  defense: 8
-  speed: 8
-  move_range: 3
+  atk: 15
+  mgk: 3
+  spd: 8
+  con: 14
+  hit: 7
   attack_range: 1
