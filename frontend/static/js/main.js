@@ -52,13 +52,13 @@
 
   function routeMessage(msg) {
     switch (msg.type) {
-      case 'restore':
-        state.applyRestore(msg);
-        transitionToBattle();
-        break;
       case 'snapshot':
-        state.applySnapshot(msg);
         transitionToBattle();
+        state.applySnapshot(msg);
+        break;
+      case 'restore':
+        transitionToBattle();
+        state.applyRestore(msg);
         break;
       case 'phase':
         state.applyPhase(msg);

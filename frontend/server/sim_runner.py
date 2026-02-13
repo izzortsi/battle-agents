@@ -11,7 +11,8 @@ import logging
 import random
 from typing import TYPE_CHECKING
 
-from combat.actions import ActionType, CombatAction
+from combat.actions import ActionType, CombatAction, make_wait
+from cognition.decision import CombatDecision
 from combat.status_registry import get_behavior
 from config_loader import (
     load_all_characters,
@@ -586,14 +587,43 @@ class SimRunner:
                     current, self._env, round_num, urgency_text=urgency_text
                 )
 
+                # Resolve primary action with retry on invalid actions
+                max_retries = 2
+                action = decision.primary_action
+                result = self._env.resolve_action(action)
+
+                retry_count = 0
+                while not result.success and retry_count < max_retries:
+                    retry_count += 1
+                    log.info(
+                        f"  {current.name}: invalid action ({result.description}), "
+                        f"retry {retry_count}/{max_retries}"
+                    )
+                    decision = await self._cognitive_loop.async_retry_decide(
+                        current, self._env, round_num,
+                        error_feedback=result.description,
+                        urgency_text=urgency_text,
+                    )
+                    action = decision.primary_action
+                    result = self._env.resolve_action(action)
+
+                if not result.success and retry_count >= max_retries:
+                    # Final fallback: force WAIT
+                    log.warning(
+                        f"  {current.name}: all retries exhausted, forcing WAIT"
+                    )
+                    action = make_wait(current.agent_id, "retries exhausted — forced wait")
+                    result = self._env.resolve_action(action)
+                    decision = CombatDecision(
+                        primary_action=action,
+                        chat_action=decision.chat_action,
+                    )
+
                 # Broadcast cognitive state
                 cog = serialize_cognitive(current.agent_id, self._cognitive_loop)
                 cog["reasoning"] = decision.primary_action.reasoning
                 await self._broadcast(cog)
 
-                # Resolve primary action
-                action = decision.primary_action
-                result = self._env.resolve_action(action)
                 event = serialize_action_event(action, result, self._env)
                 await self._broadcast(event)
 

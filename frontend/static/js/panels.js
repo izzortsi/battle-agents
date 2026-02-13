@@ -360,10 +360,12 @@ function renderCharacterSheet(state) {
 // ===== Lore panel (right panel, top) =====
 
 function renderLore(state) {
-  const container = document.getElementById('lore-display');
-  if (!container) return;
+  const panel = document.getElementById('lore-panel');
+  const container = document.getElementById('lore-content');
+  if (!panel || !container) return;
 
   if (!state.lore || !state.lore.world_description) {
+    panel.classList.remove('has-lore');
     container.innerHTML = '';
     return;
   }
@@ -371,6 +373,8 @@ function renderLore(state) {
   // Only render once
   if (container.dataset.rendered === 'true') return;
   container.dataset.rendered = 'true';
+
+  panel.classList.add('has-lore');
 
   const lore = state.lore;
   let factsHtml = '';
@@ -380,13 +384,8 @@ function renderLore(state) {
   }
 
   container.innerHTML = `
-    <div class="lore-panel">
-      <div class="lore-panel-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">World Lore (click to toggle)</div>
-      <div class="lore-panel-body">
-        <p>${escHtml(lore.world_description)}</p>
-        ${factsHtml}
-      </div>
-    </div>
+    <p>${escHtml(lore.world_description)}</p>
+    ${factsHtml}
   `;
 }
 

@@ -45,17 +45,41 @@ function createGridTiles(layerTiles, gridW, gridH) {
 }
 
 /**
+ * Normalise a combat class string into a CSS-safe slug.
+ * e.g. "Geometric Gunslinger" -> "geometric-gunslinger"
+ */
+function classSlug(raw) {
+  return (raw || 'warrior').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
+}
+
+/**
+ * Resolve a combat class to one of the four known silhouette symbol ids.
+ * Falls back to "warrior" for custom/unknown classes.
+ */
+function resolveSilhouette(slug) {
+  const known = ['warrior', 'mage', 'rogue', 'healer'];
+  if (known.includes(slug)) return slug;
+  // Heuristic: if slug contains a known base class, use it
+  for (const k of known) {
+    if (slug.includes(k)) return k;
+  }
+  return 'warrior'; // default fallback
+}
+
+/**
  * Create an agent sprite <g> group.
  */
 function createSprite(agentData) {
-  const cls = agentData.combat_class || 'warrior';
+  const rawCls = agentData.combat_class || 'warrior';
+  const cls = classSlug(rawCls);
+  const silhouette = resolveSilhouette(cls);
   const g = svgEl('g', {
     'data-agent-id': agentData.id,
-    'data-class': cls,
+    'data-class': rawCls,
     'data-alive': agentData.is_alive ? 'true' : 'false',
     'data-active-turn': 'false',
   });
-  g.classList.add('sprite-group', `sprite-${cls}`);
+  g.classList.add('sprite-group', `sprite-${silhouette}`);
 
   // Position
   const tx = agentData.x * CELL_SIZE + (CELL_SIZE - SPRITE_W) / 2;
@@ -64,7 +88,7 @@ function createSprite(agentData) {
 
   // Silhouette via <use>
   const use = svgEl('use', {
-    href: `#silhouette-${cls}`,
+    href: `#silhouette-${silhouette}`,
     width: SPRITE_W,
     height: SPRITE_H,
   });

@@ -835,6 +835,75 @@ class CognitiveLoop:
         return ""
 
     # ==================================================================
+    # Retry decision — lightweight re-decide with error feedback
+    # ==================================================================
+
+    async def async_retry_decide(
+        self,
+        agent: Agent,
+        env: Environment,
+        round_number: int,
+        error_feedback: str,
+        urgency_text: str = "",
+    ) -> CombatDecision:
+        """Re-run only RETRIEVE + DECIDE with error feedback.
+
+        Called when the previous LLM decision produced an invalid action
+        (e.g. out-of-range attack, dead target).  The error_feedback is
+        prepended to urgency_text so the LLM knows what went wrong.
+        """
+        state = self._states.get(agent.agent_id)
+        if state is None:
+            state = self.register(agent)
+
+        current_turn = env.turn_manager.global_turn
+
+        # Fresh perceptions for accurate context
+        observations = env.get_perceptions(agent)
+        perceptions_text = env.perception_engine.format_perception_text(
+            agent, observations
+        )
+
+        # RETRIEVE
+        query = self._build_retrieval_query(agent, perceptions_text)
+        query_embedding = await self._async_embed_query(query)
+        retrieved = retrieve(
+            memory=state.memory,
+            query=query,
+            current_turn=current_turn,
+            top_k=state.retrieval_top_k,
+            gamma=state.retrieval_decay,
+            query_embedding=query_embedding,
+        )
+
+        # Build combined urgency with error feedback
+        combined_urgency = (
+            f"YOUR PREVIOUS ACTION WAS INVALID: {error_feedback} "
+            f"Choose a DIFFERENT, valid action."
+        )
+        if urgency_text:
+            combined_urgency = f"{combined_urgency} {urgency_text}"
+
+        chat_allowed = self.can_chat_combat(agent.agent_id, round_number)
+        current_plan = self._planner.get_current_plan(agent.agent_id) or ""
+
+        # DECIDE with error context
+        decision = await async_decide(
+            agent=agent,
+            env=env,
+            perceptions_text=perceptions_text,
+            memories=retrieved,
+            llm=self._get_llm("action_decision"),
+            round_number=round_number,
+            current_plan=current_plan,
+            chat_allowed=chat_allowed,
+            urgency_text=combined_urgency,
+            world_lore=self.world_lore,
+        )
+
+        return decision
+
+    # ==================================================================
     # Combat phase
     # ==================================================================
 

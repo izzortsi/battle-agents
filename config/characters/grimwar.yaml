@@ -1,0 +1,66 @@
+name: Grimwar
+combat_class: Berserker
+backstory: Once a high chieftain of the Red Crag clan, Grimwar abandoned his throne
+  after a divine vision of an endless crimson feast. He now wanders the blood-soaked
+  battlefields of the arena, believing that every drop of ichor spilled is a tribute
+  to the gods of carnage. He carries an axe forged from the armor of his fallen kin,
+  seeking the one opponent whose blood smells of pure divinity.
+personality_traits:
+- Bloodthirsty
+- Unstoppable
+- Visceral
+- Single-minded
+- Gravely jovial
+attributes:
+  atk: 19
+  mgk: 4
+  spd: 12
+  con: 18
+  hit: 14
+  attack_range: 1
+abilities:
+- name: Butcher's Cleave
+  mana_cost: 5
+  damage: 22
+  range: 1
+  aoe_pattern: cone
+  cooldown: 3
+  current_cd: 0
+  description: Grimwar swings his massive axe in a wide, gore-spraying arc that tears
+    through flesh and bone.
+  tactical_hint: Use this when multiple enemies are clumped together to maximize damage
+    and apply bleed.
+  effects:
+  - type: hemorrhage
+    behavior: damage_over_time
+    duration: 3
+    magnitude: 0.1
+    target: enemy
+    category: debuff
+    chance: 0.75
+- name: Crimson Feast
+  mana_cost: 8
+  damage: 0
+  range: 1
+  aoe_pattern: single
+  cooldown: 5
+  current_cd: 0
+  description: Grimwar enters a trance-like state of bloodlust, ignoring pain and
+    reveling in the carnage.
+  tactical_hint: Activate this when low on health to sustain yourself and increase
+    your damage output for the final push.
+  effects:
+  - type: blood_tithe
+    behavior: passive
+    duration: 2
+    magnitude: 0.2
+    target: self
+    category: heal
+    chance: 1.0
+  - type: enrage
+    behavior: boost_outgoing_damage
+    duration: 2
+    magnitude: 0.3
+    target: self
+    category: buff
+    chance: 1.0

@@ -128,7 +128,7 @@ html, body {
 
 #main {
   display: grid;
-  grid-template-columns: 200px 1fr 480px;
+  grid-template-columns: 200px 1fr 720px;
   grid-template-rows: 1fr 200px;
   gap: 1px;
   height: calc(100vh - var(--header-height));
@@ -189,6 +189,7 @@ html, body {
   grid-column: 3 / 4;
 }
 
+#lore-panel,
 #character-panel,
 #social-panel,
 #cognitive-panel {
@@ -199,10 +200,25 @@ html, body {
   min-height: 0;
 }
 
+#lore-panel {
+  flex: 0;
+  max-height: 30%;
+}
+
+#lore-panel:empty,
+#lore-panel:not(.has-lore) {
+  display: none;
+}
+
 #character-panel {
   flex: 2;
 }
 
+#social-panel {
+  flex: 0.5;
+}
+
+#lore-content,
 #character-content,
 #social-content,
 #cognitive-content {
