@@ -1,0 +1,22 @@
+name: Mira
+combat_class: healer
+backstory: >
+  A former temple priestess who lost her faith when her village was razed.
+  Mira still carries the gift of healing but now uses it as currency — she
+  heals those who protect her and withholds aid from those she deems unworthy.
+  She believes in justice, even if her definition has grown harsh.
+personality_traits:
+  - moralistic
+  - grudge-holding
+  - protective of the weak
+  - quietly fierce
+attributes:
+  max_hp: 85
+  hp: 85
+  max_mana: 70
+  mana: 70
+  attack: 10
+  defense: 6
+  speed: 10
+  move_range: 3
+  attack_range: 2

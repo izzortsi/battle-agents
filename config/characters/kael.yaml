@@ -1,0 +1,21 @@
+name: Kael
+combat_class: warrior
+backstory: >
+  A battle-hardened mercenary who has seen too many wars. Once served a king
+  who betrayed his own people. Now Kael fights for coin and survival, trusting
+  no one but his blade. Beneath the cynicism lies a buried sense of honor.
+personality_traits:
+  - cynical
+  - pragmatic
+  - secretly honorable
+  - intimidating
+attributes:
+  max_hp: 120
+  hp: 120
+  max_mana: 30
+  mana: 30
+  attack: 18
+  defense: 8
+  speed: 8
+  move_range: 3
+  attack_range: 1

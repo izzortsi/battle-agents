@@ -1,0 +1,21 @@
+default_adapter: "openrouter/gemini-3-flash"
+
+adapters:
+  openrouter:
+    api_key_env: "OPENROUTER_API_KEY"
+    models:
+      gemini-3-flash:
+        model_id: "google/gemini-2.5-flash"
+        role: "strong"
+
+embedding:
+  provider: "none"     # Phase 1: keyword fallback only
+  cache_size: 2048
+
+routing:
+  action_decision: "strong"
+  reflection: "strong"
+  dialogue: "strong"
+  planning: "strong"
+  commentary: "strong"
+  importance_rating: "heuristic"

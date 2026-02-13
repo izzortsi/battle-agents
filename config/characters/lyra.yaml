@@ -1,0 +1,22 @@
+name: Lyra
+combat_class: mage
+backstory: >
+  A prodigy of the Arcane Academy, expelled for delving into forbidden
+  knowledge. Lyra seeks ancient power to prove her former masters wrong.
+  She views combat as a puzzle to be solved, not a test of brute force.
+  She is cautious about forming alliances but will do so if it serves her goals.
+personality_traits:
+  - calculating
+  - intellectually curious
+  - proud
+  - cautiously diplomatic
+attributes:
+  max_hp: 80
+  hp: 80
+  max_mana: 80
+  mana: 80
+  attack: 20
+  defense: 4
+  speed: 12
+  move_range: 2
+  attack_range: 3

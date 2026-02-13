@@ -1,0 +1,34 @@
+mode: "run_once"
+
+grid:
+  width: 12
+  height: 10
+
+pre_battle:
+  enabled: false       # Phase 1: combat only
+  duration_ticks: 6
+  tick_mode: simultaneous
+  chat_max_rounds: 4
+  perception_radius: 12
+
+combat:
+  chat_max_rounds: 2
+  perception_radius: 8
+  reflection_threshold: 50
+  retrieval_top_k: 7
+  retrieval_decay: 0.85
+
+alliance:
+  allied_threshold: 0.5
+  hostile_threshold: -0.3
+
+victory:
+  mode: "last_standing"
+
+campaign:
+  battle_count: 5
+  memory_carry: true
+  memory_compression: true
+  compression_keep_top_k: 20
+  xp_progression: true
+  roster_persistent: true
