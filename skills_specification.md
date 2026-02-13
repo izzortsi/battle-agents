@@ -165,3 +165,39 @@ This is the key architectural achievement: the system is self-expanding without 
 6. The frontend displays them as formatted badges
 
 No one wrote code for "immolate" or "heat_haze." The LLM invented them, the registry classified them by behavior, and the existing enforcement code handled the rest. The definitions persist on disk for future battles.
+
+---
+
+## Healing mechanics
+
+**What's implemented:**
+
+In the ABILITY handler's effect dispatch (`_resolve_effect`), there's a dedicated heal branch:
+
+```python
+# --- Heal ---
+if effect_type == "heal" or category == "heal":
+    recipient = caster if effect_target == "self" else target
+    magnitude = effect.get("magnitude", 0.2)
+    heal_amount = int(recipient.scratch.max_hp * magnitude)
+    recipient.heal(heal_amount)
+    log.append(f"{recipient.name} heals for {heal_amount} HP")
+    return
+```
+
+This means:
+- An ability with an effect like `{"type": "heal", "category": "heal", "magnitude": 0.3, "target": "self"}` would restore 30% of the caster's max HP
+- `target: "self"` heals the caster, `target: "enemy"` would heal the target (unusual but structurally possible)
+- It calls `recipient.heal(heal_amount)` on `BattlePersona`
+
+**What's NOT implemented or missing:**
+
+1. **No heal behavior in the registry.** The nine behaviors are: miss_chance, skip_turn, prevent_move, damage_over_time, reduce_outgoing_damage, boost_outgoing_damage, reduce_incoming_damage, stat_modifier, passive. There's no `heal` behavior — healing is handled by the resolver's category dispatch, not the registry's behavior system. This means `get_behavior("heal")` would fall through to `_infer_behavior`, find no keyword match, and return `"passive"`.
+
+2. **No heal-over-time.** The heal branch is instant (resolves once when the ability is used). There's no per-round regeneration behavior analogous to `damage_over_time`. A "regen" effect would need either a new behavior or a hook in end-of-round processing.
+
+3. **No archetype has a heal ability.** None of the 8 fallback archetypes (Gunslinger, Mage, Knight, Rogue, Cleric, Berserker, Ranger, Swordmaster) have heal effects on their abilities. The Cleric has Holy Smite (damage) and Blessing (defend buff) but no heal. LLM-generated characters could produce heals, but the hardcoded fallbacks don't include one.
+
+4. **"heal" is in `_SELF_TARGET_TYPES`** so `is_self_targeting("heal")` returns `True` and `ensure_registered` would classify it as a buff — but since the resolver handles heal via category dispatch before reaching the status-effect-application code, it never actually gets stored as a status effect on anyone.
+
+So: **instant healing works** if an LLM generates an ability with a heal effect. But there's no regen-over-time, no heal registry behavior, and no fallback character actually has one.

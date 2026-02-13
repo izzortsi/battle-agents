@@ -9,7 +9,8 @@ adapters:
         role: "strong"
 
 embedding:
-  provider: "none"     # Phase 1: keyword fallback only
+  provider: "openrouter"              # "openrouter" | "openai" | "ollama" | "none"
+  model: "openai/text-embedding-3-small"
   cache_size: 2048
 
 routing:

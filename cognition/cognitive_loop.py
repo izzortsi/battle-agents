@@ -13,11 +13,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from cognition.decision import CombatDecision, decide
 from cognition.dialogue import run_dialogue_session
-from cognition.memory_stream import MemoryStream, MemoryType
+from cognition.embeddings import EmbeddingCache
+from cognition.memory_stream import MemoryNode, MemoryStream, MemoryType
 from cognition.perceiver import perceive_to_memory
 from cognition.planner import Planner
 from cognition.pre_battle_decision import PreBattleDecision, decide_pre_battle
@@ -68,6 +69,7 @@ class CognitiveLoop:
         reflection_threshold: float = 50.0,
         pre_battle_chat_max_rounds: int = 4,
         chat_cooldown: int = 3,
+        embedding_cache: EmbeddingCache | None = None,
     ) -> None:
         self.llm = llm
         self._states: dict[str, CognitiveState] = {}
@@ -80,6 +82,7 @@ class CognitiveLoop:
         # Chat cooldown: agent_id -> last round they chatted in combat
         self._chat_cooldown = chat_cooldown
         self._last_chat_round: dict[str, int] = {}
+        self._embedder = embedding_cache
 
     def register(self, agent: Agent) -> CognitiveState:
         """Register an agent and create its cognitive state."""
@@ -93,6 +96,50 @@ class CognitiveLoop:
 
     def get_state(self, agent_id: str) -> CognitiveState | None:
         return self._states.get(agent_id)
+
+    # ==================================================================
+    # Embedding helpers
+    # ==================================================================
+
+    def _embed_nodes(self, memory: MemoryStream, node_ids: list[int]) -> None:
+        """Embed memory nodes that don't yet have embeddings.
+
+        Silently no-ops if no embedding cache is configured or if
+        the embedding call fails (graceful degradation to keyword retrieval).
+        """
+        if self._embedder is None or not node_ids:
+            return
+
+        nodes: list[MemoryNode] = []
+        for nid in node_ids:
+            node = memory.get(nid)
+            if node is not None and node.embedding is None:
+                nodes.append(node)
+
+        if not nodes:
+            return
+
+        texts = [n.description for n in nodes]
+        try:
+            vectors = self._embedder.embed_batch(texts)
+            for node, vec in zip(nodes, vectors):
+                node.embedding = vec
+        except Exception as e:
+            log.warning(f"Embedding failed (graceful degradation): {e}")
+
+    def _embed_query(self, query: str) -> Optional[list[float]]:
+        """Embed a retrieval query string.  Returns None if no cache or on failure."""
+        if self._embedder is None:
+            return None
+        try:
+            return self._embedder.embed_one(query)
+        except Exception as e:
+            log.warning(f"Query embedding failed (keyword fallback): {e}")
+            return None
+
+    # ==================================================================
+    # Combat cognitive turn
+    # ==================================================================
 
     def run_turn(
         self,
@@ -133,9 +180,10 @@ class CognitiveLoop:
                 f"{agent.name}: stored {len(new_ids)} new observations "
                 f"(total memories: {len(state.memory)})"
             )
+        self._embed_nodes(state.memory, new_ids)
 
         # 3. REFLECT — if importance accumulator >= threshold
-        reflect(
+        reflect_ids = reflect(
             agent_name=agent.name,
             combat_class=agent.identity.combat_class,
             memory=state.memory,
@@ -143,8 +191,10 @@ class CognitiveLoop:
             current_turn=current_turn,
             threshold=self._reflection_threshold,
         )
+        self._embed_nodes(state.memory, reflect_ids)
 
         # 4. PLAN — check if replanning needed
+        pre_plan_count = len(state.memory)
         current_plan = self._planner.maybe_replan(
             agent=agent,
             env=env,
@@ -153,15 +203,21 @@ class CognitiveLoop:
             round_number=round_number,
             current_turn=current_turn,
         )
+        if len(state.memory) > pre_plan_count:
+            self._embed_nodes(
+                state.memory, list(range(pre_plan_count, len(state.memory)))
+            )
 
         # 5. RETRIEVE — build a situation query and get relevant memories
         query = self._build_retrieval_query(agent, perceptions_text)
+        query_embedding = self._embed_query(query)
         retrieved = retrieve(
             memory=state.memory,
             query=query,
             current_turn=current_turn,
             top_k=state.retrieval_top_k,
             gamma=state.retrieval_decay,
+            query_embedding=query_embedding,
         )
 
         # Check chat cooldown
@@ -255,7 +311,7 @@ class CognitiveLoop:
                         f"{initiator.name} and {responder.name} were seen "
                         f"talking intensely nearby."
                     )
-                    state.memory.add(
+                    node = state.memory.add(
                         turn=current_turn,
                         memory_type=MemoryType.OBSERVATION,
                         description=overheard_desc,
@@ -265,6 +321,7 @@ class CognitiveLoop:
                         predicate="talked_with",
                         object_=responder.name,
                     )
+                    self._embed_nodes(state.memory, [node.node_id])
                     log.debug(f"  {other.name} overheard the dialogue")
 
     # ==================================================================
@@ -326,9 +383,10 @@ class CognitiveLoop:
                     f"{agent.name}: stored {len(new_ids)} new observations "
                     f"(total memories: {len(state.memory)})"
                 )
+            self._embed_nodes(state.memory, new_ids)
 
             # 3. REFLECT — if importance accumulator >= threshold
-            reflect(
+            reflect_ids = reflect(
                 agent_name=agent.name,
                 combat_class=agent.identity.combat_class,
                 memory=state.memory,
@@ -336,20 +394,28 @@ class CognitiveLoop:
                 current_turn=current_turn,
                 threshold=self._reflection_threshold,
             )
+            self._embed_nodes(state.memory, reflect_ids)
 
             # 4. PLAN — generate a social plan at the start of pre-battle
+            pre_plan_count = len(state.memory)
             current_plan = self._maybe_social_plan(
                 agent, env, state.memory, tick_number, current_turn
             )
+            if len(state.memory) > pre_plan_count:
+                self._embed_nodes(
+                    state.memory, list(range(pre_plan_count, len(state.memory)))
+                )
 
             # 5. RETRIEVE — get relevant memories
             query = self._build_social_retrieval_query(agent, perceptions_text)
+            query_embedding = self._embed_query(query)
             retrieved = retrieve(
                 memory=state.memory,
                 query=query,
                 current_turn=current_turn,
                 top_k=state.retrieval_top_k,
                 gamma=state.retrieval_decay,
+                query_embedding=query_embedding,
             )
 
             # 6. DECIDE — social action only (chat/move/wait)

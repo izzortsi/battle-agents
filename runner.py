@@ -207,6 +207,7 @@ def setup_cognitive_loop(game_cfg: dict) -> tuple:
     Returns (cognitive_loop, model_id).
     """
     from cognition.cognitive_loop import CognitiveLoop
+    from cognition.embeddings import create_embedding_cache
     from llm.adapter import ModelRegistry
     from llm.openrouter_adapter import OpenRouterAdapter
 
@@ -224,6 +225,10 @@ def setup_cognitive_loop(game_cfg: dict) -> tuple:
     registry = ModelRegistry()
     registry.register(llm_cfg.get("default_adapter", "openrouter"), adapter)
 
+    # Create embedding cache from config (None if provider is "none")
+    embedding_cfg = llm_cfg.get("embedding", {})
+    embedding_cache = create_embedding_cache(embedding_cfg, llm_cfg)
+
     combat_cfg = game_cfg.get("combat", {})
     pre_battle_cfg = game_cfg.get("pre_battle", {})
 
@@ -235,6 +240,7 @@ def setup_cognitive_loop(game_cfg: dict) -> tuple:
         reflection_threshold=combat_cfg.get("reflection_threshold", 50.0),
         pre_battle_chat_max_rounds=pre_battle_cfg.get("chat_max_rounds", 4),
         chat_cooldown=combat_cfg.get("chat_cooldown", 3),
+        embedding_cache=embedding_cache,
     )
 
     return cognitive_loop, model_id
