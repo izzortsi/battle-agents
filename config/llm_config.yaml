@@ -4,9 +4,53 @@ adapters:
   openrouter:
     api_key_env: "OPENROUTER_API_KEY"
     models:
+      # --- Paid models ---
       gemini-3-flash:
         model_id: "google/gemini-3-flash-preview"
         role: "strong"
+      gpt-5.2:
+        model_id: "openai/gpt-5.2"
+        role: "strong"
+      # --- Free models ---
+      gemini-2.5-flash-free:
+        model_id: "google/gemini-2.5-flash"
+        role: "free"
+      gemini-2.5-flash-lite-free:
+        model_id: "google/gemini-2.5-flash-lite"
+        role: "free"
+      deepseek-v3.2-free:
+        model_id: "deepseek/deepseek-v3.2-20251201"
+        role: "free"
+      deepseek-r1-free:
+        model_id: "deepseek/deepseek-r1-0528:free"
+        role: "free"
+      llama-4-maverick-free:
+        model_id: "meta-llama/llama-4-maverick:free"
+        role: "free"
+      llama-4-scout-free:
+        model_id: "meta-llama/llama-4-scout:free"
+        role: "free"
+      llama-3.3-70b-free:
+        model_id: "meta-llama/llama-3.3-70b-instruct:free"
+        role: "free"
+      qwen3-coder-free:
+        model_id: "qwen/qwen3-coder:free"
+        role: "free"
+      grok-4.1-fast-free:
+        model_id: "x-ai/grok-4.1-fast"
+        role: "free"
+      gpt-oss-120b-free:
+        model_id: "openai/gpt-oss-120b:free"
+        role: "free"
+      gpt-5-nano-free:
+        model_id: "openai/gpt-5-nano-2025-08-07"
+        role: "free"
+      kimi-k2-free:
+        model_id: "moonshot/kimi-k2:free"
+        role: "free"
+      nemotron-nano-free:
+        model_id: "nvidia/nemotron-nano:free"
+        role: "free"
 
   openai:
     api_key_env: "OPENAI_API_KEY"
@@ -19,9 +63,15 @@ adapters:
     auth: "oauth"                         # "oauth" (Pro/Max subscription) or "api_key"
     api_key_env: "ANTHROPIC_API_KEY"      # used only when auth: api_key
     models:
-      sonnet:
+      opus-4.6:
+        model_id: "claude-opus-4-6"
+        role: "strong"
+      sonnet-4.5:
         model_id: "claude-sonnet-4-5-20250929"
         role: "strong"
+      haiku-4.5:
+        model_id: "claude-haiku-4-5-20251001"
+        role: "fast"
 
 embedding:
   provider: "openrouter"              # "openrouter" | "openai" | "ollama" | "none"
@@ -29,9 +79,11 @@ embedding:
   cache_size: 2048
 
 routing:
-  action_decision: "strong"
-  reflection: "strong"
-  dialogue: "strong"
-  planning: "strong"
-  commentary: "strong"
+  action_decision: "openrouter/gemini-3-flash"
+  reflection: "openrouter/gemini-3-flash"
+  dialogue: "openrouter/gemini-3-flash"
+  planning: "openrouter/gemini-3-flash"
+  commentary: "openrouter/gemini-3-flash"
+  lore_generation: "openrouter/gemini-3-flash"
+  character_generation: "openrouter/gemini-3-flash"
   importance_rating: "heuristic"

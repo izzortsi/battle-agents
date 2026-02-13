@@ -15,6 +15,8 @@ class GameState {
     this.dialogueLog = [];   // { speaker, speakerName, target, message, dispositionShift }
     this.cognitive = {};     // agent_id -> { memoryCount, importance, plan, reflection, reasoning }
     this.selectedAgent = null;
+    this.lore = null;        // { world_description, key_facts, character_connections }
+    this.commentaryLog = []; // [ string ]
     this._listeners = [];
   }
 
@@ -77,6 +79,14 @@ class GameState {
         reflection: c.reflection,
         reasoning: c.reasoning,
       };
+    }
+
+    // Restore lore + commentary
+    if (data.lore) {
+      this.lore = data.lore;
+    }
+    if (data.commentary_log) {
+      this.commentaryLog = data.commentary_log;
     }
 
     this.notify('snapshot');  // triggers full re-render without animations
@@ -179,6 +189,32 @@ class GameState {
   applySocialUpdate(data) {
     this.social[data.agent_id] = data.social;
     this.notify('social_update', data);
+  }
+
+  applyLore(data) {
+    this.lore = {
+      world_description: data.world_description || '',
+      key_facts: data.key_facts || [],
+      character_connections: data.character_connections || [],
+    };
+    this.notify('lore', data);
+  }
+
+  applyCommentary(data) {
+    this.commentaryLog.push(data.text);
+    if (this.commentaryLog.length > 50) {
+      this.commentaryLog = this.commentaryLog.slice(-50);
+    }
+    // Also add to eventLog so renderLog includes commentary on re-render
+    this.eventLog.push({
+      description: data.text,
+      actionType: 'commentary',
+      agentId: '',
+      round: this.round,
+      success: true,
+      details: {},
+    });
+    this.notify('commentary', data);
   }
 
   selectAgent(agentId) {

@@ -22,6 +22,7 @@ survives. You MUST fight to win — there is no escape, no truce, and no mercy.
 
 PERSONALITY: {personality}
 BACKSTORY: {backstory}
+{world_lore_section}
 
 You must stay in character at all times. Your decisions should reflect your \
 personality, your memories, and your tactical assessment — but above all, \
@@ -113,10 +114,14 @@ This is a bonus action, not your main turn. Make the most of it."""
 # -- Builder functions ------------------------------------------------------
 
 
-def build_system_prompt(agent: Agent) -> str:
+def build_system_prompt(agent: Agent, world_lore: str = "") -> str:
     """Build the system prompt from an agent's identity and attributes."""
     personality = ", ".join(agent.identity.personality_traits) or "unknown"
     damage_type = agent.attributes.damage_type
+    if world_lore:
+        world_lore_section = f"\nWORLD LORE:\n{world_lore}\n"
+    else:
+        world_lore_section = ""
     return SYSTEM_TEMPLATE.format(
         name=agent.identity.name,
         combat_class=agent.identity.combat_class,
@@ -125,6 +130,7 @@ def build_system_prompt(agent: Agent) -> str:
         attack_range=agent.attributes.attack_range,
         damage_type=damage_type,
         primary_stat="ATK" if damage_type == "physical" else "MGK",
+        world_lore_section=world_lore_section,
     )
 
 

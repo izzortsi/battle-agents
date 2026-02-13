@@ -63,6 +63,12 @@ class CognitiveLoop:
         loop.register(agent)  # for each agent
         ...
         action = loop.run_turn(agent, env, round_number)
+
+    Per-aspect model routing:
+        Pass ``routing={"reflection": reflect_adapter, "planning": plan_adapter, ...}``
+        to use different LLM adapters for different cognitive functions.
+        Any role not in routing falls back to the default ``llm`` adapter.
+        Supported roles: action_decision, reflection, planning, dialogue.
     """
 
     def __init__(
@@ -75,8 +81,12 @@ class CognitiveLoop:
         pre_battle_chat_max_rounds: int = 4,
         chat_cooldown: int = 3,
         embedding_cache: EmbeddingCache | None = None,
+        routing: dict[str, LLMAdapter] | None = None,
+        world_lore: str = "",
     ) -> None:
         self.llm = llm
+        self._routing = routing or {}
+        self.world_lore = world_lore
         self._states: dict[str, CognitiveState] = {}
         self._default_top_k = retrieval_top_k
         self._default_decay = retrieval_decay
@@ -88,6 +98,10 @@ class CognitiveLoop:
         self._chat_cooldown = chat_cooldown
         self._last_chat_round: dict[str, int] = {}
         self._embedder = embedding_cache
+
+    def _get_llm(self, role: str) -> LLMAdapter:
+        """Get the LLM adapter for a given cognitive role, or default."""
+        return self._routing.get(role, self.llm)
 
     def register(self, agent: Agent) -> CognitiveState:
         """Register an agent and create its cognitive state."""
@@ -192,7 +206,7 @@ class CognitiveLoop:
             agent_name=agent.name,
             combat_class=agent.identity.combat_class,
             memory=state.memory,
-            llm=self.llm,
+            llm=self._get_llm("reflection"),
             current_turn=current_turn,
             threshold=self._reflection_threshold,
         )
@@ -204,7 +218,7 @@ class CognitiveLoop:
             agent=agent,
             env=env,
             memory=state.memory,
-            llm=self.llm,
+            llm=self._get_llm("planning"),
             round_number=round_number,
             current_turn=current_turn,
         )
@@ -234,11 +248,12 @@ class CognitiveLoop:
             env=env,
             perceptions_text=perceptions_text,
             memories=retrieved,
-            llm=self.llm,
+            llm=self._get_llm("action_decision"),
             round_number=round_number,
             current_plan=current_plan,
             chat_allowed=chat_allowed,
             urgency_text=urgency_text,
+            world_lore=self.world_lore,
         )
 
         return decision
@@ -271,7 +286,7 @@ class CognitiveLoop:
             responder=responder,
             initial_message=action.message or "I want to talk.",
             env=env,
-            llm=self.llm,
+            llm=self._get_llm("dialogue"),
             initiator_memory=init_state.memory,
             responder_memory=resp_state.memory,
             round_number=round_number,
@@ -395,7 +410,7 @@ class CognitiveLoop:
                 agent_name=agent.name,
                 combat_class=agent.identity.combat_class,
                 memory=state.memory,
-                llm=self.llm,
+                llm=self._get_llm("reflection"),
                 current_turn=current_turn,
                 threshold=self._reflection_threshold,
             )
@@ -429,7 +444,7 @@ class CognitiveLoop:
                 env=env,
                 perceptions_text=perceptions_text,
                 memories=retrieved,
-                llm=self.llm,
+                llm=self._get_llm("action_decision"),
                 tick_number=tick_number,
                 total_ticks=total_ticks,
                 current_plan=current_plan,
@@ -470,7 +485,7 @@ class CognitiveLoop:
             responder=responder,
             initial_message=action.message or "I want to talk.",
             env=env,
-            llm=self.llm,
+            llm=self._get_llm("dialogue"),
             initiator_memory=init_state.memory,
             responder_memory=resp_state.memory,
             round_number=tick_number,
@@ -508,7 +523,7 @@ class CognitiveLoop:
                 agent=agent,
                 env=env,
                 memory=memory,
-                llm=self.llm,
+                llm=self._get_llm("planning"),
                 round_number=tick_number,
                 current_turn=current_turn,
                 trigger_context=(
@@ -612,7 +627,7 @@ class CognitiveLoop:
             agent_name=agent.name,
             combat_class=agent.identity.combat_class,
             memory=state.memory,
-            llm=self.llm,
+            llm=self._get_llm("reflection"),
             current_turn=current_turn,
             threshold=self._reflection_threshold,
         )
@@ -624,7 +639,7 @@ class CognitiveLoop:
                 agent=agent,
                 env=env,
                 memory=state.memory,
-                llm=self.llm,
+                llm=self._get_llm("planning"),
                 round_number=round_number,
                 current_turn=current_turn,
             )
@@ -659,11 +674,12 @@ class CognitiveLoop:
             env=env,
             perceptions_text=perceptions_text,
             memories=retrieved,
-            llm=self.llm,
+            llm=self._get_llm("action_decision"),
             round_number=round_number,
             current_plan=current_plan,
             chat_allowed=chat_allowed,
             urgency_text=urgency_text,
+            world_lore=self.world_lore,
         )
 
         return decision
@@ -747,7 +763,7 @@ class CognitiveLoop:
             agent_name=agent.name,
             combat_class=agent.identity.combat_class,
             memory=state.memory,
-            llm=self.llm,
+            llm=self._get_llm("reflection"),
             current_turn=current_turn,
             threshold=self._reflection_threshold,
         )
@@ -781,7 +797,7 @@ class CognitiveLoop:
             env=env,
             perceptions_text=perceptions_text,
             memories=retrieved,
-            llm=self.llm,
+            llm=self._get_llm("action_decision"),
             tick_number=tick_number,
             total_ticks=total_ticks,
             current_plan=current_plan,
@@ -807,7 +823,7 @@ class CognitiveLoop:
                 agent=agent,
                 env=env,
                 memory=memory,
-                llm=self.llm,
+                llm=self._get_llm("planning"),
                 round_number=tick_number,
                 current_turn=current_turn,
                 trigger_context=(
@@ -889,11 +905,12 @@ class CognitiveLoop:
             env=env,
             perceptions_text=perceptions_text,
             memories=retrieved,
-            llm=self.llm,
+            llm=self._get_llm("action_decision"),
             round_number=round_number,
             current_plan="",
             chat_allowed=self.can_chat_combat(agent.agent_id, round_number),
             urgency_text=BONUS_ACTION_ADDENDUM,
+            world_lore=self.world_lore,
         )
 
         # Strip any ability action — bonus actions don't allow abilities
@@ -945,11 +962,12 @@ class CognitiveLoop:
             env=env,
             perceptions_text=perceptions_text,
             memories=retrieved,
-            llm=self.llm,
+            llm=self._get_llm("action_decision"),
             round_number=round_number,
             current_plan="",
             chat_allowed=self.can_chat_combat(agent.agent_id, round_number),
             urgency_text=BONUS_ACTION_ADDENDUM,
+            world_lore=self.world_lore,
         )
 
         from combat.actions import ActionType, make_wait

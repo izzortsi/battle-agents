@@ -78,8 +78,13 @@ function renderLog(state) {
 
   for (const entry of state.eventLog) {
     const div = document.createElement('div');
-    div.className = `log-entry ${entry.actionType || ''}`;
-    div.innerHTML = `<span class="log-round">R${entry.round}</span>${escHtml(entry.description)}`;
+    if (entry.actionType === 'commentary') {
+      div.className = 'log-entry commentary';
+      div.textContent = entry.description;
+    } else {
+      div.className = `log-entry ${entry.actionType || ''}`;
+      div.innerHTML = `<span class="log-round">R${entry.round}</span>${escHtml(entry.description)}`;
+    }
     container.appendChild(div);
   }
 
@@ -349,6 +354,61 @@ function renderCharacterSheet(state) {
     }
 
     container.appendChild(abilitiesSection);
+  }
+}
+
+// ===== Lore panel (right panel, top) =====
+
+function renderLore(state) {
+  const container = document.getElementById('lore-display');
+  if (!container) return;
+
+  if (!state.lore || !state.lore.world_description) {
+    container.innerHTML = '';
+    return;
+  }
+
+  // Only render once
+  if (container.dataset.rendered === 'true') return;
+  container.dataset.rendered = 'true';
+
+  const lore = state.lore;
+  let factsHtml = '';
+  if (lore.key_facts && lore.key_facts.length > 0) {
+    factsHtml = '<ul style="margin:4px 0 0 16px;padding:0">' +
+      lore.key_facts.map(f => `<li>${escHtml(f)}</li>`).join('') + '</ul>';
+  }
+
+  container.innerHTML = `
+    <div class="lore-panel">
+      <div class="lore-panel-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">World Lore (click to toggle)</div>
+      <div class="lore-panel-body">
+        <p>${escHtml(lore.world_description)}</p>
+        ${factsHtml}
+      </div>
+    </div>
+  `;
+}
+
+// ===== Commentary (inline in battle log) =====
+
+function renderCommentaryEntry(state) {
+  // Called when a new commentary message arrives — appends to battle log
+  const container = document.getElementById('log-content');
+  if (!container) return;
+
+  const latest = state.commentaryLog[state.commentaryLog.length - 1];
+  if (!latest) return;
+
+  const div = document.createElement('div');
+  div.className = 'log-entry commentary';
+  div.textContent = latest;
+
+  container.appendChild(div);
+
+  // Auto-scroll
+  if (container.scrollHeight - container.scrollTop - container.clientHeight < 50) {
+    container.scrollTop = container.scrollHeight;
   }
 }
 

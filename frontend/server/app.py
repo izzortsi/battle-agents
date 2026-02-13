@@ -10,6 +10,7 @@ from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
 
@@ -69,9 +70,81 @@ async def _get_or_create_runner():
         return _runner
 
 
+# ================================================================
+# REST endpoints
+# ================================================================
+
+
 @app.get("/")
 async def index():
     return FileResponse(str(STATIC_DIR / "index.html"))
+
+
+@app.get("/api/characters")
+async def list_characters():
+    """Return lightweight character summaries for the landing page."""
+    from config_loader import load_character_summaries
+
+    return load_character_summaries()
+
+
+@app.get("/api/models")
+async def list_models():
+    """Return available model adapters and current routing config."""
+    from config_loader import load_llm_config
+
+    llm_cfg = load_llm_config()
+    adapters = []
+    for provider_key, provider_cfg in llm_cfg.get("adapters", {}).items():
+        for model_alias in provider_cfg.get("models", {}):
+            adapters.append(f"{provider_key}/{model_alias}")
+
+    routing = llm_cfg.get("routing", {})
+    return {
+        "adapters": adapters,
+        "default": llm_cfg.get("default_adapter", ""),
+        "routing": routing,
+    }
+
+
+class GenerateCharacterRequest(BaseModel):
+    name: str
+    description: str
+    combat_class: str = "warrior"
+    save: bool = False
+
+
+@app.post("/api/characters/generate")
+async def generate_character_endpoint(req: GenerateCharacterRequest):
+    """Generate a new character via LLM."""
+    from character_generator import generate_character, save_character
+    from config_loader import load_llm_config
+    from runner import create_adapter
+
+    llm_cfg = load_llm_config()
+    adapter, _ = create_adapter(llm_cfg)
+
+    data = await asyncio.to_thread(
+        generate_character, req.name, req.description, adapter
+    )
+
+    if req.save:
+        path = await asyncio.to_thread(save_character, data)
+        data["saved_path"] = str(path)
+
+    return {
+        "id": data["name"].lower().replace(" ", "_"),
+        "name": data["name"],
+        "combat_class": data.get("combat_class", req.combat_class),
+        "backstory": data.get("backstory", ""),
+        "personality_traits": data.get("personality_traits", []),
+        "full": data,
+    }
+
+
+# ================================================================
+# WebSocket
+# ================================================================
 
 
 @app.websocket("/ws")
@@ -92,10 +165,9 @@ async def websocket_endpoint(ws: WebSocket):
                 continue
 
             cmd = msg.get("type", "")
-            if cmd == "start":
-                # Start is handled directly (not via queue) to avoid
-                # chicken-and-egg: _run() reads the queue but _run()
-                # must be started first.
+            if cmd == "configure":
+                runner.apply_configure(msg)
+            elif cmd == "start":
                 await runner.start()
             elif cmd in ("step", "play", "pause", "speed"):
                 if cmd == "speed":

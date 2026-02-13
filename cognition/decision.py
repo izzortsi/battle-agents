@@ -379,6 +379,7 @@ def decide(
     current_plan: str = "",
     chat_allowed: bool = True,
     urgency_text: str = "",
+    world_lore: str = "",
 ) -> CombatDecision:
     """Use the LLM to select a combat action for this agent.
 
@@ -396,7 +397,7 @@ def decide(
     if not ctx:
         return CombatDecision(primary_action=make_wait(agent.agent_id, "no position"))
 
-    system_prompt = build_system_prompt(agent)
+    system_prompt = build_system_prompt(agent, world_lore=world_lore)
 
     # Build the user prompt with tile notation for move targets
     can_move_tiles = []
@@ -477,13 +478,14 @@ async def async_decide(
     current_plan: str = "",
     chat_allowed: bool = True,
     urgency_text: str = "",
+    world_lore: str = "",
 ) -> CombatDecision:
     """Async version of decide(). Calls llm.async_complete()."""
     ctx = _gather_context(agent, env, perceptions_text, memories)
     if not ctx:
         return CombatDecision(primary_action=make_wait(agent.agent_id, "no position"))
 
-    system_prompt = build_system_prompt(agent)
+    system_prompt = build_system_prompt(agent, world_lore=world_lore)
 
     can_move_tiles = []
     for tile_label in ctx["can_move"]:

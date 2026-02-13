@@ -52,6 +52,12 @@ class Renderer {
         this._updateHeader();
         renderLog(this.state);
         break;
+      case 'lore':
+        renderLore(this.state);
+        break;
+      case 'commentary':
+        renderCommentaryEntry(this.state);
+        break;
       case 'social_update':
         renderSocial(this.state);
         break;
@@ -68,6 +74,7 @@ class Renderer {
     this._createGrid();
     this._createSprites();
     this._updateHeader();
+    renderLore(this.state);
     this._updateActiveTurn();
     renderCards(this.state);
     renderCharacterSheet(this.state);
@@ -141,6 +148,7 @@ class Renderer {
     const phaseLabels = {
       idle: 'IDLE',
       setup: 'SETUP',
+      generating_lore: 'GENERATING LORE',
       pre_battle: 'PRE-BATTLE',
       combat: 'COMBAT',
       victory: 'VICTORY',

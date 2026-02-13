@@ -76,3 +76,23 @@ def load_all_characters(directory: str | Path | None = None) -> list[Agent]:
     for p in sorted(d.glob("*.yaml")):
         agents.append(load_character(p))
     return agents
+
+
+def load_character_summaries(directory: str | Path | None = None) -> list[dict]:
+    """Load lightweight character summaries for the landing page.
+
+    Returns a list of dicts with: id, name, combat_class, backstory,
+    personality_traits — enough for display without full Agent construction.
+    """
+    d = Path(directory) if directory else CONFIG_DIR / "characters"
+    summaries = []
+    for p in sorted(d.glob("*.yaml")):
+        data = load_yaml(p)
+        summaries.append({
+            "id": data["name"].lower().replace(" ", "_"),
+            "name": data["name"],
+            "combat_class": data.get("combat_class", "warrior"),
+            "backstory": data.get("backstory", ""),
+            "personality_traits": data.get("personality_traits", []),
+        })
+    return summaries

@@ -1,5 +1,5 @@
 /**
- * main.js — Entry point. WebSocket connection and event routing.
+ * main.js — Entry point. Landing page, WebSocket connection and event routing.
  */
 
 (function () {
@@ -21,7 +21,6 @@
 
     ws.onopen = () => {
       console.log('WebSocket connected');
-      document.getElementById('btn-start').disabled = false;
     };
 
     ws.onmessage = (evt) => {
@@ -55,14 +54,11 @@
     switch (msg.type) {
       case 'restore':
         state.applyRestore(msg);
-        // Simulation already started — update buttons
-        btnStart.disabled = true;
-        btnStep.disabled = false;
-        btnPlay.disabled = false;
-        btnPause.disabled = false;
+        transitionToBattle();
         break;
       case 'snapshot':
         state.applySnapshot(msg);
+        transitionToBattle();
         break;
       case 'phase':
         state.applyPhase(msg);
@@ -88,10 +84,47 @@
       case 'social_update':
         state.applySocialUpdate(msg);
         break;
+      case 'lore':
+        state.applyLore(msg);
+        break;
+      case 'commentary':
+        state.applyCommentary(msg);
+        break;
       default:
         console.warn('Unknown message type:', msg.type);
     }
   }
+
+  // ===== Landing page → Battle transition =====
+
+  let battleStarted = false;
+
+  function transitionToBattle() {
+    if (battleStarted) return;
+    battleStarted = true;
+
+    // Hide landing, show battle UI
+    if (landing) landing.hide();
+    document.getElementById('main').classList.remove('hidden');
+
+    // Enable control buttons
+    btnStep.disabled = false;
+    btnPlay.disabled = false;
+    btnPause.disabled = false;
+  }
+
+  // ===== Landing page =====
+
+  const landing = new LandingPage((config) => {
+    // Send configure message (always has type: 'configure')
+    send(config);
+
+    // Start simulation
+    send({ type: 'start' });
+
+    // Show starting phase
+    document.getElementById('phase-badge').textContent = 'STARTING';
+  });
 
   // ===== Control buttons =====
 
@@ -101,14 +134,6 @@
   const btnPause = document.getElementById('btn-pause');
   const speedSlider = document.getElementById('speed-slider');
   const speedValue = document.getElementById('speed-value');
-
-  btnStart.addEventListener('click', () => {
-    send({ type: 'start' });
-    btnStart.disabled = true;
-    btnStep.disabled = false;
-    btnPlay.disabled = false;
-    btnPause.disabled = false;
-  });
 
   btnStep.addEventListener('click', () => {
     send({ type: 'step' });

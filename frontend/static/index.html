@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Battle-Agents</title>
   <link rel="stylesheet" href="/static/css/layout.css">
+  <link rel="stylesheet" href="/static/css/landing.css">
   <link rel="stylesheet" href="/static/css/sprites.css">
   <link rel="stylesheet" href="/static/css/animations.css">
 </head>
@@ -17,7 +18,7 @@
       <span id="round-badge" class="badge badge-dim">Round —</span>
     </div>
     <div class="header-controls">
-      <button id="btn-start" title="Start simulation">Start</button>
+      <button id="btn-start" title="Start simulation" style="display:none">Start</button>
       <button id="btn-step" title="Advance one turn" disabled>Step</button>
       <button id="btn-play" title="Auto-advance" disabled>Play</button>
       <button id="btn-pause" title="Pause" disabled>Pause</button>
@@ -29,8 +30,11 @@
     </div>
   </header>
 
-  <!-- Main layout -->
-  <main id="main">
+  <!-- Landing page (shown first) -->
+  <div id="landing-page"></div>
+
+  <!-- Main battle layout (hidden until battle starts) -->
+  <main id="main" class="hidden">
     <!-- Left panel: Agent cards -->
     <aside id="panel-agents" class="panel">
       <h2>Agents</h2>
@@ -49,8 +53,9 @@
       </svg>
     </section>
 
-    <!-- Right panel: Character Sheet + Social + Cognitive -->
+    <!-- Right panel: Lore + Character Sheet + Social + Cognitive -->
     <aside id="panel-info" class="panel">
+      <div id="lore-display"></div>
       <div id="character-panel">
         <h2>Character Sheet</h2>
         <div id="character-content"></div>
@@ -83,6 +88,7 @@
   <script src="/static/js/sprites.js"></script>
   <script src="/static/js/panels.js"></script>
   <script src="/static/js/renderer.js"></script>
+  <script src="/static/js/landing.js"></script>
   <script src="/static/js/main.js"></script>
 </body>
 </html>

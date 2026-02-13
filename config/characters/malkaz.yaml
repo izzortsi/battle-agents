@@ -1,0 +1,59 @@
+name: Malkaz
+combat_class: Geometric Gunslinger
+backstory: Once a prestigious professor of spatial dynamics, Malkaz abandoned his
+  chalkboard when he realized the world's most complex equations were best solved
+  in ballistic motion. He now treats every skirmish as a live-fire proof, utilizing
+  custom-built revolvers to calculate lethal ricochets that defy conventional physics.
+  Driven by a desire to find a problem his bullets can't solve, he wanders the arenas
+  looking for an intellectual challenge.
+personality_traits:
+- Analytically detached
+- Condescendingly brilliant
+- Methodical
+- Chronically unimpressed
+attributes:
+  atk: 14
+  mgk: 12
+  spd: 16
+  con: 10
+  hit: 20
+  attack_range: 3
+abilities:
+- name: Ricochet Proof
+  mana_cost: 6
+  damage: 18
+  range: 4
+  aoe_pattern: line
+  cooldown: 3
+  current_cd: 0
+  description: Malkaz fires a bullet that bounces off environmental surfaces at impossible
+    angles, striking multiple enemies in a precise trajectory.
+  tactical_hint: Use this to strike through enemy lines and hit protected back-line
+    targets simultaneously.
+  effects: []
+- name: Spatial Analysis
+  mana_cost: 8
+  damage: 0
+  range: 1
+  aoe_pattern: single
+  cooldown: 4
+  current_cd: 0
+  description: Malkaz stands still for a moment, calculating every variable of the
+    battlefield to predict enemy movements.
+  tactical_hint: Activate this to gain a massive accuracy and evasion advantage before
+    an aggressive push.
+  effects:
+  - type: calculated_precision
+    behavior: stat_modifier
+    duration: 2
+    magnitude: 0.4
+    target: self
+    category: buff
+    chance: 1.0
+  - type: predictive_evasion
+    behavior: miss_chance
+    duration: 2
+    magnitude: 0.3
+    target: self
+    category: buff
+    chance: 1.0

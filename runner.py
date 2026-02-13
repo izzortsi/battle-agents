@@ -271,6 +271,96 @@ def create_adapter(llm_cfg: dict):
     return adapter, model_id
 
 
+def _create_single_adapter(provider_key: str, model_cfg: dict, provider_cfg: dict):
+    """Create a single LLM adapter from provider key and model config."""
+    model_id = model_cfg.get("model_id")
+
+    if provider_key == "openrouter":
+        from llm.openrouter_adapter import OpenRouterAdapter
+
+        model_id = model_id or "google/gemini-2.5-flash"
+        return OpenRouterAdapter(model=model_id)
+
+    elif provider_key == "openai":
+        from llm.openai_adapter import OpenAIAdapter
+
+        model_id = model_id or "gpt-4o"
+        return OpenAIAdapter(model=model_id)
+
+    elif provider_key == "anthropic":
+        from llm.anthropic_oauth_adapter import AnthropicOAuthAdapter
+
+        model_id = model_id or "claude-sonnet-4-5-20250929"
+        auth_mode = provider_cfg.get("auth", "oauth")
+        if auth_mode == "oauth":
+            return AnthropicOAuthAdapter(model=model_id)
+        else:
+            raise ValueError(
+                f"Anthropic auth mode '{auth_mode}' not yet supported. Use 'oauth'."
+            )
+    else:
+        raise ValueError(
+            f"Unknown LLM provider '{provider_key}'. "
+            f"Supported: openrouter, openai, anthropic"
+        )
+
+
+def create_model_registry(llm_cfg: dict):
+    """Create all configured adapters and register them in a ModelRegistry.
+
+    Returns (registry, default_adapter, default_model_id).
+    """
+    from llm.adapter import ModelRegistry
+
+    registry = ModelRegistry()
+    adapters_cfg = llm_cfg.get("adapters", {})
+
+    for provider_key, provider_cfg in adapters_cfg.items():
+        models_cfg = provider_cfg.get("models", {})
+        for model_alias, model_cfg in models_cfg.items():
+            key = f"{provider_key}/{model_alias}"
+            try:
+                adapter = _create_single_adapter(provider_key, model_cfg, provider_cfg)
+                registry.register(key, adapter)
+                log.info(f"  Registered adapter: {key}")
+            except Exception as e:
+                log.warning(f"  Skipped adapter {key}: {e}")
+
+    default_key = llm_cfg.get("default_adapter", "openrouter/gemini-3-flash")
+    if default_key in registry:
+        registry.set_default(default_key)
+    elif len(registry) > 0:
+        # Fallback: use first available adapter
+        first_key = registry.available[0]
+        registry.set_default(first_key)
+        log.warning(f"  Default adapter '{default_key}' not found, using '{first_key}'")
+
+    default_adapter = registry.get()
+    return registry, default_adapter
+
+
+def build_routing_dict(llm_cfg: dict, registry) -> dict:
+    """Build a role -> LLMAdapter mapping from config routing section.
+
+    Config routing values are adapter keys like "openrouter/gemini-3-flash".
+    Falls back gracefully: unknown keys are skipped (CognitiveLoop uses default).
+    """
+    from llm.adapter import LLMAdapter
+
+    routing_cfg = llm_cfg.get("routing", {})
+    routing: dict[str, LLMAdapter] = {}
+
+    for role, adapter_key in routing_cfg.items():
+        if adapter_key in ("heuristic",):
+            continue  # special non-LLM roles
+        if adapter_key in registry:
+            routing[role] = registry.get(adapter_key)
+        else:
+            log.debug(f"  Routing role '{role}' -> '{adapter_key}' not in registry, using default")
+
+    return routing
+
+
 def setup_cognitive_loop(game_cfg: dict) -> tuple:
     """Create and configure the LLM adapter and CognitiveLoop.
 
@@ -278,13 +368,13 @@ def setup_cognitive_loop(game_cfg: dict) -> tuple:
     """
     from cognition.cognitive_loop import CognitiveLoop
     from cognition.embeddings import create_embedding_cache
-    from llm.adapter import ModelRegistry
 
     llm_cfg = load_llm_config()
-    adapter, model_id = create_adapter(llm_cfg)
+    registry, default_adapter = create_model_registry(llm_cfg)
+    model_id = default_adapter.name
 
-    registry = ModelRegistry()
-    registry.register(llm_cfg.get("default_adapter", "openrouter"), adapter)
+    # Build per-aspect routing dict
+    routing = build_routing_dict(llm_cfg, registry)
 
     # Create embedding cache from config (None if provider is "none")
     embedding_cfg = llm_cfg.get("embedding", {})
@@ -294,7 +384,7 @@ def setup_cognitive_loop(game_cfg: dict) -> tuple:
     pre_battle_cfg = game_cfg.get("pre_battle", {})
 
     cognitive_loop = CognitiveLoop(
-        llm=adapter,
+        llm=default_adapter,
         retrieval_top_k=combat_cfg.get("retrieval_top_k", 7),
         retrieval_decay=combat_cfg.get("retrieval_decay", 0.85),
         chat_max_rounds=combat_cfg.get("chat_max_rounds", 2),
@@ -302,6 +392,7 @@ def setup_cognitive_loop(game_cfg: dict) -> tuple:
         pre_battle_chat_max_rounds=pre_battle_cfg.get("chat_max_rounds", 4),
         chat_cooldown=combat_cfg.get("chat_cooldown", 3),
         embedding_cache=embedding_cache,
+        routing=routing,
     )
 
     return cognitive_loop, model_id
