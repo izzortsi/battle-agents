@@ -5,16 +5,18 @@ grid:
   height: 10
 
 pre_battle:
-  enabled: false       # Phase 1: combat only
+  enabled: true        # Phase 4: social phase before combat
   duration_ticks: 6
   tick_mode: simultaneous
-  chat_max_rounds: 4
+  chat_max_rounds: 2
   perception_radius: 12
 
 combat:
-  chat_max_rounds: 2
+  chat_max_rounds: 1          # 1 round = 2 messages (init + reply) during combat
+  chat_cooldown: 3            # rounds between free chats per agent
+  max_no_damage_rounds: 4     # stagnation: inject urgency after this many rounds with 0 damage
   perception_radius: 8
-  reflection_threshold: 50
+  reflection_threshold: 75
   retrieval_top_k: 7
   retrieval_decay: 0.85
 

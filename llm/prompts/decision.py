@@ -17,30 +17,41 @@ if TYPE_CHECKING:
 # -- System prompt (character sheet + rules) --------------------------------
 
 SYSTEM_TEMPLATE = """\
-You are {name}, a {combat_class} in a tactical combat arena.
+You are {name}, a {combat_class} in a deadly combat arena. Only ONE combatant \
+survives. You MUST fight to win — there is no escape, no truce, and no mercy.
 
 PERSONALITY: {personality}
 BACKSTORY: {backstory}
 
 You must stay in character at all times. Your decisions should reflect your \
-personality traits, your memories, and your tactical assessment of the situation.
+personality, your memories, and your tactical assessment — but above all, \
+you must actively engage enemies and deal damage. Standing around or \
+endlessly talking will get you killed.
 
-RULES:
+COMBAT RULES:
 - You are on a 2D tile grid. Coordinates are (x, y).
-- Each turn you must choose exactly ONE action.
-- You can only attack targets within your attack range ({attack_range} tiles, Manhattan distance).
-- You can move to an adjacent tile (up/down/left/right) if it is passable and unoccupied.
-- DEFEND raises your defense for one turn (diminishing returns if used consecutively).
-- WAIT does nothing.
-- CHAT sends a message to another agent (costs your action).
+- Each turn you choose a PRIMARY action: move, attack, defend, or wait.
+- ATTACK is your most important action. Attack enemies whenever you can. \
+You can only attack targets within your attack range ({attack_range} tiles, Manhattan distance).
+- MOVE toward enemies if none are in attack range. Closing distance is critical.
+- DEFEND raises your defense for one turn (diminishing returns if used repeatedly). \
+Use DEFEND only when badly wounded and enemies are far away.
+- WAIT is almost never correct. Only wait if you have a very specific tactical reason.
+- You may OCCASIONALLY send a brief chat alongside move/defend/wait (NOT attack). \
+Chat is for taunts, threats, or last-second alliance pleas — use it sparingly, \
+not every turn. Include "chat_target" and "chat_message" to chat.
+- Attacking is a focused action and cannot be combined with chatting.
+
+PRIORITY ORDER: Attack > Move toward enemy > Defend (if hurt) > everything else.
 
 Respond with a JSON object. No other text. The JSON must have this exact schema:
 {{
   "reasoning": "<your internal tactical reasoning, 1-3 sentences, in character>",
-  "action": "<one of: move, attack, defend, wait, chat>",
+  "action": "<one of: move, attack, defend, wait>",
   "target_tile": "<x_y format, required for move, omit otherwise>",
-  "target_agent": "<agent_id, required for attack/chat, omit otherwise>",
-  "message": "<message text, required for chat, omit otherwise>"
+  "target_agent": "<agent_id, required for attack, omit otherwise>",
+  "chat_target": "<agent_id of who to talk to, optional, rare>",
+  "chat_message": "<message text, optional, rare>"
 }}
 """
 
@@ -57,6 +68,7 @@ YOUR STATUS:
   Move range: {move_range}  |  Attack range: {attack_range}
 {status_effects_line}
 {plan_section}
+{urgency_section}
 CURRENT PERCEPTIONS:
 {perceptions}
 
@@ -69,6 +81,8 @@ ENEMIES YOU CAN SEE:
 AVAILABLE ACTIONS:
 {available_actions}
 
+REMEMBER: You MUST fight. Attack if enemies are in range. Move closer if they \
+are not. Defend only if critically wounded. Chatting is optional and rare.
 Choose your action. Respond with JSON only."""
 
 
@@ -142,7 +156,7 @@ def format_available_actions(
     """Format the set of available actions for the prompt."""
     lines = []
     if can_attack:
-        lines.append(f"  ATTACK targets: {', '.join(can_attack)}")
+        lines.append(f"  ATTACK targets: {', '.join(can_attack)} (exclusive — no chat)")
     if can_move:
         # Show up to 6 move options to avoid prompt bloat
         display = can_move[:6]
@@ -151,7 +165,9 @@ def format_available_actions(
     lines.append("  DEFEND (raise defense this turn)")
     lines.append("  WAIT (do nothing)")
     if can_chat:
-        lines.append(f"  CHAT with: {', '.join(can_chat)}")
+        lines.append(
+            f"  FREE CHAT (combine with move/defend/wait): {', '.join(can_chat)}"
+        )
     return "\n".join(lines)
 
 
@@ -168,6 +184,7 @@ def build_user_prompt(
     can_chat: list[str],
     current_plan: str = "",
     social_dispositions: dict[str, float] | None = None,
+    urgency_text: str = "",
 ) -> str:
     """Build the user prompt with full situational context."""
     status_effects = agent.attributes.status_effects
@@ -181,6 +198,11 @@ def build_user_prompt(
         plan_section = f"\nYOUR CURRENT PLAN:\n  {current_plan}\n"
     else:
         plan_section = ""
+
+    if urgency_text:
+        urgency_section = f"\n*** URGENT: {urgency_text} ***\n"
+    else:
+        urgency_section = ""
 
     return USER_TEMPLATE.format(
         round_number=round_number,
@@ -197,6 +219,7 @@ def build_user_prompt(
         attack_range=agent.attributes.attack_range,
         status_effects_line=status_effects_line,
         plan_section=plan_section,
+        urgency_section=urgency_section,
         perceptions=perceptions_text,
         memories=format_memories(memories),
         visible_enemies=format_visible_enemies(visible_enemies, social_dispositions),

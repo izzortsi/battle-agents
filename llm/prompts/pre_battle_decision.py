@@ -1,9 +1,9 @@
-"""Pre-battle decision prompt template — social-phase action selection.
+"""Pre-battle decision prompt template — social-phase compound actions.
 
-During the pre-battle phase, agents can only CHAT, MOVE, or WAIT.
-There is no combat (no attack/defend). The emphasis is on social
-interaction: approaching other agents, initiating conversations,
-forming alliances or enmities based on personality and backstory.
+During the pre-battle phase agents choose a **primary action** (move or wait)
+AND may optionally initiate a **free chat** in the same tick.  There is no
+combat (no attack/defend).  The emphasis is on social interaction: approaching
+other agents, initiating conversations, forming alliances or enmities.
 """
 
 from __future__ import annotations
@@ -32,11 +32,10 @@ personality traits, your memories, and your social goals.
 
 RULES:
 - You are on a 2D tile grid. Coordinates are (x, y).
-- Each tick you must choose exactly ONE action.
-- CHAT: approach and talk to another agent. This is FREE — no cost. \
-Chat is the primary activity in this phase.
-- MOVE: walk to an adjacent tile to get closer to someone you want to talk to.
-- WAIT: observe and do nothing.
+- Each tick you choose a PRIMARY ACTION plus an optional free CHAT.
+- Primary actions: MOVE (walk to an adjacent tile) or WAIT (observe).
+- CHAT is FREE — it does not cost your action. You may chat AND move/wait \
+in the same tick. Chatting is the main activity of this phase.
 - There is NO combat in this phase. You cannot attack or defend.
 
 SOCIAL GOALS to consider:
@@ -49,10 +48,10 @@ SOCIAL GOALS to consider:
 Respond with a JSON object. No other text. The JSON must have this exact schema:
 {{
   "reasoning": "<your social reasoning, 1-3 sentences, in character>",
-  "action": "<one of: chat, move, wait>",
+  "action": "<primary action: move or wait>",
   "target_tile": "<x_y format, required for move, omit otherwise>",
-  "target_agent": "<agent_id, required for chat, omit otherwise>",
-  "message": "<message text, required for chat, omit otherwise>"
+  "chat_target": "<agent_id of who to talk to, omit if not chatting>",
+  "chat_message": "<what you say to start the conversation, omit if not chatting>"
 }}
 """
 
@@ -78,7 +77,8 @@ RELEVANT MEMORIES:
 AVAILABLE ACTIONS:
 {available_actions}
 
-Think about who you want to talk to and why. Respond with JSON only."""
+Think about who you want to talk to AND where you want to move. \
+You can do both in one tick. Respond with JSON only."""
 
 
 # -- Builder functions -------------------------------------------------------
@@ -146,13 +146,18 @@ def format_pre_battle_actions(
 ) -> str:
     """Format available pre-battle actions."""
     lines = []
-    if can_chat:
-        lines.append(f"  CHAT with: {', '.join(can_chat)}")
+    lines.append("  PRIMARY ACTION (choose one):")
     if can_move:
         display = can_move[:6]
         extra = f" (+{len(can_move) - 6} more)" if len(can_move) > 6 else ""
-        lines.append(f"  MOVE to tiles: {', '.join(display)}{extra}")
-    lines.append("  WAIT (observe and do nothing)")
+        lines.append(f"    MOVE to tiles: {', '.join(display)}{extra}")
+    lines.append("    WAIT (observe and do nothing)")
+    lines.append("")
+    lines.append("  FREE CHAT (optional, can combine with move/wait):")
+    if can_chat:
+        lines.append(f"    Talk to: {', '.join(can_chat)}")
+    else:
+        lines.append("    (nobody in range to chat with)")
     return "\n".join(lines)
 
 
