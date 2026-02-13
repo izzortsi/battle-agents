@@ -62,6 +62,13 @@
   pointer-events: none;
 }
 
+/* Spritesheet image rendering */
+.sprite-sheet [data-role="ss-image"] {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
 /* Dead state */
 .sprite-group[data-alive="false"] .silhouette-body {
   fill: #444;
@@ -78,6 +85,11 @@
 .sprite-group[data-alive="false"] {
   transform-origin: center;
   filter: grayscale(1);
+}
+
+/* Dead spritesheet: grayscale + dim */
+.sprite-group[data-alive="false"] [data-role="ss-container"] {
+  opacity: 0.3;
 }
 
 /* Active turn indicator */

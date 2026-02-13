@@ -6,6 +6,19 @@ const CELL_SIZE = 52;
 const SPRITE_W = 36;
 const SPRITE_H = 42;
 
+// Spritesheet constants (RPG Maker style: 3 cols × 4 rows, each frame 32×32)
+const SS_FRAME_W = 32;
+const SS_FRAME_H = 32;
+const SS_COLS = 3;
+const SS_SHEET_W = SS_FRAME_W * SS_COLS; // 96
+const SS_SHEET_H = SS_FRAME_H * 4;       // 128
+
+// Row indices for facing direction
+const SS_DIR = { down: 0, left: 1, right: 2, up: 3 };
+
+// Idle frame column
+const SS_IDLE_COL = 1;
+
 const CLASS_PALETTES = {
   warrior: { primary: '#708090', secondary: '#8B0000', accent: '#cd5c5c' },
   mage:    { primary: '#4B0082', secondary: '#4169E1', accent: '#9370db' },

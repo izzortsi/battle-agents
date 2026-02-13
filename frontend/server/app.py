@@ -107,6 +107,19 @@ async def list_models():
     }
 
 
+@app.get("/api/sprites")
+async def list_sprites():
+    """Return available sprite presets (scanned from spritesheets directory)."""
+    sprites_dir = STATIC_DIR / "assets" / "spritesheets"
+    presets = []
+    if sprites_dir.is_dir():
+        for p in sorted(sprites_dir.glob("*.png")):
+            preset_id = p.stem  # e.g. "Mecha_Samus"
+            label = preset_id.replace("_", " ")
+            presets.append({"id": preset_id, "label": label, "file": p.name})
+    return presets
+
+
 class GenerateCharacterRequest(BaseModel):
     name: str
     description: str

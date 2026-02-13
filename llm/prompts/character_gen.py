@@ -96,10 +96,11 @@ EFFECT SCHEMA — each effect in the effects list:
     * "passive" — tracked but no automatic enforcement
   - duration: Integer 1-3 turns
   - magnitude: Float 0.0-0.5 (meaning depends on behavior)
-  - target: "self" for buffs/heals on caster, "enemy" for debuffs on target
+  - target: "self" for buffs/heals on caster, "enemy" for debuffs on target, "ally" for heals/buffs on an ally
   - category: "buff", "debuff", "heal", or "movement"
     * "heal" with target "self" restores magnitude * max_hp as HP
-    * "buff" applies a status to the caster
+    * "heal" with target "ally" heals a targeted ally for magnitude * max_hp
+    * "buff" applies a status to the caster (target "self") or ally (target "ally")
     * "debuff" applies a status to the target (rolled against chance)
     * "movement" teleports caster to an adjacent tile near target
   - chance: Float 0.0-1.0 (probability of application; 1.0 for buffs, \
@@ -141,7 +142,7 @@ Respond with a JSON object only. No other text. Schema:
           "behavior": "<string>",
           "duration": <int>,
           "magnitude": <float>,
-          "target": "<self|enemy>",
+          "target": "<self|enemy|ally>",
           "category": "<buff|debuff|heal|movement>",
           "chance": <float>
         }

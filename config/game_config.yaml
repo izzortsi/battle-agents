@@ -12,8 +12,8 @@ pre_battle:
   perception_radius: 12
 
 combat:
-  chat_max_rounds: 1          # 1 round = 2 messages (init + reply) during combat
-  chat_cooldown: 3            # rounds between free chats per agent
+  chat_max_rounds: 2          # 2 rounds = up to 4 messages per dialogue during combat
+  chat_cooldown: 2            # rounds between free chats per agent
   max_no_damage_rounds: 4     # stagnation: inject urgency after this many rounds with 0 damage
   perception_radius: 8
   reflection_threshold: 75
@@ -25,7 +25,7 @@ alliance:
   hostile_threshold: -0.3
 
 victory:
-  mode: "last_standing"
+  mode: "alliance_victory"   # "last_standing" or "alliance_victory"
 
 balance:
   # -- HP derivation --

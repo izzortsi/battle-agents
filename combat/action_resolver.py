@@ -19,6 +19,7 @@ from agent.attributes import get_balance
 from combat.actions import ActionType, CombatAction
 from combat.aoe import get_affected_tiles
 from combat.status_registry import get_behavior
+from world.alliance_resolver import AllianceStatus, resolve_alliance
 from world.battle_grid import BattleGrid
 
 if TYPE_CHECKING:
@@ -441,8 +442,8 @@ def _resolve_effect(
 
     Routes by category:
       movement — find empty adjacent tile, move caster
-      heal     — restore HP based on magnitude * max_hp
-      buff     — append status to caster (unconditional)
+      heal     — restore HP based on magnitude * max_hp (self, ally, or enemy)
+      buff     — append status to caster or ally (unconditional)
       debuff   — roll chance, append to target on success
     """
     category = effect.get("category", "debuff")
@@ -475,19 +476,37 @@ def _resolve_effect(
 
     # --- Heal ---
     if category == "heal" or etype == "heal":
-        recipient = caster if effect_target == "self" else target
-        if recipient is None:
+        if effect_target == "self":
+            recipient = caster
+        elif effect_target == "ally" and target is not None:
+            recipient = target
+        elif target is not None:
+            recipient = target
+        else:
             recipient = caster
         heal_amount = int(recipient.attributes.max_hp * magnitude)
         actual = recipient.attributes.heal(heal_amount)
+        # Social model update: if healing an ally (not self)
+        if recipient.agent_id != caster.agent_id:
+            turn = env.turn_manager.global_turn
+            recipient.social.on_healed_by(
+                healer_id=caster.agent_id,
+                turn=turn,
+                amount=actual,
+                agent_name=caster.name,
+            )
         return (
             f"{recipient.name} heals for {actual} HP "
             f"({recipient.attributes.hp}/{recipient.attributes.max_hp})."
         )
 
-    # --- Buff (applied to caster, unconditional) ---
-    if category == "buff" or effect_target == "self":
-        caster.attributes.status_effects.append(
+    # --- Buff (applied to caster or ally) ---
+    if category == "buff" or (effect_target == "self" and category != "debuff"):
+        if effect_target == "ally" and target is not None:
+            buff_recipient = target
+        else:
+            buff_recipient = caster
+        buff_recipient.attributes.status_effects.append(
             {
                 "type": etype,
                 "duration": duration,
@@ -495,7 +514,7 @@ def _resolve_effect(
                 "source": caster.agent_id,
             }
         )
-        return f"{caster.name} gains {etype} ({duration} turns)."
+        return f"{buff_recipient.name} gains {etype} ({duration} turns)."
 
     # --- Debuff (applied to target, roll chance) ---
     if target is None:
@@ -559,6 +578,13 @@ def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult"
     if ability.get("damage", 0) == 0 and is_self_targeting:
         is_self_targeting = True
 
+    # --- Determine if ally-targeting ---
+    is_ally_targeting = False
+    if effects and not is_self_targeting:
+        has_ally_effects = any(e.get("target") == "ally" for e in effects)
+        if has_ally_effects and ability.get("damage", 0) == 0:
+            is_ally_targeting = True
+
     # --- Resolve target ---
     target = None
     target_pos = None
@@ -566,6 +592,25 @@ def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult"
         # Self-targeting: target is the caster
         target = agent
         target_pos = env.world_state.get_position(agent.agent_id)
+    elif is_ally_targeting:
+        # Ally-targeting: target_agent can be self or another agent
+        target_id = action.target_agent
+        if not target_id or target_id == agent.agent_id:
+            # Target self
+            target = agent
+            target_pos = env.world_state.get_position(agent.agent_id)
+        elif target_id in env.agents and env.agents[target_id].is_alive:
+            target = env.agents[target_id]
+            target_pos = env.world_state.get_position(target_id)
+        else:
+            agent.attributes.mana = min(
+                agent.attributes.max_mana, agent.attributes.mana + mana_cost
+            )
+            return ActionResult(
+                agent.agent_id,
+                False,
+                f"{agent.name} tried to use {ability['name']} on an invalid ally.",
+            )
     else:
         target_id = action.target_agent
         if not target_id or target_id not in env.agents:
@@ -668,11 +713,28 @@ def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult"
             desc = _resolve_effect(effect, agent, None, env)
             if desc:
                 log_parts.append(desc)
+    elif is_ally_targeting:
+        # Ally-targeting: apply heal/buff effects to the targeted ally
+        for effect in effects:
+            desc = _resolve_effect(effect, agent, target, env)
+            if desc:
+                log_parts.append(desc)
     else:
         if not affected_agents and base_damage > 0:
             log_parts.append("But no enemies are caught in the area.")
         else:
             for affected in affected_agents:
+                # Determine alliance status for AoE friendly fire reduction
+                is_ally = False
+                if agent.agent_id != affected.agent_id:
+                    status = resolve_alliance(
+                        agent.social,
+                        affected.social,
+                        agent.agent_id,
+                        affected.agent_id,
+                    )
+                    is_ally = status == AllianceStatus.ALLIED
+
                 # Dodge check: (target.spd - attacker.spd) * 0.03
                 dodge_chance = max(
                     0.0, (affected.attributes.spd - agent.attributes.spd) * 0.03
@@ -683,10 +745,15 @@ def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult"
 
                 # Apply damage
                 if base_damage > 0:
-                    actual = _apply_damage(base_damage, agent, affected)
+                    effective_damage = base_damage
+                    if is_ally:
+                        # Allied targets take 50% damage from AoE friendly fire
+                        effective_damage = max(1, base_damage // 2)
+                    actual = _apply_damage(effective_damage, agent, affected)
                     total_damage += actual
+                    ff_tag = " (friendly fire!)" if is_ally else ""
                     log_parts.append(
-                        f"{affected.name} takes {actual} damage "
+                        f"{affected.name} takes {actual} damage{ff_tag} "
                         f"({affected.attributes.hp}/{affected.attributes.max_hp} HP)."
                     )
                     if not affected.is_alive:
@@ -701,6 +768,9 @@ def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult"
                     if eff_target == "self":
                         # Self-targeting effect on an offensive ability (e.g., self-buff)
                         desc = _resolve_effect(effect, agent, None, env)
+                    elif is_ally and effect.get("category", "debuff") == "debuff":
+                        # Skip debuffs on allied targets from AoE friendly fire
+                        continue
                     else:
                         desc = _resolve_effect(effect, agent, affected, env)
                     if desc:

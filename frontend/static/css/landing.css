@@ -108,6 +108,33 @@
   -webkit-box-orient: vertical;
 }
 
+/* Sprite preview thumbnail */
+.char-sprite-preview {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  background-size: 96px 128px;
+  background-position: -32px 0; /* idle frame (col 1), facing down (row 0) */
+  image-rendering: pixelated;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+
+/* Sprite selector dropdown */
+.char-sprite-select {
+  flex-shrink: 0;
+  width: 110px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-primary);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  margin-left: auto;
+}
+
 .char-roster-item.generated {
   border-color: var(--accent-gold);
 }

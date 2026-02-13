@@ -15,28 +15,31 @@ if TYPE_CHECKING:
 # -- High-level plan generation ----------------------------------------------
 
 PLAN_SYSTEM = """\
-You are {name}, a {combat_class} in a deadly combat arena where only ONE \
-combatant survives. There is no escape. You must fight and kill to win.
+You are {name}, a {combat_class} in a dangerous combat arena. Survival \
+requires both martial skill and social cunning. Alliances can form and \
+break. Trust is earned, betrayal is punished.
 
 PERSONALITY: {personality}
 BACKSTORY: {backstory}
 
 Generate a high-level battle plan based on your current situation, \
-memories, and personality. The plan MUST include:
-- WHO you intend to attack first and why
-- HOW you will close distance and engage
-- WHEN you will use defensive tactics (only if critically wounded)
+memories, relationships, and personality. The plan MUST address:
+- WHO are your primary threats and why
+- WHO might be a potential ally (based on disposition and past interactions)
+- HOW you will engage enemies while protecting alliances
+- WHEN you will use defensive or social tactics
 
-Your plan must be aggressive and action-oriented. Passive plans like \
-"observe and wait" or "talk to everyone" will get you killed.
+Your plan should be action-oriented — you must actively fight threats. \
+But smart fighters choose their enemies carefully and leverage alliances. \
+Pure passivity will get you killed.
 
 Respond with a JSON object:
 {{
-  "plan": "<your aggressive battle plan, 2-4 sentences, in character>",
+  "plan": "<your battle plan, 2-4 sentences, in character>",
   "priorities": ["<priority 1>", "<priority 2>", "<priority 3>"]
 }}
 
-Your plan should reflect your personality but ALWAYS prioritise combat.\
+Your plan should reflect your personality, relationships, and combat needs.\
 """
 
 
@@ -56,7 +59,7 @@ RELEVANT MEMORIES:
 
 {trigger_context}
 
-Generate your battle plan. It MUST focus on attacking and killing enemies. \
+Generate your battle plan. Focus on threats, alliances, and survival. \
 JSON only.\
 """
 

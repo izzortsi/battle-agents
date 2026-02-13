@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from ontology.schemas import create_store
 from ontology.world_state import WorldState
+from world.alliance_resolver import AllianceStatus, resolve_alliance
 from world.battle_grid import BattleGrid
 from world.perception_engine import Observation, PerceptionEngine
 from world.turn_manager import TurnManager
@@ -40,6 +41,7 @@ class Environment:
         self,
         grid: BattleGrid,
         perception_radius: int = 8,
+        victory_mode: str = "last_standing",
     ) -> None:
         self.grid = grid
         self.world_state = WorldState(create_store())
@@ -50,6 +52,7 @@ class Environment:
         self.agents: dict[str, Agent] = {}
         self.recent_actions: dict[str, dict] = {}  # last tick's action descriptions
         self.event_log: list[ActionResult] = []
+        self.victory_mode = victory_mode
 
     # -- Setup -----------------------------------------------------------------
 
@@ -174,11 +177,87 @@ class Environment:
 
     def is_combat_over(self) -> bool:
         alive = self.alive_agents()
-        return len(alive) <= 1
+        if len(alive) <= 1:
+            return True
+        # Alliance victory: all survivors are mutually ALLIED
+        if self.victory_mode == "alliance_victory" and self.all_mutually_allied():
+            return True
+        return False
 
     def get_winner(self) -> Agent | None:
+        """Return the sole winner, or None for a draw.
+
+        For alliance_victory mode, returns None when multiple allies win
+        together — use get_winners() instead.
+        """
         alive = self.alive_agents()
-        return alive[0] if len(alive) == 1 else None
+        if len(alive) == 1:
+            return alive[0]
+        return None
+
+    def get_winners(self) -> list[Agent]:
+        """Return all winning agents.
+
+        For last_standing: list of 0 or 1 agent.
+        For alliance_victory: all surviving allies if mutually ALLIED, else empty.
+        """
+        alive = self.alive_agents()
+        if len(alive) == 1:
+            return alive
+        if self.victory_mode == "alliance_victory" and self.all_mutually_allied():
+            return alive
+        return []
+
+    # -- Alliance queries ------------------------------------------------------
+
+    def get_alliance_status(
+        self,
+        agent_id: str,
+        other_id: str,
+        allied_threshold: float = 0.5,
+        hostile_threshold: float = -0.3,
+    ) -> AllianceStatus:
+        """Return the mutual alliance status between two agents."""
+        agent_a = self.agents.get(agent_id)
+        agent_b = self.agents.get(other_id)
+        if agent_a is None or agent_b is None:
+            return AllianceStatus.NEUTRAL
+        return resolve_alliance(
+            agent_a.social,
+            agent_b.social,
+            agent_id,
+            other_id,
+            allied_threshold,
+            hostile_threshold,
+        )
+
+    def get_all_alliance_statuses(
+        self,
+        agent_id: str,
+    ) -> dict[str, AllianceStatus]:
+        """Return alliance statuses for *agent_id* toward every other alive agent."""
+        statuses: dict[str, AllianceStatus] = {}
+        for other in self.alive_agents():
+            if other.agent_id == agent_id:
+                continue
+            statuses[other.agent_id] = self.get_alliance_status(
+                agent_id, other.agent_id
+            )
+        return statuses
+
+    def all_mutually_allied(self) -> bool:
+        """Return True if every pair of alive agents is mutually ALLIED."""
+        alive = self.alive_agents()
+        if len(alive) <= 1:
+            return False  # single survivor is not an "alliance" victory
+        for i, a in enumerate(alive):
+            for b in alive[i + 1 :]:
+                if (
+                    self.get_alliance_status(a.agent_id, b.agent_id)
+                    != AllianceStatus.ALLIED
+                ):
+                    return False
+        return True
 
     # -- Turn management -------------------------------------------------------
 

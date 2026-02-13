@@ -10,6 +10,8 @@ class LandingPage {
     this._selectedIds = new Set();
     this._models = {};         // available adapters + routing
     this._modelOverrides = this._loadModelOverrides(); // user-selected overrides (persisted)
+    this._spritePresets = [];  // available sprite presets from /api/sprites
+    this._spriteAssignments = this._loadSpriteAssignments(); // char_id -> preset_id
 
     this.el = document.getElementById('landing-page');
     this._initDOM();
@@ -67,16 +69,25 @@ class LandingPage {
 
   async _fetchData() {
     try {
-      const [charsRes, modelsRes] = await Promise.all([
+      const [charsRes, modelsRes, spritesRes] = await Promise.all([
         fetch('/api/characters'),
         fetch('/api/models'),
+        fetch('/api/sprites'),
       ]);
       this._characters = await charsRes.json();
       this._models = await modelsRes.json();
+      this._spritePresets = await spritesRes.json();
 
       // Select all characters by default
       for (const c of this._characters) {
         this._selectedIds.add(c.id);
+      }
+
+      // If character has a sprite in YAML, set it as default assignment
+      for (const c of this._characters) {
+        if (c.sprite && !this._spriteAssignments[c.id]) {
+          this._spriteAssignments[c.id] = c.sprite;
+        }
       }
 
       this._renderRoster();
@@ -99,8 +110,15 @@ class LandingPage {
       const div = document.createElement('div');
       div.className = 'char-roster-item' + (this._selectedIds.has(c.id) ? ' selected' : '') + (isGenerated ? ' generated' : '');
 
+      // Sprite preview (small thumbnail if assigned)
+      const assignedSprite = this._spriteAssignments[c.id] || '';
+      const previewHtml = assignedSprite
+        ? `<div class="char-sprite-preview" style="background-image:url(/static/assets/spritesheets/${this._esc(assignedSprite)}.png)"></div>`
+        : '';
+
       div.innerHTML = `
         <input type="checkbox" ${this._selectedIds.has(c.id) ? 'checked' : ''}>
+        ${previewHtml}
         <div class="char-roster-info">
           <div class="char-roster-name">${this._esc(c.name)}</div>
           <div class="char-roster-class">${this._esc(c.combat_class)}</div>
@@ -108,8 +126,42 @@ class LandingPage {
         </div>
       `;
 
+      // Sprite selector dropdown (only if presets available)
+      if (this._spritePresets.length > 0) {
+        const spriteSelect = document.createElement('select');
+        spriteSelect.className = 'char-sprite-select';
+        spriteSelect.title = 'Sprite preset';
+
+        const noneOpt = document.createElement('option');
+        noneOpt.value = '';
+        noneOpt.textContent = 'No sprite';
+        spriteSelect.appendChild(noneOpt);
+
+        for (const preset of this._spritePresets) {
+          const opt = document.createElement('option');
+          opt.value = preset.id;
+          opt.textContent = preset.label;
+          if (assignedSprite === preset.id) opt.selected = true;
+          spriteSelect.appendChild(opt);
+        }
+
+        spriteSelect.addEventListener('click', (e) => e.stopPropagation());
+        spriteSelect.addEventListener('change', () => {
+          if (spriteSelect.value) {
+            this._spriteAssignments[c.id] = spriteSelect.value;
+          } else {
+            delete this._spriteAssignments[c.id];
+          }
+          this._saveSpriteAssignments();
+          this._renderRoster(); // re-render to update preview
+        });
+
+        div.appendChild(spriteSelect);
+      }
+
       const checkbox = div.querySelector('input[type="checkbox"]');
       div.addEventListener('click', (e) => {
+        if (e.target.tagName === 'SELECT' || e.target.tagName === 'OPTION') return;
         if (e.target !== checkbox) {
           checkbox.checked = !checkbox.checked;
         }
@@ -227,11 +279,20 @@ class LandingPage {
 
     const lorePrompt = document.getElementById('lore-prompt').value.trim();
 
+    // Build sprite assignments for selected characters only
+    const sprites = {};
+    for (const id of selectedChars) {
+      if (this._spriteAssignments[id]) {
+        sprites[id] = this._spriteAssignments[id];
+      }
+    }
+
     const config = {
       type: 'configure',
       characters: selectedChars,
       lore_prompt: lorePrompt,
       models: Object.keys(this._modelOverrides).length > 0 ? this._modelOverrides : null,
+      sprites: Object.keys(sprites).length > 0 ? sprites : null,
     };
 
     this._onBeginBattle(config);
@@ -256,6 +317,19 @@ class LandingPage {
     try {
       localStorage.setItem('ba_model_routing', JSON.stringify(this._modelOverrides));
     } catch { /* quota exceeded or private mode — ignore */ }
+  }
+
+  _loadSpriteAssignments() {
+    try {
+      const raw = localStorage.getItem('ba_sprite_assignments');
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  }
+
+  _saveSpriteAssignments() {
+    try {
+      localStorage.setItem('ba_sprite_assignments', JSON.stringify(this._spriteAssignments));
+    } catch { /* quota exceeded or private mode */ }
   }
 
   _esc(str) {

@@ -24,6 +24,7 @@ def serialize_agent(agent: Agent, env: Environment) -> dict:
         "combat_class": agent.identity.combat_class,
         "backstory": agent.identity.backstory,
         "personality": agent.identity.personality_traits,
+        "sprite": agent.identity.sprite,
         "x": x,
         "y": y,
         "hp": a.hp,

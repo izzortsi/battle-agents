@@ -29,7 +29,7 @@ abilities:
   description: Grimwar swings his massive axe in a wide, gore-spraying arc that tears
     through flesh and bone.
   tactical_hint: Use this when multiple enemies are clumped together to maximize damage
-    and apply bleed.
+    and apply bleed. WARNING - cone AoE hits allies too, check positions first.
   effects:
   - type: hemorrhage
     behavior: damage_over_time

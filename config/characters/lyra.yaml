@@ -31,6 +31,7 @@ abilities:
     tactical_hint: >
       Aim at clusters of enemies to maximize multi-target damage.
       The cross pattern can hit up to 5 tiles — devastating when enemies group up.
+      WARNING: AoE hits allies too — avoid when allies are near the target.
     effects: []
   - name: Frost Nova
     mana_cost: 6
@@ -45,6 +46,7 @@ abilities:
     tactical_hint: >
       Use to lock down melee fighters and kite them.
       Great when enemies are closing in — freeze them and maintain distance.
+      WARNING: AoE radius pattern hits allies too — position carefully.
     effects:
       - type: freeze
         behavior: prevent_move

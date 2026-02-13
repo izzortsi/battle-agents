@@ -28,7 +28,7 @@ abilities:
   description: HelloWorld injects a surge of raw, unstructured data into the surrounding
     environment, causing local reality to stutter and crash.
   tactical_hint: Use this when enemies are clumped together to deal high area damage
-    and disrupt their next actions.
+    and disrupt their next actions. WARNING - AoE hits allies too, verify ally positions.
   effects:
   - type: lag
     behavior: skip_turn
@@ -40,26 +40,28 @@ abilities:
 - name: Optimization Patch
   mana_cost: 5
   damage: 0
-  range: 1
+  range: 2
   aoe_pattern: single
   cooldown: 3
   current_cd: 0
-  description: The algorithm identifies inefficiencies in its holographic shell, rewriting
-    its own subroutines to enhance performance and repair structural integrity.
-  tactical_hint: Activate this to restore health and boost your speed when you need
-    to reposition or outpace an opponent.
+  description: The algorithm identifies inefficiencies in a target's combat routines,
+    rewriting subroutines to enhance performance and repair structural integrity.
+    Can be applied to self or transmitted to an ally via data-link.
+  tactical_hint: Use on yourself when low HP, or patch an injured ALLIED combatant
+    to boost their speed and restore health. Keeping allies optimized increases
+    collective combat efficiency by 42.7%.
   effects:
   - type: recompile
     behavior: passive
     duration: 1
     magnitude: 0.25
-    target: self
+    target: ally
     category: heal
     chance: 1.0
   - type: overclock
     behavior: stat_modifier
     duration: 3
     magnitude: 0.4
-    target: self
+    target: ally
     category: buff
     chance: 1.0

@@ -112,6 +112,9 @@ def _gather_context(
         # Can chat with any visible agent (free action, not range-limited)
         can_chat.append(f"{other.identity.name} ({other.agent_id})")
 
+    # Alliance statuses (formal mutual labels from the resolver)
+    alliance_statuses = env.get_all_alliance_statuses(agent.agent_id)
+
     # Available move tiles (adjacent, passable, unoccupied)
     can_move: list[str] = []
     for tx, ty in env.grid.adjacent_tiles(ax, ay):
@@ -134,6 +137,7 @@ def _gather_context(
         "can_chat": can_chat,
         "can_ability": _compute_can_ability(agent, env, ax, ay),
         "social_dispositions": social_dispositions,
+        "alliance_statuses": alliance_statuses,
     }
 
 
@@ -148,6 +152,7 @@ def _compute_can_ability(
     Returns a list of display strings like:
       "Berserker Slash -> Kael (kael), Lyra (lyra)"
       "Divine Light -> self"
+      "Mending Touch -> [ALLY] Kael (kael)"
     """
     ready = agent.attributes.get_ready_abilities()
     if not ready:
@@ -167,8 +172,32 @@ def _compute_can_ability(
         if ability.get("damage", 0) == 0 and is_self:
             is_self = True
 
+        # Determine if ally-targeting
+        is_ally_targeting = False
+        if effects and not is_self:
+            has_ally_effects = any(e.get("target") == "ally" for e in effects)
+            if has_ally_effects and ability.get("damage", 0) == 0:
+                is_ally_targeting = True
+
         if is_self:
             result.append(f"{ability['name']} -> self")
+        elif is_ally_targeting:
+            # Ally-targeting: list self + all agents in range (allies get [ALLY] tag)
+            allies_in_range: list[str] = ["self"]
+            for other in env.alive_agents():
+                if other.agent_id == agent.agent_id:
+                    continue
+                other_pos = env.world_state.get_position(other.agent_id)
+                if other_pos is None:
+                    continue
+                ox, oy = BattleGrid.parse_tile(other_pos)
+                dist = BattleGrid.manhattan(ax, ay, ox, oy)
+                if dist <= ab_range:
+                    allies_in_range.append(
+                        f"[ALLY] {other.identity.name} ({other.agent_id})"
+                    )
+            if allies_in_range:
+                result.append(f"{ability['name']} -> {', '.join(allies_in_range)}")
         else:
             # Find valid targets in range
             targets_in_range: list[str] = []
@@ -423,6 +452,7 @@ def decide(
         social_dispositions=ctx["social_dispositions"],
         urgency_text=urgency_text,
         can_ability=ctx.get("can_ability"),
+        alliance_statuses=ctx.get("alliance_statuses"),
     )
 
     # Call LLM
@@ -509,6 +539,7 @@ async def async_decide(
         social_dispositions=ctx["social_dispositions"],
         urgency_text=urgency_text,
         can_ability=ctx.get("can_ability"),
+        alliance_statuses=ctx.get("alliance_statuses"),
     )
 
     try:

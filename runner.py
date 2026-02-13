@@ -356,7 +356,9 @@ def build_routing_dict(llm_cfg: dict, registry) -> dict:
         if adapter_key in registry:
             routing[role] = registry.get(adapter_key)
         else:
-            log.debug(f"  Routing role '{role}' -> '{adapter_key}' not in registry, using default")
+            log.debug(
+                f"  Routing role '{role}' -> '{adapter_key}' not in registry, using default"
+            )
 
     return routing
 
@@ -716,8 +718,12 @@ def run_battle(
         env.advance_turn()
 
     winner = env.get_winner()
+    winners = env.get_winners()
     log.info(f"\n{'=' * 60}")
-    if winner:
+    if len(winners) > 1:
+        names = ", ".join(w.name for w in winners)
+        log.info(f"ALLIANCE VICTORY: {names} win together!")
+    elif winner:
         log.info(f"VICTORY: {winner.name} wins!")
     else:
         log.info("DRAW: No clear winner.")
@@ -996,8 +1002,12 @@ async def async_run_battle(
         env.advance_turn()
 
     winner = env.get_winner()
+    winners = env.get_winners()
     log.info(f"\n{'=' * 60}")
-    if winner:
+    if len(winners) > 1:
+        names = ", ".join(w.name for w in winners)
+        log.info(f"ALLIANCE VICTORY: {names} win together!")
+    elif winner:
         log.info(f"VICTORY: {winner.name} wins!")
     else:
         log.info("DRAW: No clear winner.")
@@ -1205,9 +1215,12 @@ def main() -> None:
     )
 
     # Build environment (start with combat perception radius)
+    victory_cfg = game_cfg.get("victory", {})
+    victory_mode = victory_cfg.get("mode", "last_standing")
     env = Environment(
         grid=grid,
         perception_radius=combat_cfg.get("perception_radius", 8),
+        victory_mode=victory_mode,
     )
 
     # Load characters

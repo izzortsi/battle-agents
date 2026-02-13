@@ -77,7 +77,9 @@ class SimRunner:
     def apply_configure(self, msg: dict) -> None:
         """Store landing page configuration for use during _setup()."""
         self._configure_data = msg
-        log.info(f"SimRunner: received configure — characters={msg.get('characters', 'all')}")
+        log.info(
+            f"SimRunner: received configure — characters={msg.get('characters', 'all')}"
+        )
 
     async def start(self) -> None:
         """Start the simulation (called once from the WebSocket handler)."""
@@ -114,42 +116,59 @@ class SimRunner:
         """Record a broadcast event for reconnect replay."""
         msg_type = data.get("type", "")
         if msg_type == "action":
-            self._event_log.append({
-                "description": data.get("description", ""),
-                "action_type": data.get("action_type", ""),
-                "agent_id": data.get("agent_id", ""),
-                "round": self._env.turn_manager.round_number if self._env else 0,
-                "success": data.get("success", True),
-                "details": data.get("details", {}),
-            })
+            self._event_log.append(
+                {
+                    "description": data.get("description", ""),
+                    "action_type": data.get("action_type", ""),
+                    "agent_id": data.get("agent_id", ""),
+                    "round": self._env.turn_manager.round_number if self._env else 0,
+                    "success": data.get("success", True),
+                    "details": data.get("details", {}),
+                }
+            )
         elif msg_type == "death":
-            agent = self._env.agents.get(data.get("agent_id", "")) if self._env else None
-            self._event_log.append({
-                "description": f"{agent.name if agent else data.get('agent_id', '?')} has been slain!",
-                "action_type": "death",
-                "agent_id": data.get("agent_id", ""),
-                "round": self._env.turn_manager.round_number if self._env else 0,
-                "success": True,
-                "details": {"killer_id": data.get("killer_id", "")},
-            })
+            agent = (
+                self._env.agents.get(data.get("agent_id", "")) if self._env else None
+            )
+            self._event_log.append(
+                {
+                    "description": f"{agent.name if agent else data.get('agent_id', '?')} has been slain!",
+                    "action_type": "death",
+                    "agent_id": data.get("agent_id", ""),
+                    "round": self._env.turn_manager.round_number if self._env else 0,
+                    "success": True,
+                    "details": {"killer_id": data.get("killer_id", "")},
+                }
+            )
         elif msg_type == "victory":
             name = data.get("winner_name")
             rounds = data.get("rounds", 0)
-            self._event_log.append({
-                "description": f"VICTORY: {name} wins after {rounds} rounds!" if name else f"DRAW: No clear winner after {rounds} rounds.",
-                "action_type": "victory",
-                "round": self._env.turn_manager.round_number if self._env else 0,
-                "success": True,
-                "details": data,
-            })
+            is_alliance = data.get("alliance_victory", False)
+            if is_alliance:
+                desc = f"ALLIANCE VICTORY: {name} win together after {rounds} rounds!"
+            elif name:
+                desc = f"VICTORY: {name} wins after {rounds} rounds!"
+            else:
+                desc = f"DRAW: No clear winner after {rounds} rounds."
+            self._event_log.append(
+                {
+                    "description": desc,
+                    "action_type": "victory",
+                    "round": self._env.turn_manager.round_number if self._env else 0,
+                    "success": True,
+                    "details": data,
+                }
+            )
         elif msg_type == "dialogue":
-            self._dialogue_log.append({
-                "speaker": data.get("speaker", ""),
-                "speaker_name": data.get("speaker_name", ""),
-                "target": data.get("target", ""),
-                "message": data.get("message", ""),
-                "disposition_shift": data.get("disposition_shift", 0),
-            })
+            self._dialogue_log.append(
+                {
+                    "speaker": data.get("speaker", ""),
+                    "speaker_name": data.get("speaker_name", ""),
+                    "target": data.get("target", ""),
+                    "message": data.get("message", ""),
+                    "disposition_shift": data.get("disposition_shift", 0),
+                }
+            )
         elif msg_type == "cognitive":
             self._cognitive_states[data.get("agent_id", "")] = {
                 "memory_count": data.get("memory_count", 0),
@@ -162,14 +181,16 @@ class SimRunner:
             text = data.get("text", "")
             self._commentary_log.append(text)
             # Also record in event_log so reconnect preserves interleaved order
-            self._event_log.append({
-                "description": text,
-                "action_type": "commentary",
-                "agent_id": "",
-                "round": self._env.turn_manager.round_number if self._env else 0,
-                "success": True,
-                "details": {},
-            })
+            self._event_log.append(
+                {
+                    "description": text,
+                    "action_type": "commentary",
+                    "agent_id": "",
+                    "round": self._env.turn_manager.round_number if self._env else 0,
+                    "success": True,
+                    "details": {},
+                }
+            )
 
     async def _broadcast(self, data: dict) -> None:
         self._record(data)
@@ -234,8 +255,7 @@ class SimRunner:
             game_cfg = load_game_config()
             pre_battle_cfg = game_cfg.get("pre_battle", {})
             pre_battle_enabled = (
-                pre_battle_cfg.get("enabled", False)
-                and not self._no_social
+                pre_battle_cfg.get("enabled", False) and not self._no_social
             )
 
             if pre_battle_enabled:
@@ -257,9 +277,12 @@ class SimRunner:
             width=grid_cfg.get("width", 12),
             height=grid_cfg.get("height", 10),
         )
+        victory_cfg = game_cfg.get("victory", {})
+        victory_mode = victory_cfg.get("mode", "last_standing")
         self._env = Environment(
             grid=grid,
             perception_radius=combat_cfg.get("perception_radius", 8),
+            victory_mode=victory_mode,
         )
 
         # Load characters — filter by landing page selection if configured
@@ -268,7 +291,17 @@ class SimRunner:
             selected_ids = set(self._configure_data["characters"])
             agents = [a for a in agents if a.agent_id in selected_ids]
         elif self._max_chars and self._max_chars < len(agents):
-            agents = agents[:self._max_chars]
+            agents = agents[: self._max_chars]
+
+        # Apply sprite overrides from landing page before placing
+        if self._configure_data and self._configure_data.get("sprites"):
+            sprite_map = self._configure_data["sprites"]
+            for agent in agents:
+                if agent.agent_id in sprite_map:
+                    agent.identity.sprite = sprite_map[agent.agent_id]
+                    log.info(
+                        f"  Sprite override: {agent.name} -> {sprite_map[agent.agent_id]}"
+                    )
 
         place_agents(agents, self._env)
 
@@ -285,8 +318,14 @@ class SimRunner:
             self._model_id = "random"
 
         self._phase = "setup"
-        mode = "random" if self._use_random else ("no-social" if self._no_social else "full")
-        log.info(f"SimRunner: loaded {len(agents)} agents, mode={mode}, model={self._model_id}")
+        mode = (
+            "random"
+            if self._use_random
+            else ("no-social" if self._no_social else "full")
+        )
+        log.info(
+            f"SimRunner: loaded {len(agents)} agents, mode={mode}, model={self._model_id}"
+        )
 
     def _apply_model_overrides(self, models: dict) -> None:
         """Apply per-aspect model overrides from the landing page configure message."""
@@ -294,6 +333,7 @@ class SimRunner:
             return
 
         from runner import create_model_registry
+
         llm_cfg = load_llm_config()
         registry, _ = create_model_registry(llm_cfg)
 
@@ -317,12 +357,14 @@ class SimRunner:
         # Build character summaries for the lore generator
         char_summaries = []
         for agent in self._env.agents.values():
-            char_summaries.append({
-                "name": agent.identity.name,
-                "combat_class": agent.identity.combat_class,
-                "backstory": agent.identity.backstory,
-                "personality_traits": agent.identity.personality_traits,
-            })
+            char_summaries.append(
+                {
+                    "name": agent.identity.name,
+                    "combat_class": agent.identity.combat_class,
+                    "backstory": agent.identity.backstory,
+                    "personality_traits": agent.identity.personality_traits,
+                }
+            )
 
         # Get the lore generation adapter
         lore_llm = self._cognitive_loop._get_llm("lore_generation")
@@ -345,10 +387,12 @@ class SimRunner:
             self._cognitive_loop.world_lore = self._lore.to_prompt_text()
 
             # Broadcast lore to frontend
-            await self._broadcast({
-                "type": "lore",
-                **self._lore.to_dict(),
-            })
+            await self._broadcast(
+                {
+                    "type": "lore",
+                    **self._lore.to_dict(),
+                }
+            )
 
             # Set up commentator with lore context
             self._setup_commentator()
@@ -419,7 +463,10 @@ class SimRunner:
                         chatted_pairs.add(pair)
                         session = await asyncio.to_thread(
                             self._cognitive_loop.handle_pre_battle_chat,
-                            agent, chat, self._env, tick,
+                            agent,
+                            chat,
+                            self._env,
+                            tick,
                         )
                         if session:
                             for ex in session.exchanges:
@@ -428,14 +475,16 @@ class SimRunner:
                                     if ex.speaker == agent.agent_id
                                     else agent.agent_id
                                 )
-                                await self._broadcast({
-                                    "type": "dialogue",
-                                    "speaker": ex.speaker,
-                                    "speaker_name": ex.speaker_name,
-                                    "target": target_id,
-                                    "message": ex.message,
-                                    "disposition_shift": ex.disposition_shift,
-                                })
+                                await self._broadcast(
+                                    {
+                                        "type": "dialogue",
+                                        "speaker": ex.speaker,
+                                        "speaker_name": ex.speaker_name,
+                                        "target": target_id,
+                                        "message": ex.message,
+                                        "disposition_shift": ex.disposition_shift,
+                                    }
+                                )
 
                 await self._await_advance()
 
@@ -443,11 +492,13 @@ class SimRunner:
             for agent in self._env.agents.values():
                 social_data = serialize_social(agent)
                 if social_data:
-                    await self._broadcast({
-                        "type": "social_update",
-                        "agent_id": agent.agent_id,
-                        "social": social_data,
-                    })
+                    await self._broadcast(
+                        {
+                            "type": "social_update",
+                            "agent_id": agent.agent_id,
+                            "social": social_data,
+                        }
+                    )
 
             self._env.recent_actions.clear()
 
@@ -458,11 +509,13 @@ class SimRunner:
     async def _run_combat(self) -> None:
         self._phase = "combat"
         order = self._env.start_combat()
-        await self._broadcast({
-            "type": "phase",
-            "phase": "combat",
-            "turn_order": order,
-        })
+        await self._broadcast(
+            {
+                "type": "phase",
+                "phase": "combat",
+                "turn_order": order,
+            }
+        )
         await self._broadcast(
             serialize_snapshot(self._env, self._phase, self._cognitive_loop)
         )
@@ -511,11 +564,13 @@ class SimRunner:
                                     damage_this_round = True
                                     if not a.is_alive:
                                         self._env.handle_agent_death(a.agent_id)
-                                        await self._broadcast({
-                                            "type": "death",
-                                            "agent_id": a.agent_id,
-                                            "killer_id": eff.get("source", ""),
-                                        })
+                                        await self._broadcast(
+                                            {
+                                                "type": "death",
+                                                "agent_id": a.agent_id,
+                                                "killer_id": eff.get("source", ""),
+                                            }
+                                        )
                                         break
 
                     # Bonus actions (LLM mode only)
@@ -524,14 +579,18 @@ class SimRunner:
                             if a.attributes.spd >= 15:
                                 chance = 10 + (a.attributes.spd - 15) * 2
                                 if random.random() * 100 < chance:
-                                    bonus_dec = await self._cognitive_loop.async_run_bonus_turn(
-                                        a, self._env, round_num - 1
+                                    bonus_dec = (
+                                        await self._cognitive_loop.async_run_bonus_turn(
+                                            a, self._env, round_num - 1
+                                        )
                                     )
                                     bonus_result = self._env.resolve_action(
                                         bonus_dec.primary_action
                                     )
                                     event = serialize_action_event(
-                                        bonus_dec.primary_action, bonus_result, self._env
+                                        bonus_dec.primary_action,
+                                        bonus_result,
+                                        self._env,
                                     )
                                     event["bonus"] = True
                                     await self._broadcast(event)
@@ -544,17 +603,23 @@ class SimRunner:
                                         )
                                         await self._commentary(text)
 
-                                    if bonus_result.success and bonus_dec.primary_action.action_type == ActionType.ATTACK:
+                                    if (
+                                        bonus_result.success
+                                        and bonus_dec.primary_action.action_type
+                                        == ActionType.ATTACK
+                                    ):
                                         damage_this_round = True
                                     if self._env.is_combat_over():
                                         break
 
             # Broadcast turn start
-            await self._broadcast({
-                "type": "turn_start",
-                "agent_id": current.agent_id,
-                "round": round_num,
-            })
+            await self._broadcast(
+                {
+                    "type": "turn_start",
+                    "agent_id": current.agent_id,
+                    "round": round_num,
+                }
+            )
 
             # Tick status effects
             expired = current.attributes.tick_status_effects()
@@ -565,15 +630,19 @@ class SimRunner:
                 for eff in current.attributes.status_effects
             )
             if skip:
-                await self._broadcast({
-                    "type": "action",
-                    "agent_id": current.agent_id,
-                    "action_type": "wait",
-                    "success": True,
-                    "description": f"{current.name} is stunned and loses their turn!",
-                    "details": {},
-                    "state_delta": {current.agent_id: serialize_agent(current, self._env)},
-                })
+                await self._broadcast(
+                    {
+                        "type": "action",
+                        "agent_id": current.agent_id,
+                        "action_type": "wait",
+                        "success": True,
+                        "description": f"{current.name} is stunned and loses their turn!",
+                        "details": {},
+                        "state_delta": {
+                            current.agent_id: serialize_agent(current, self._env)
+                        },
+                    }
+                )
                 self._env.advance_turn()
                 await self._await_advance()
                 continue
@@ -604,7 +673,9 @@ class SimRunner:
                         f"retry {retry_count}/{max_retries}"
                     )
                     decision = await self._cognitive_loop.async_retry_decide(
-                        current, self._env, round_num,
+                        current,
+                        self._env,
+                        round_num,
                         error_feedback=result.description,
                         urgency_text=urgency_text,
                     )
@@ -616,7 +687,9 @@ class SimRunner:
                     log.warning(
                         f"  {current.name}: all retries exhausted, forcing WAIT"
                     )
-                    action = make_wait(current.agent_id, "retries exhausted — forced wait")
+                    action = make_wait(
+                        current.agent_id, "retries exhausted — forced wait"
+                    )
                     result = self._env.resolve_action(action)
                     decision = CombatDecision(
                         primary_action=action,
@@ -651,11 +724,13 @@ class SimRunner:
                 # Check for kills
                 if result.details.get("killed"):
                     target_id = action.target_agent
-                    await self._broadcast({
-                        "type": "death",
-                        "agent_id": target_id,
-                        "killer_id": current.agent_id,
-                    })
+                    await self._broadcast(
+                        {
+                            "type": "death",
+                            "agent_id": target_id,
+                            "killer_id": current.agent_id,
+                        }
+                    )
                     # Death commentary
                     if self._commentator and target_id:
                         victim = self._env.agents.get(target_id)
@@ -669,10 +744,15 @@ class SimRunner:
 
                 # Handle chat
                 if decision.chat_action and decision.chat_action.target_agent:
-                    if self._cognitive_loop.can_chat_combat(current.agent_id, round_num):
+                    if self._cognitive_loop.can_chat_combat(
+                        current.agent_id, round_num
+                    ):
                         session = await asyncio.to_thread(
                             self._cognitive_loop._handle_chat,
-                            current, decision.chat_action, self._env, round_num,
+                            current,
+                            decision.chat_action,
+                            self._env,
+                            round_num,
                         )
                         self._cognitive_loop.record_chat(current.agent_id, round_num)
                         if session:
@@ -682,14 +762,16 @@ class SimRunner:
                                     if ex.speaker == current.agent_id
                                     else current.agent_id
                                 )
-                                await self._broadcast({
-                                    "type": "dialogue",
-                                    "speaker": ex.speaker,
-                                    "speaker_name": ex.speaker_name,
-                                    "target": target_id,
-                                    "message": ex.message,
-                                    "disposition_shift": ex.disposition_shift,
-                                })
+                                await self._broadcast(
+                                    {
+                                        "type": "dialogue",
+                                        "speaker": ex.speaker,
+                                        "speaker_name": ex.speaker_name,
+                                        "target": target_id,
+                                        "message": ex.message,
+                                        "disposition_shift": ex.disposition_shift,
+                                    }
+                                )
             else:
                 # Random mode: pick a random action
                 action = pick_random_action(current, self._env)
@@ -703,11 +785,13 @@ class SimRunner:
                 # Check for kills
                 if result.details.get("killed"):
                     target_id = action.target_agent
-                    await self._broadcast({
-                        "type": "death",
-                        "agent_id": target_id,
-                        "killer_id": current.agent_id,
-                    })
+                    await self._broadcast(
+                        {
+                            "type": "death",
+                            "agent_id": target_id,
+                            "killer_id": current.agent_id,
+                        }
+                    )
 
             self._env.advance_turn()
 
@@ -719,21 +803,48 @@ class SimRunner:
 
         # Victory
         winner = self._env.get_winner()
+        winners = self._env.get_winners()
         self._phase = "victory"
 
         # Victory commentary
-        if self._commentator and winner:
-            text = await asyncio.to_thread(
-                self._commentator.comment_on_victory,
-                winner.name,
-                winner.identity.combat_class,
-                self._env.turn_manager.round_number,
-            )
+        if self._commentator and (winner or len(winners) > 1):
+            if len(winners) > 1:
+                names = ", ".join(w.name for w in winners)
+                text = await asyncio.to_thread(
+                    self._commentator.comment_on_victory,
+                    names,
+                    "alliance",
+                    self._env.turn_manager.round_number,
+                )
+            else:
+                text = await asyncio.to_thread(
+                    self._commentator.comment_on_victory,
+                    winner.name,
+                    winner.identity.combat_class,
+                    self._env.turn_manager.round_number,
+                )
             await self._commentary(text)
 
-        await self._broadcast({
-            "type": "victory",
-            "winner": winner.agent_id if winner else None,
-            "winner_name": winner.name if winner else None,
-            "rounds": self._env.turn_manager.round_number,
-        })
+        if len(winners) > 1:
+            winner_ids = [w.agent_id for w in winners]
+            winner_names = [w.name for w in winners]
+            await self._broadcast(
+                {
+                    "type": "victory",
+                    "winner": winner_ids[0],
+                    "winner_name": ", ".join(winner_names),
+                    "winners": winner_ids,
+                    "winner_names": winner_names,
+                    "alliance_victory": True,
+                    "rounds": self._env.turn_manager.round_number,
+                }
+            )
+        else:
+            await self._broadcast(
+                {
+                    "type": "victory",
+                    "winner": winner.agent_id if winner else None,
+                    "winner_name": winner.name if winner else None,
+                    "rounds": self._env.turn_manager.round_number,
+                }
+            )

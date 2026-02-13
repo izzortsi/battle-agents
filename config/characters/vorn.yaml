@@ -52,6 +52,7 @@ abilities:
     tactical_hint: >
       Use when facing multiple enemies or when a heavy hitter is about
       to attack. Blinding them gives you and your allies breathing room.
+      WARNING: AoE hits allies too — check positions before throwing.
     effects:
       - type: blind
         behavior: miss_chance

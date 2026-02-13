@@ -1,5 +1,10 @@
 /**
  * sprites.js — SVG sprite factory. Creates and updates agent sprites from data.
+ *
+ * Supports two rendering modes:
+ *   1. Spritesheet (agentData.sprite is set) — uses an <image> clipped to show
+ *      one frame from a 3-col x 4-row RPG Maker–style spritesheet.
+ *   2. SVG silhouette (no sprite) — uses <use> referencing class-based symbols.
  */
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -66,6 +71,114 @@ function resolveSilhouette(slug) {
   return 'warrior'; // default fallback
 }
 
+// ===== Spritesheet helpers =====
+
+/**
+ * Build the spritesheet URL from a preset name.
+ */
+function spritesheetUrl(presetName) {
+  return `/static/assets/spritesheets/${presetName}.png`;
+}
+
+/**
+ * Set the spritesheet <image> offset to show a given frame.
+ * @param {SVGImageElement} img - The <image> element inside the clipped <svg>
+ * @param {number} col - Frame column (0-2)
+ * @param {number} row - Direction row (SS_DIR.down/left/right/up)
+ */
+function setSpriteFrame(img, col, row) {
+  img.setAttribute('x', -col * SS_FRAME_W);
+  img.setAttribute('y', -row * SS_FRAME_H);
+}
+
+/**
+ * Detect facing direction from position delta.
+ */
+function directionFromDelta(dx, dy) {
+  if (dx === 0 && dy === 0) return null; // no movement
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx > 0 ? 'right' : 'left';
+  }
+  return dy > 0 ? 'down' : 'up';
+}
+
+/**
+ * Play a 3-frame walk animation on a sprite's <image>.
+ * Cycles frames 0→1→2 over ~300ms (matching CSS move transition).
+ */
+function playWalkAnimation(spriteG, direction) {
+  const img = spriteG.querySelector('[data-role="ss-image"]');
+  if (!img) return;
+
+  const row = SS_DIR[direction] ?? SS_DIR.down;
+  const frames = [0, 1, 2];
+  const frameDuration = 100; // ms per frame
+
+  let i = 0;
+  // Clear any existing walk animation
+  if (spriteG._walkTimer) clearInterval(spriteG._walkTimer);
+
+  setSpriteFrame(img, frames[0], row);
+  spriteG._walkTimer = setInterval(() => {
+    i++;
+    if (i >= frames.length) {
+      clearInterval(spriteG._walkTimer);
+      spriteG._walkTimer = null;
+      // Return to idle frame facing this direction
+      setSpriteFrame(img, SS_IDLE_COL, row);
+      return;
+    }
+    setSpriteFrame(img, frames[i], row);
+  }, frameDuration);
+}
+
+// ===== Sprite creation =====
+
+/**
+ * Create the visual element for a sprite — either spritesheet or silhouette.
+ * Returns the element to append (either a nested <svg> or a <use>).
+ */
+function _createVisual(agentData) {
+  if (agentData.sprite) {
+    // Spritesheet mode: nested <svg> with clipped <image>
+    const displayW = SPRITE_W;
+    const displayH = SPRITE_W; // square — matches 32x32 source aspect ratio
+    const offsetY = (SPRITE_H - displayH) / 2; // center vertically in SPRITE_H
+
+    const nested = svgEl('svg', {
+      x: 0,
+      y: offsetY,
+      width: displayW,
+      height: displayH,
+      viewBox: `0 0 ${SS_FRAME_W} ${SS_FRAME_H}`,
+      overflow: 'hidden',
+    });
+    nested.dataset.role = 'ss-container';
+
+    const img = svgEl('image', {
+      href: spritesheetUrl(agentData.sprite),
+      width: SS_SHEET_W,
+      height: SS_SHEET_H,
+      x: -SS_IDLE_COL * SS_FRAME_W,  // idle frame
+      y: -SS_DIR.down * SS_FRAME_H,   // facing down by default
+      'image-rendering': 'pixelated',
+    });
+    img.dataset.role = 'ss-image';
+    nested.appendChild(img);
+
+    return nested;
+  }
+
+  // Silhouette fallback
+  const cls = classSlug(agentData.combat_class || 'warrior');
+  const silhouette = resolveSilhouette(cls);
+  return svgEl('use', {
+    href: `#silhouette-${silhouette}`,
+    width: SPRITE_W,
+    height: SPRITE_H,
+  });
+}
+
 /**
  * Create an agent sprite <g> group.
  */
@@ -73,26 +186,32 @@ function createSprite(agentData) {
   const rawCls = agentData.combat_class || 'warrior';
   const cls = classSlug(rawCls);
   const silhouette = resolveSilhouette(cls);
+  const hasSheet = !!agentData.sprite;
+
   const g = svgEl('g', {
     'data-agent-id': agentData.id,
     'data-class': rawCls,
     'data-alive': agentData.is_alive ? 'true' : 'false',
     'data-active-turn': 'false',
   });
-  g.classList.add('sprite-group', `sprite-${silhouette}`);
+  if (hasSheet) {
+    g.dataset.sprite = agentData.sprite;
+    g.classList.add('sprite-group', 'sprite-sheet');
+  } else {
+    g.classList.add('sprite-group', `sprite-${silhouette}`);
+  }
+
+  // Store last known position for direction detection
+  g._lastX = agentData.x;
+  g._lastY = agentData.y;
 
   // Position
   const tx = agentData.x * CELL_SIZE + (CELL_SIZE - SPRITE_W) / 2;
   const ty = agentData.y * CELL_SIZE + (CELL_SIZE - SPRITE_H) / 2 - 2;
   g.setAttribute('transform', `translate(${tx}, ${ty})`);
 
-  // Silhouette via <use>
-  const use = svgEl('use', {
-    href: `#silhouette-${silhouette}`,
-    width: SPRITE_W,
-    height: SPRITE_H,
-  });
-  g.appendChild(use);
+  // Visual (spritesheet or silhouette)
+  g.appendChild(_createVisual(agentData));
 
   // HP bar
   const hpBg = svgEl('rect', {
@@ -145,6 +264,14 @@ function createSprite(agentData) {
  * Update an existing sprite's data.
  */
 function updateSprite(spriteG, agentData) {
+  // Detect movement direction before updating position
+  const oldX = spriteG._lastX ?? agentData.x;
+  const oldY = spriteG._lastY ?? agentData.y;
+  const dx = agentData.x - oldX;
+  const dy = agentData.y - oldY;
+  spriteG._lastX = agentData.x;
+  spriteG._lastY = agentData.y;
+
   // Position
   const tx = agentData.x * CELL_SIZE + (CELL_SIZE - SPRITE_W) / 2;
   const ty = agentData.y * CELL_SIZE + (CELL_SIZE - SPRITE_H) / 2 - 2;
@@ -152,6 +279,14 @@ function updateSprite(spriteG, agentData) {
 
   // Data attributes
   spriteG.dataset.alive = agentData.is_alive ? 'true' : 'false';
+
+  // Spritesheet direction + walk animation
+  if (spriteG.dataset.sprite) {
+    const dir = directionFromDelta(dx, dy);
+    if (dir) {
+      playWalkAnimation(spriteG, dir);
+    }
+  }
 
   // HP bar
   const hpFill = spriteG.querySelector('[data-role="hp-fill"]');

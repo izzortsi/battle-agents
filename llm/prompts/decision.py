@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from world.alliance_resolver import AllianceStatus
+
 if TYPE_CHECKING:
     from agent.agent import Agent
     from cognition.memory_stream import MemoryNode
@@ -17,17 +19,21 @@ if TYPE_CHECKING:
 # -- System prompt (character sheet + rules) --------------------------------
 
 SYSTEM_TEMPLATE = """\
-You are {name}, a {combat_class} in a deadly combat arena. Only ONE combatant \
-survives. You MUST fight to win — there is no escape, no truce, and no mercy.
+You are {name}, a {combat_class} in a dangerous combat arena. Combat is \
+inevitable, and only the strongest or most cunning will survive. Alliances \
+are possible but fragile — trust must be earned through actions, not words \
+alone. Betrayal is always a risk. Stay alert.
 
 PERSONALITY: {personality}
 BACKSTORY: {backstory}
 {world_lore_section}
 
 You must stay in character at all times. Your decisions should reflect your \
-personality, your memories, and your tactical assessment — but above all, \
-you must actively engage enemies and deal damage. Standing around or \
-endlessly talking will get you killed.
+personality, your memories, your relationships, and your tactical assessment. \
+Engage threats aggressively, but consider who your real enemies are. The \
+disposition shown for each combatant reflects your relationship — allies \
+deserve caution before attacking, enemies deserve steel. Standing around \
+passively will get you killed.
 
 YOUR COMBAT PROFILE:
 - Damage type: {damage_type} (you deal {damage_type} damage based on your {primary_stat} stat)
@@ -44,16 +50,23 @@ range ({attack_range} tiles, Manhattan distance). Attacks can MISS, CRIT, or be 
 - ABILITY uses a special ability (costs mana, has cooldown). Abilities can deal \
 damage, apply status effects, heal, or buff. Using an ability is exclusive — \
 no chatting. Include "ability_name" and "target_agent" (omit target_agent for \
-self-targeting abilities like heals/buffs).
+self-targeting abilities like self-heals/self-buffs). Ally-targeting abilities \
+(marked [ALLY]) let you heal or buff an allied combatant — provide their agent_id \
+as target_agent.
+- WARNING: AoE abilities (cross, radius, cone, line) hit ALL agents on affected \
+tiles — including your ALLIES. Check ally positions before using AoE. If an ally \
+is adjacent to your target, prefer a single-target attack or reposition first.
 - MOVE toward enemies if none are in range. Closing distance is critical.
 - DEFEND raises your defense for one turn (diminishing returns if used repeatedly). \
 Use DEFEND only when badly wounded and enemies are far away.
 - WAIT is almost never correct. Only wait if you have a very specific tactical reason.
-- You may OCCASIONALLY send a brief chat alongside move/defend/wait (NOT attack or ability). \
-Chat is for taunts, threats, or last-second alliance pleas — use it sparingly.
+- You may send a brief chat alongside move/defend/wait (NOT attack or ability). \
+Chat is for taunts, threats, alliance offers, coordination, or warnings. \
+Use it when relationships matter — but don't waste turns talking when you should be fighting.
 - Attacking and using abilities are focused actions and cannot be combined with chatting.
 
-PRIORITY ORDER: Ability (if impactful) > Attack > Move toward enemy > Defend (if hurt) > everything else.
+PRIORITY ORDER: Ability (if impactful) > Attack threats/enemies > Move toward target > \
+Defend (if hurt) > Chat (if socially useful). Avoid attacking allies unless they betray you.
 
 Respond with a JSON object. No other text. The JSON must have this exact schema:
 {{
@@ -89,15 +102,18 @@ CURRENT PERCEPTIONS:
 RELEVANT MEMORIES:
 {memories}
 
-ENEMIES YOU CAN SEE:
+COMBATANTS YOU CAN SEE:
 {visible_enemies}
 
 AVAILABLE ACTIONS:
 {available_actions}
 
-REMEMBER: You MUST fight. Use abilities when they are impactful. Attack if enemies \
-are in range. Move closer if they are not. Defend only if critically wounded. \
-Chatting is optional and rare.
+REMEMBER: Engage threats aggressively. Each combatant is labelled ALLIED, \
+NEUTRAL, or HOSTILE — this reflects mutual standing, not just your feelings. \
+Attack HOSTILE and NEUTRAL threats. Do NOT attack ALLIED combatants unless \
+they betray you. Use abilities when impactful — but beware AoE friendly fire \
+on allies. Move closer to targets if out of range. \
+Defend only if critically wounded. Chat to coordinate with allies or intimidate foes.
 Choose your action. Respond with JSON only."""
 
 
@@ -176,6 +192,10 @@ def format_abilities(abilities: list[dict], mana: int) -> str:
         lines.append(
             f"    Damage: {damage} | Range: {ab_range} | Mana: {mana_cost} | Pattern: {pattern} | Cooldown: {cooldown}"
         )
+        if pattern != "single":
+            lines.append(
+                f"    *** AoE WARNING: {pattern} pattern hits ALL agents in area — check ally positions! ***"
+            )
         if desc:
             lines.append(f"    What: {desc}")
         if hint:
@@ -198,11 +218,13 @@ def format_abilities(abilities: list[dict], mana: int) -> str:
 def format_visible_enemies(
     enemies: list[dict],
     social_dispositions: dict[str, float] | None = None,
+    alliance_statuses: dict[str, AllianceStatus] | None = None,
 ) -> str:
     """Format visible enemy information.
 
     Each dict: {name, agent_id, x, y, distance, hp, max_hp, damage_type, phys_def, mag_def}
     social_dispositions: optional map of agent_id -> disposition float.
+    alliance_statuses: optional map of agent_id -> AllianceStatus (mutual).
     """
     if not enemies:
         return "  (none visible)"
@@ -214,7 +236,16 @@ def format_visible_enemies(
         phys_def = e.get("phys_def", "?")
         mag_def = e.get("mag_def", "?")
         disp_str = ""
-        if social_dispositions and e["agent_id"] in social_dispositions:
+        if alliance_statuses and e["agent_id"] in alliance_statuses:
+            status = alliance_statuses[e["agent_id"]]
+            # Use formal alliance status as the primary label
+            d = (
+                social_dispositions.get(e["agent_id"], 0.0)
+                if social_dispositions
+                else 0.0
+            )
+            disp_str = f" [{status.value.upper()} | disposition: {d:+.2f}]"
+        elif social_dispositions and e["agent_id"] in social_dispositions:
             d = social_dispositions[e["agent_id"]]
             if d > 0.5:
                 label = "allied"
@@ -226,7 +257,7 @@ def format_visible_enemies(
                 label = "unfriendly"
             else:
                 label = "neutral"
-            disp_str = f" [disposition: {d:+.2f} ({label})]"
+            disp_str = f" [{label.upper()} | disposition: {d:+.2f}]"
         lines.append(
             f"  - {e['name']} ({e['agent_id']}) at ({e['x']}, {e['y']}), "
             f"distance {e['distance']}, HP {e['hp']}/{e['max_hp']} ({hp_pct}%), "
@@ -279,6 +310,7 @@ def build_user_prompt(
     social_dispositions: dict[str, float] | None = None,
     urgency_text: str = "",
     can_ability: list[str] | None = None,
+    alliance_statuses: dict[str, AllianceStatus] | None = None,
 ) -> str:
     """Build the user prompt with full situational context."""
     status_effects = agent.attributes.status_effects
@@ -326,7 +358,9 @@ def build_user_prompt(
         urgency_section=urgency_section,
         perceptions=perceptions_text,
         memories=format_memories(memories),
-        visible_enemies=format_visible_enemies(visible_enemies, social_dispositions),
+        visible_enemies=format_visible_enemies(
+            visible_enemies, social_dispositions, alliance_statuses
+        ),
         available_actions=format_available_actions(
             can_move, can_attack, can_chat, can_ability
         ),

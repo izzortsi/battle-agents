@@ -11,6 +11,7 @@ class Identity:
     backstory: str = ""
     personality_traits: list[str] = field(default_factory=list)
     combat_class: str = "warrior"  # warrior, mage, rogue, healer, etc.
+    sprite: str = ""  # sprite preset name (e.g. "Mecha_Samus"), empty = SVG silhouette
 
     @property
     def summary(self) -> str:
