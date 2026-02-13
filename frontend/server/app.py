@@ -18,6 +18,9 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 app = FastAPI(title="Battle-Agents")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+# CLI options — populated by main(), read by _get_or_create_runner()
+_sim_options: dict = {}
+
 
 class ConnectionManager:
     """Tracks active WebSocket connections and broadcasts events."""
@@ -62,7 +65,7 @@ async def _get_or_create_runner():
         if _runner is None:
             from frontend.server.sim_runner import SimRunner
 
-            _runner = SimRunner(manager)
+            _runner = SimRunner(manager, **_sim_options)
         return _runner
 
 
@@ -104,10 +107,47 @@ async def websocket_endpoint(ws: WebSocket):
 
 
 def main() -> None:
+    import argparse
+
     import uvicorn
 
+    parser = argparse.ArgumentParser(description="Battle-Agents frontend server")
+    parser.add_argument(
+        "--random",
+        action="store_true",
+        help="Use random actions instead of LLM",
+    )
+    parser.add_argument(
+        "--no-social",
+        action="store_true",
+        help="Skip the pre-battle social phase",
+    )
+    parser.add_argument(
+        "--chars",
+        type=int,
+        default=None,
+        help="Number of characters to use",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port to serve on (default: 8000)",
+    )
+    args = parser.parse_args()
+
+    global _sim_options
+    _sim_options = {
+        "use_random": args.random,
+        "no_social": args.random or args.no_social,
+        "max_chars": args.chars,
+    }
+
+    mode = "random" if args.random else ("no-social" if args.no_social else "full")
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    log.info(f"Battle-Agents frontend — mode: {mode}")
+
+    uvicorn.run(app, host="0.0.0.0", port=args.port)
 
 
 if __name__ == "__main__":

@@ -210,6 +210,67 @@ def print_social_stats(env: Environment) -> None:
 # ==========================================================================
 
 
+def create_adapter(llm_cfg: dict):
+    """Create an LLM adapter from config.
+
+    Reads the ``default_adapter`` key (e.g. "openrouter/gemini-3-flash",
+    "openai/gpt-4o", "anthropic/sonnet") to pick the provider and model,
+    then instantiates the appropriate adapter class.
+
+    Returns (adapter, model_id).
+    """
+    default = llm_cfg.get("default_adapter", "openrouter/gemini-3-flash")
+    parts = default.split("/", 1)
+    provider_key = parts[0]
+    model_alias = parts[1] if len(parts) > 1 else None
+
+    adapters_cfg = llm_cfg.get("adapters", {})
+    provider_cfg = adapters_cfg.get(provider_key, {})
+    models_cfg = provider_cfg.get("models", {})
+
+    # Resolve model_id from the alias (or first model in config)
+    model_id = None
+    if model_alias and model_alias in models_cfg:
+        model_id = models_cfg[model_alias].get("model_id")
+    if model_id is None:
+        for _name, mcfg in models_cfg.items():
+            model_id = mcfg.get("model_id")
+            break
+
+    if provider_key == "openrouter":
+        from llm.openrouter_adapter import OpenRouterAdapter
+
+        model_id = model_id or "google/gemini-2.5-flash"
+        adapter = OpenRouterAdapter(model=model_id)
+
+    elif provider_key == "openai":
+        from llm.openai_adapter import OpenAIAdapter
+
+        model_id = model_id or "gpt-4o"
+        adapter = OpenAIAdapter(model=model_id)
+
+    elif provider_key == "anthropic":
+        from llm.anthropic_oauth_adapter import AnthropicOAuthAdapter
+
+        model_id = model_id or "claude-sonnet-4-5-20250929"
+        auth_mode = provider_cfg.get("auth", "oauth")
+        if auth_mode == "oauth":
+            adapter = AnthropicOAuthAdapter(model=model_id)
+        else:
+            # Future: API key-based Anthropic adapter
+            raise ValueError(
+                f"Anthropic auth mode '{auth_mode}' not yet supported. Use 'oauth'."
+            )
+    else:
+        raise ValueError(
+            f"Unknown LLM provider '{provider_key}'. "
+            f"Supported: openrouter, openai, anthropic"
+        )
+
+    log.info(f"LLM adapter: {adapter.name}")
+    return adapter, model_id
+
+
 def setup_cognitive_loop(game_cfg: dict) -> tuple:
     """Create and configure the LLM adapter and CognitiveLoop.
 
@@ -218,19 +279,10 @@ def setup_cognitive_loop(game_cfg: dict) -> tuple:
     from cognition.cognitive_loop import CognitiveLoop
     from cognition.embeddings import create_embedding_cache
     from llm.adapter import ModelRegistry
-    from llm.openrouter_adapter import OpenRouterAdapter
 
     llm_cfg = load_llm_config()
-    adapters_cfg = llm_cfg.get("adapters", {})
-    or_cfg = adapters_cfg.get("openrouter", {})
-    models_cfg = or_cfg.get("models", {})
+    adapter, model_id = create_adapter(llm_cfg)
 
-    model_id = "google/gemini-2.5-flash"
-    for _name, mcfg in models_cfg.items():
-        model_id = mcfg.get("model_id", model_id)
-        break
-
-    adapter = OpenRouterAdapter(model=model_id)
     registry = ModelRegistry()
     registry.register(llm_cfg.get("default_adapter", "openrouter"), adapter)
 

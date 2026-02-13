@@ -8,6 +8,21 @@ adapters:
         model_id: "google/gemini-3-flash-preview"
         role: "strong"
 
+  openai:
+    api_key_env: "OPENAI_API_KEY"
+    models:
+      gpt-4o:
+        model_id: "gpt-4o"
+        role: "strong"
+
+  anthropic:
+    auth: "oauth"                         # "oauth" (Pro/Max subscription) or "api_key"
+    api_key_env: "ANTHROPIC_API_KEY"      # used only when auth: api_key
+    models:
+      sonnet:
+        model_id: "claude-sonnet-4-5-20250929"
+        role: "strong"
+
 embedding:
   provider: "openrouter"              # "openrouter" | "openai" | "ollama" | "none"
   model: "openai/text-embedding-3-small"

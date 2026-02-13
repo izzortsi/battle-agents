@@ -81,11 +81,11 @@ class Renderer {
     if (this._gridCreated) return;
     const { width, height } = this.state.grid;
 
-    // Size SVG
+    // Size SVG — use viewBox for coordinate space, CSS for responsive fill
     const svgW = width * CELL_SIZE;
     const svgH = height * CELL_SIZE + 20; // extra for labels
-    this.svg.setAttribute('width', svgW);
-    this.svg.setAttribute('height', svgH);
+    this.svg.removeAttribute('width');
+    this.svg.removeAttribute('height');
     this.svg.setAttribute('viewBox', `0 0 ${svgW} ${svgH}`);
 
     // Inject defs

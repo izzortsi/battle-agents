@@ -27,7 +27,7 @@ from frontend.server.serializers import (
     serialize_snapshot,
     serialize_social,
 )
-from runner import place_agents, setup_cognitive_loop
+from runner import pick_random_action, place_agents, setup_cognitive_loop
 from world.battle_grid import BattleGrid
 from world.environment import Environment
 
@@ -40,7 +40,14 @@ log = logging.getLogger(__name__)
 class SimRunner:
     """Manages the simulation lifecycle with WebSocket event emission."""
 
-    def __init__(self, manager: ConnectionManager) -> None:
+    def __init__(
+        self,
+        manager: ConnectionManager,
+        *,
+        use_random: bool = False,
+        no_social: bool = False,
+        max_chars: int | None = None,
+    ) -> None:
         self._manager = manager
         self.control_queue: asyncio.Queue = asyncio.Queue()
         self._mode = "paused"  # paused | playing | stepping
@@ -50,6 +57,10 @@ class SimRunner:
         self._phase = "idle"
         self._started = False
         self._task: asyncio.Task | None = None
+        # CLI options
+        self._use_random = use_random
+        self._no_social = no_social
+        self._max_chars = max_chars
         # Persistent history for reconnecting clients
         self._event_log: list[dict] = []
         self._dialogue_log: list[dict] = []
@@ -189,7 +200,10 @@ class SimRunner:
 
             game_cfg = load_game_config()
             pre_battle_cfg = game_cfg.get("pre_battle", {})
-            pre_battle_enabled = pre_battle_cfg.get("enabled", False)
+            pre_battle_enabled = (
+                pre_battle_cfg.get("enabled", False)
+                and not self._no_social
+            )
 
             if pre_battle_enabled:
                 await self._run_pre_battle(pre_battle_cfg)
@@ -216,14 +230,20 @@ class SimRunner:
         )
 
         agents = load_all_characters()
+        if self._max_chars and self._max_chars < len(agents):
+            agents = agents[:self._max_chars]
         place_agents(agents, self._env)
 
-        self._cognitive_loop, self._model_id = setup_cognitive_loop(game_cfg)
-        for agent in self._env.agents.values():
-            self._cognitive_loop.register(agent)
+        if not self._use_random:
+            self._cognitive_loop, self._model_id = setup_cognitive_loop(game_cfg)
+            for agent in self._env.agents.values():
+                self._cognitive_loop.register(agent)
+        else:
+            self._model_id = "random"
 
         self._phase = "setup"
-        log.info(f"SimRunner: loaded {len(agents)} agents, model={self._model_id}")
+        mode = "random" if self._use_random else ("no-social" if self._no_social else "full")
+        log.info(f"SimRunner: loaded {len(agents)} agents, mode={mode}, model={self._model_id}")
 
     # ------------------------------------------------------------------ pre-battle
 
@@ -365,8 +385,8 @@ class SimRunner:
                                         })
                                         break
 
-                    # Bonus actions
-                    if not self._env.is_combat_over():
+                    # Bonus actions (LLM mode only)
+                    if self._cognitive_loop and not self._env.is_combat_over():
                         for a in list(self._env.alive_agents()):
                             if a.attributes.spd >= 15:
                                 chance = 10 + (a.attributes.spd - 15) * 2
@@ -416,61 +436,80 @@ class SimRunner:
                 await self._await_advance()
                 continue
 
-            # Build urgency
-            urgency_text = ""
-            if rounds_without_damage >= max_no_damage_rounds:
-                urgency_text = (
-                    f"No damage has been dealt for {rounds_without_damage} rounds! "
-                    f"The arena grows impatient. You MUST attack an enemy THIS TURN."
-                )
-
-            # Cognitive turn
-            decision = await self._cognitive_loop.async_run_turn(
-                current, self._env, round_num, urgency_text=urgency_text
-            )
-
-            # Broadcast cognitive state
-            cog = serialize_cognitive(current.agent_id, self._cognitive_loop)
-            cog["reasoning"] = decision.primary_action.reasoning
-            await self._broadcast(cog)
-
-            # Resolve primary action
-            result = self._env.resolve_action(decision.primary_action)
-            event = serialize_action_event(decision.primary_action, result, self._env)
-            await self._broadcast(event)
-
-            if result.success and (
-                decision.primary_action.action_type == ActionType.ATTACK
-                or (
-                    decision.primary_action.action_type == ActionType.ABILITY
-                    and result.details.get("damage", 0) > 0
-                )
-            ):
-                damage_this_round = True
-
-            # Check for kills
-            if result.details.get("killed"):
-                target_id = decision.primary_action.target_agent
-                await self._broadcast({
-                    "type": "death",
-                    "agent_id": target_id,
-                    "killer_id": current.agent_id,
-                })
-
-            # Handle chat
-            if decision.chat_action and decision.chat_action.target_agent:
-                if self._cognitive_loop.can_chat_combat(current.agent_id, round_num):
-                    self._cognitive_loop._handle_chat(
-                        current, decision.chat_action, self._env, round_num
+            if self._cognitive_loop:
+                # LLM mode: cognitive turn
+                urgency_text = ""
+                if rounds_without_damage >= max_no_damage_rounds:
+                    urgency_text = (
+                        f"No damage has been dealt for {rounds_without_damage} rounds! "
+                        f"The arena grows impatient. You MUST attack an enemy THIS TURN."
                     )
-                    self._cognitive_loop.record_chat(current.agent_id, round_num)
+
+                decision = await self._cognitive_loop.async_run_turn(
+                    current, self._env, round_num, urgency_text=urgency_text
+                )
+
+                # Broadcast cognitive state
+                cog = serialize_cognitive(current.agent_id, self._cognitive_loop)
+                cog["reasoning"] = decision.primary_action.reasoning
+                await self._broadcast(cog)
+
+                # Resolve primary action
+                action = decision.primary_action
+                result = self._env.resolve_action(action)
+                event = serialize_action_event(action, result, self._env)
+                await self._broadcast(event)
+
+                if result.success and (
+                    action.action_type == ActionType.ATTACK
+                    or (
+                        action.action_type == ActionType.ABILITY
+                        and result.details.get("damage", 0) > 0
+                    )
+                ):
+                    damage_this_round = True
+
+                # Check for kills
+                if result.details.get("killed"):
+                    target_id = action.target_agent
                     await self._broadcast({
-                        "type": "dialogue",
-                        "speaker": current.agent_id,
-                        "speaker_name": current.name,
-                        "target": decision.chat_action.target_agent,
-                        "message": decision.chat_action.message or "",
-                        "disposition_shift": 0,
+                        "type": "death",
+                        "agent_id": target_id,
+                        "killer_id": current.agent_id,
+                    })
+
+                # Handle chat
+                if decision.chat_action and decision.chat_action.target_agent:
+                    if self._cognitive_loop.can_chat_combat(current.agent_id, round_num):
+                        self._cognitive_loop._handle_chat(
+                            current, decision.chat_action, self._env, round_num
+                        )
+                        self._cognitive_loop.record_chat(current.agent_id, round_num)
+                        await self._broadcast({
+                            "type": "dialogue",
+                            "speaker": current.agent_id,
+                            "speaker_name": current.name,
+                            "target": decision.chat_action.target_agent,
+                            "message": decision.chat_action.message or "",
+                            "disposition_shift": 0,
+                        })
+            else:
+                # Random mode: pick a random action
+                action = pick_random_action(current, self._env)
+                result = self._env.resolve_action(action)
+                event = serialize_action_event(action, result, self._env)
+                await self._broadcast(event)
+
+                if result.success and action.action_type == ActionType.ATTACK:
+                    damage_this_round = True
+
+                # Check for kills
+                if result.details.get("killed"):
+                    target_id = action.target_agent
+                    await self._broadcast({
+                        "type": "death",
+                        "agent_id": target_id,
+                        "killer_id": current.agent_id,
                     })
 
             self._env.advance_turn()
