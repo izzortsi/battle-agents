@@ -12,6 +12,9 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+import json
+import re
+
 from llm.json_utils import extract_json
 from llm.prompts.lore import build_lore_prompts
 
@@ -94,9 +97,9 @@ def generate_lore(
         if not isinstance(data, dict):
             raise ValueError(f"Expected dict, got {type(data).__name__}")
     except ValueError as e:
-        log.warning(f"Lore JSON parse failed, using raw text: {e}")
-        # Fall back to raw text as world_description
-        return LoreContext(world_description=raw.strip(), raw_text=raw.strip())
+        log.warning(f"Lore JSON parse failed: {e}")
+        # Last-ditch: try regex to pull "world_description" value from raw text
+        return _fallback_lore_from_raw(raw)
 
     # Accept common alternative keys the LLM might use
     world_desc = (
@@ -118,6 +121,41 @@ def generate_lore(
 
     log.info(f"Generated world lore ({len(lore.raw_text)} chars)")
     return lore
+
+
+def _fallback_lore_from_raw(raw: str) -> LoreContext:
+    """Try to extract lore fields from raw LLM text that looks like JSON but failed extract_json.
+
+    If the raw text contains JSON-like key-value pairs, we try to pull out
+    'world_description' (or alternatives) via regex. Otherwise we use the raw text
+    as a plain-text world description.
+    """
+    raw_stripped = raw.strip()
+
+    # Try to extract the world_description value from the raw JSON-like text
+    # Handles: "world_description": "some text here"
+    for key in ("world_description", "description", "world", "setting"):
+        pattern = rf'"{key}"\s*:\s*"((?:[^"\\]|\\.)*)"'
+        m = re.search(pattern, raw_stripped, re.DOTALL)
+        if m:
+            world_desc = m.group(1).replace('\\"', '"').replace("\\n", "\n")
+
+            # Also try to pull key_facts
+            key_facts: list[str] = []
+            facts_m = re.search(r'"key_facts"\s*:\s*\[(.*?)\]', raw_stripped, re.DOTALL)
+            if facts_m:
+                key_facts = re.findall(r'"((?:[^"\\]|\\.)*)"', facts_m.group(1))
+
+            lore = LoreContext(
+                world_description=world_desc,
+                key_facts=key_facts,
+            )
+            lore.raw_text = lore.to_prompt_text()
+            log.info(f"Fallback lore extraction succeeded ({len(world_desc)} chars)")
+            return lore
+
+    # No JSON-like content found — use raw text as-is
+    return LoreContext(world_description=raw_stripped, raw_text=raw_stripped)
 
 
 def inject_lore_memories(

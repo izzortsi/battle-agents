@@ -417,16 +417,22 @@ class SimRunner:
                     pair = frozenset({agent.agent_id, chat.target_agent})
                     if pair not in chatted_pairs:
                         chatted_pairs.add(pair)
-                        session = self._cognitive_loop.handle_pre_battle_chat(
-                            initiator=agent, action=chat, env=self._env, tick_number=tick
+                        session = await asyncio.to_thread(
+                            self._cognitive_loop.handle_pre_battle_chat,
+                            agent, chat, self._env, tick,
                         )
                         if session:
                             for ex in session.exchanges:
+                                target_id = (
+                                    chat.target_agent
+                                    if ex.speaker == agent.agent_id
+                                    else agent.agent_id
+                                )
                                 await self._broadcast({
                                     "type": "dialogue",
                                     "speaker": ex.speaker,
                                     "speaker_name": ex.speaker_name,
-                                    "target": chat.target_agent,
+                                    "target": target_id,
                                     "message": ex.message,
                                     "disposition_shift": ex.disposition_shift,
                                 })
@@ -664,17 +670,23 @@ class SimRunner:
                 # Handle chat
                 if decision.chat_action and decision.chat_action.target_agent:
                     if self._cognitive_loop.can_chat_combat(current.agent_id, round_num):
-                        session = self._cognitive_loop._handle_chat(
-                            current, decision.chat_action, self._env, round_num
+                        session = await asyncio.to_thread(
+                            self._cognitive_loop._handle_chat,
+                            current, decision.chat_action, self._env, round_num,
                         )
                         self._cognitive_loop.record_chat(current.agent_id, round_num)
                         if session:
                             for ex in session.exchanges:
+                                target_id = (
+                                    decision.chat_action.target_agent
+                                    if ex.speaker == current.agent_id
+                                    else current.agent_id
+                                )
                                 await self._broadcast({
                                     "type": "dialogue",
                                     "speaker": ex.speaker,
                                     "speaker_name": ex.speaker_name,
-                                    "target": decision.chat_action.target_agent,
+                                    "target": target_id,
                                     "message": ex.message,
                                     "disposition_shift": ex.disposition_shift,
                                 })
