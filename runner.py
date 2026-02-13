@@ -13,6 +13,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import asyncio
 import logging
 import random
 import sys
@@ -126,20 +127,22 @@ def pick_random_action(agent: Agent, env: Environment) -> CombatAction:
 
 
 def place_agents(agents: list[Agent], env: Environment) -> None:
-    """Place agents on the grid in spread-out positions."""
-    w, h = env.grid.width, env.grid.height
-    positions = [
-        (1, 1),
-        (w - 2, 1),
-        (1, h - 2),
-        (w - 2, h - 2),
-        (w // 2, 1),
-        (w // 2, h - 2),
-    ]
-    for i, agent in enumerate(agents):
-        x, y = positions[i % len(positions)]
-        env.register_agent(agent, x, y)
-        log.info(f"  Placed {agent.name} at ({x}, {y})")
+    """Place agents on random passable tiles with minimum separation."""
+    min_dist = 3
+    placed: list[tuple[int, int]] = []
+    passable = list(env.grid.all_passable())
+    random.shuffle(passable)
+
+    for agent in agents:
+        for x, y in passable:
+            if all(
+                BattleGrid.manhattan(x, y, px, py) >= min_dist
+                for px, py in placed
+            ):
+                env.register_agent(agent, x, y)
+                placed.append((x, y))
+                log.info(f"  Placed {agent.name} at ({x}, {y})")
+                break
 
 
 def print_grid(env: Environment) -> None:
@@ -511,6 +514,222 @@ def run_battle(
 
 
 # ==========================================================================
+# Async variants (pre-battle + combat)
+# ==========================================================================
+
+
+async def async_run_pre_battle(
+    env: Environment,
+    cognitive_loop,
+    pre_battle_cfg: dict,
+) -> None:
+    """Async version of run_pre_battle(). All agents run concurrently each tick."""
+
+    duration = pre_battle_cfg.get("duration_ticks", 6)
+    pre_battle_radius = pre_battle_cfg.get("perception_radius", 12)
+
+    original_radius = env.perception_engine.perception_radius
+    env.perception_engine.perception_radius = pre_battle_radius
+
+    log.info(f"\n{'=' * 60}")
+    log.info(f"PRE-BATTLE SOCIAL PHASE (async)  —  {duration} ticks")
+    log.info(f"  Perception radius: {pre_battle_radius}")
+    log.info(f"  Chat max rounds: {pre_battle_cfg.get('chat_max_rounds', 4)}")
+    log.info(f"{'=' * 60}")
+
+    agents = env.alive_agents()
+
+    for tick in range(1, duration + 1):
+        log.info(f"\n--- Social Tick {tick}/{duration} ---")
+        print_grid(env)
+
+        # All agents decide concurrently
+        decisions = await cognitive_loop.async_run_pre_battle_tick(
+            agents=agents,
+            env=env,
+            tick_number=tick,
+            total_ticks=duration,
+        )
+
+        chatted_pairs: set[frozenset[str]] = set()
+
+        for agent, decision in decisions:
+            primary = decision.primary_action
+            if primary.action_type == ActionType.MOVE:
+                result = env.resolve_action(primary)
+                log.info(f"  [{agent.name}] {result.description}")
+            elif primary.action_type == ActionType.WAIT:
+                log.info(
+                    f"  [{agent.name}] waits and observes. "
+                    f"({primary.reasoning or 'no reason given'})"
+                )
+
+            chat = decision.chat_action
+            if chat and chat.target_agent:
+                pair = frozenset({agent.agent_id, chat.target_agent})
+                if pair not in chatted_pairs:
+                    chatted_pairs.add(pair)
+                    cognitive_loop.handle_pre_battle_chat(
+                        initiator=agent,
+                        action=chat,
+                        env=env,
+                        tick_number=tick,
+                    )
+                else:
+                    target_name = env.agents.get(chat.target_agent)
+                    target_label = (
+                        target_name.name if target_name else chat.target_agent
+                    )
+                    log.info(
+                        f"  [{agent.name}] wanted to chat with "
+                        f"{target_label} but they already talked this tick"
+                    )
+
+        env.recent_actions.clear()
+
+    env.perception_engine.perception_radius = original_radius
+
+    log.info(f"\n{'=' * 60}")
+    log.info("PRE-BATTLE PHASE COMPLETE")
+    log.info(f"{'=' * 60}")
+    print_social_stats(env)
+
+
+async def async_run_battle(
+    env: Environment,
+    cognitive_loop,
+    model_id: str = "",
+) -> Agent | None:
+    """Async version of run_battle(). Uses async_run_turn for LLM calls."""
+    max_rounds = 50
+
+    log.info(f"\nCognitive loop carried from pre-battle (model: {model_id})")
+    cognitive_loop._planner._plans.clear()
+
+    game_cfg = load_game_config()
+    combat_cfg = game_cfg.get("combat", {})
+    max_no_damage_rounds = combat_cfg.get("max_no_damage_rounds", 4)
+    rounds_without_damage = 0
+    damage_this_round = False
+
+    order = env.start_combat()
+    log.info(f"\n{'=' * 60}")
+    log.info(f"COMBAT BEGINS (async)  —  Initiative: {', '.join(order)}")
+    log.info("  Mode: LLM-driven (Phase 4 — Full: Pre-Battle + Combat)")
+    log.info(f"{'=' * 60}")
+
+    while not env.is_combat_over() and env.turn_manager.round_number <= max_rounds:
+        current = env.current_agent()
+        if current is None or not current.is_alive:
+            next_agent = env.advance_turn()
+            if next_agent is None:
+                break
+            continue
+
+        round_num = env.turn_manager.round_number
+
+        if env.turn_manager._current_idx == 0:
+            if round_num > 1:
+                if not damage_this_round:
+                    rounds_without_damage += 1
+                else:
+                    rounds_without_damage = 0
+                damage_this_round = False
+
+                for a in env.alive_agents():
+                    restored = a.attributes.regen_mana()
+                    if restored > 0:
+                        log.debug(f"  {a.name} regenerated {restored} mana")
+
+            log.info(f"\n--- Round {round_num} ---")
+            if rounds_without_damage >= max_no_damage_rounds:
+                log.info(
+                    f"  *** STAGNATION WARNING: {rounds_without_damage} rounds "
+                    f"with no damage dealt! ***"
+                )
+            print_grid(env)
+            print_status(env)
+
+        urgency_text = ""
+        if rounds_without_damage >= max_no_damage_rounds:
+            urgency_text = (
+                f"No damage has been dealt for {rounds_without_damage} rounds! "
+                f"The arena grows impatient. You MUST attack an enemy THIS TURN "
+                f"or close distance aggressively. Inaction means death."
+            )
+
+        expired = current.attributes.tick_status_effects()
+        for eff in expired:
+            env.world_state.remove_status(
+                current.agent_id, eff if eff != "defend" else "defending"
+            )
+
+        decision = await cognitive_loop.async_run_turn(
+            current, env, round_num, urgency_text=urgency_text
+        )
+
+        result = env.resolve_action(decision.primary_action)
+        log.info(f"  {result.description}")
+
+        if (
+            result.success
+            and decision.primary_action.action_type == ActionType.ATTACK
+        ):
+            damage_this_round = True
+
+        if decision.chat_action and decision.chat_action.target_agent:
+            if cognitive_loop.can_chat_combat(current.agent_id, round_num):
+                cognitive_loop._handle_chat(
+                    current, decision.chat_action, env, round_num
+                )
+                cognitive_loop.record_chat(current.agent_id, round_num)
+            else:
+                log.info(f"  [{current.name}] wanted to chat but is on cooldown")
+
+        env.advance_turn()
+
+    winner = env.get_winner()
+    log.info(f"\n{'=' * 60}")
+    if winner:
+        log.info(f"VICTORY: {winner.name} wins!")
+    else:
+        log.info("DRAW: No clear winner.")
+    log.info(f"{'=' * 60}")
+    print_status(env)
+
+    log.info(f"\n--- Memory Stats ---")
+    for agent in env.agents.values():
+        state = cognitive_loop.get_state(agent.agent_id)
+        if state:
+            log.info(
+                f"  {agent.name}: {len(state.memory)} memories "
+                f"(importance acc: {state.memory.importance_accumulator:.0f})"
+            )
+
+    print_social_stats(env)
+    return winner
+
+
+async def _async_main(
+    game_cfg: dict,
+    env: Environment,
+    agents: list[Agent],
+    pre_battle_enabled: bool,
+    pre_battle_cfg: dict,
+) -> None:
+    """Async main — runs pre-battle and combat with async concurrency."""
+    cognitive_loop, model_id = setup_cognitive_loop(game_cfg)
+    for agent in env.agents.values():
+        cognitive_loop.register(agent)
+    log.info(f"\nCognitive loop initialised (model: {model_id})")
+
+    if pre_battle_enabled:
+        await async_run_pre_battle(env, cognitive_loop, pre_battle_cfg)
+
+    await async_run_battle(env, cognitive_loop, model_id)
+
+
+# ==========================================================================
 # Entry point
 # ==========================================================================
 
@@ -579,28 +798,21 @@ def main() -> None:
     log.info("\nPlacing agents on grid:")
     place_agents(agents, env)
 
-    # Set up cognitive loop if using LLM
-    cognitive_loop = None
-    model_id = ""
     if use_llm:
-        cognitive_loop, model_id = setup_cognitive_loop(game_cfg)
-        for agent in env.agents.values():
-            cognitive_loop.register(agent)
-        log.info(f"\nCognitive loop initialised (model: {model_id})")
-
-    # Phase 1: Pre-battle social phase (if enabled)
-    if pre_battle_enabled and cognitive_loop is not None:
-        run_pre_battle(env, cognitive_loop, pre_battle_cfg)
-    elif pre_battle_enabled and cognitive_loop is None:
+        # Async path — all LLM calls use asyncio concurrency
+        asyncio.run(
+            _async_main(
+                game_cfg=game_cfg,
+                env=env,
+                agents=agents,
+                pre_battle_enabled=pre_battle_enabled,
+                pre_battle_cfg=pre_battle_cfg,
+            )
+        )
+    else:
+        # Random mode — fully sync, no LLM needed
         log.info("\nSkipping pre-battle phase (random mode)")
-
-    # Phase 2: Combat
-    run_battle(
-        env,
-        use_llm=use_llm,
-        cognitive_loop=cognitive_loop,
-        model_id=model_id,
-    )
+        run_battle(env, use_llm=False)
 
 
 if __name__ == "__main__":

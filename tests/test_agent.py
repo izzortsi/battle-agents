@@ -19,16 +19,19 @@ from tests.conftest import make_agent
 class TestAttributes:
     def test_defaults(self):
         a = Attributes()
-        assert a.hp == 100
-        assert a.max_hp == 100
-        assert a.mana == 50
+        # max_hp = hp_base(40) + hp_per_con(8) * con(10) = 120
+        assert a.hp == a.max_hp
+        assert a.max_hp == 120
+        # max_mana = mana_base(10) + mana_per_mgk(3) * mgk(10) = 40
+        assert a.mana == a.max_mana
+        assert a.max_mana == 40
         assert a.is_alive
 
     def test_take_damage(self):
-        a = Attributes(hp=100)
+        a = Attributes()
         actual = a.take_damage(30)
         assert actual == 30
-        assert a.hp == 70
+        assert a.hp == a.max_hp - 30
 
     def test_take_damage_overkill(self):
         a = Attributes(hp=50)
@@ -38,28 +41,29 @@ class TestAttributes:
         assert not a.is_alive
 
     def test_take_damage_zero(self):
-        a = Attributes(hp=100)
+        a = Attributes()
+        hp_before = a.hp
         actual = a.take_damage(0)
         assert actual == 0
-        assert a.hp == 100
+        assert a.hp == hp_before
 
     def test_heal(self):
-        a = Attributes(hp=50, max_hp=100)
+        a = Attributes(hp=50)
         actual = a.heal(30)
         assert actual == 30
         assert a.hp == 80
 
     def test_heal_capped_at_max(self):
-        a = Attributes(hp=90, max_hp=100)
-        actual = a.heal(50)
-        assert actual == 10
-        assert a.hp == 100
+        a = Attributes(hp=50)
+        actual = a.heal(999)
+        assert actual == a.max_hp - 50
+        assert a.hp == a.max_hp
 
     def test_heal_at_full_hp(self):
-        a = Attributes(hp=100, max_hp=100)
+        a = Attributes()  # hp starts at max
         actual = a.heal(20)
         assert actual == 0
-        assert a.hp == 100
+        assert a.hp == a.max_hp
 
     def test_spend_mana_success(self):
         a = Attributes(mana=50)
@@ -92,15 +96,17 @@ class TestAttributes:
         assert not a.has_status("shield")
 
     def test_effective_defense_with_defend(self):
-        a = Attributes(defense=10)
+        # phys_def = con(10) * 1.0 + atk(10) * 0.5 = 15
+        a = Attributes(atk=10, con=10)
+        base_def = a.phys_def  # 15
         a.status_effects = [
             {"type": "defend", "duration": 1, "magnitude": 0.5, "source": "self"},
         ]
-        assert a.get_effective_defense() == 15  # 10 + 10 * 0.5
+        assert a.get_effective_defense() == int(base_def + base_def * 0.5)
 
     def test_effective_defense_no_bonus(self):
-        a = Attributes(defense=10)
-        assert a.get_effective_defense() == 10
+        a = Attributes(atk=10, con=10)
+        assert a.get_effective_defense() == a.phys_def
 
 
 # ---------------------------------------------------------------------------
@@ -160,10 +166,11 @@ class TestAgent:
         assert a == b
 
     def test_status_summary(self):
-        a = make_agent("kael", "Kael", hp=75, max_hp=100)
+        a = make_agent("kael", "Kael")
+        a.attributes.hp = 75
         s = a.status_summary()
         assert "75" in s
-        assert "100" in s
+        assert str(a.attributes.max_hp) in s
 
 
 # ---------------------------------------------------------------------------

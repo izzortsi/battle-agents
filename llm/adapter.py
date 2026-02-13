@@ -7,6 +7,7 @@ conforming to the ABC can be plugged in.
 
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
@@ -38,6 +39,25 @@ class LLMAdapter(ABC):
     @property
     @abstractmethod
     def name(self) -> str: ...
+
+    # -- Async variants (override for native async) ----------------------------
+
+    async def async_complete(
+        self,
+        system: str,
+        user: str,
+        max_tokens: int = 512,
+        temperature: float = 0.7,
+        response_format: Optional[str] = None,
+    ) -> str:
+        """Async version of complete(). Default delegates via to_thread."""
+        return await asyncio.to_thread(
+            self.complete, system, user, max_tokens, temperature, response_format
+        )
+
+    async def async_embed(self, texts: List[str]) -> List[List[float]]:
+        """Async version of embed(). Default delegates via to_thread."""
+        return await asyncio.to_thread(self.embed, texts)
 
 
 class ModelRegistry:

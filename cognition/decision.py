@@ -343,3 +343,83 @@ def decide(
         )
     log.info(f"  [{agent.name}] thinks: {parsed.get('reasoning', '?')[:100]}")
     return decision
+
+
+# ---------------------------------------------------------------------------
+# Async variant
+# ---------------------------------------------------------------------------
+
+
+async def async_decide(
+    agent: Agent,
+    env: Environment,
+    perceptions_text: str,
+    memories: list[MemoryNode],
+    llm: LLMAdapter,
+    round_number: int,
+    current_plan: str = "",
+    chat_allowed: bool = True,
+    urgency_text: str = "",
+) -> CombatDecision:
+    """Async version of decide(). Calls llm.async_complete()."""
+    ctx = _gather_context(agent, env, perceptions_text, memories)
+    if not ctx:
+        return CombatDecision(primary_action=make_wait(agent.agent_id, "no position"))
+
+    system_prompt = build_system_prompt(agent)
+
+    can_move_tiles = []
+    for tile_label in ctx["can_move"]:
+        clean = tile_label.strip("()").replace(" ", "")
+        parts = clean.split(",")
+        if len(parts) == 2:
+            can_move_tiles.append(f"({parts[0]}, {parts[1]})")
+
+    user_prompt = build_user_prompt(
+        agent=agent,
+        round_number=round_number,
+        my_x=ctx["ax"],
+        my_y=ctx["ay"],
+        perceptions_text=perceptions_text,
+        memories=memories,
+        visible_enemies=ctx["visible_enemies"],
+        can_move=can_move_tiles,
+        can_attack=ctx["can_attack"],
+        can_chat=ctx["can_chat"] if chat_allowed else [],
+        current_plan=current_plan,
+        social_dispositions=ctx["social_dispositions"],
+        urgency_text=urgency_text,
+    )
+
+    try:
+        raw_response = await llm.async_complete(
+            system=system_prompt,
+            user=user_prompt,
+            max_tokens=256,
+            temperature=0.7,
+            response_format="json",
+        )
+        log.debug(f"{agent.name} LLM response: {raw_response[:200]}")
+    except Exception as e:
+        log.error(f"{agent.name}: LLM call failed: {e}")
+        return CombatDecision(
+            primary_action=make_wait(agent.agent_id, f"LLM error: {e}")
+        )
+
+    try:
+        parsed = extract_json(raw_response)
+        if not isinstance(parsed, dict):
+            raise ValueError(f"Expected dict, got {type(parsed).__name__}")
+    except ValueError as e:
+        log.error(f"{agent.name}: JSON parse failed: {e}")
+        return CombatDecision(
+            primary_action=make_wait(agent.agent_id, f"JSON parse error: {e}")
+        )
+
+    decision = _parse_action(parsed, agent, env, ctx)
+    if not chat_allowed:
+        decision = CombatDecision(
+            primary_action=decision.primary_action, chat_action=None
+        )
+    log.info(f"  [{agent.name}] thinks: {parsed.get('reasoning', '?')[:100]}")
+    return decision

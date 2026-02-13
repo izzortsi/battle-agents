@@ -176,3 +176,140 @@ def _generate_insight(
         log.warning(f"  [{agent_name}] Insight generation LLM error: {e}")
 
     return "", []
+
+
+# ---------------------------------------------------------------------------
+# Async variants
+# ---------------------------------------------------------------------------
+
+
+async def async_reflect(
+    agent_name: str,
+    combat_class: str,
+    memory: MemoryStream,
+    llm: LLMAdapter,
+    current_turn: int,
+    threshold: float = 50.0,
+) -> list[int]:
+    """Async version of reflect(). Calls llm.async_complete()."""
+    if memory.importance_accumulator < threshold:
+        return []
+
+    log.info(
+        f"  [{agent_name}] Reflecting... "
+        f"(importance: {memory.importance_accumulator:.0f} >= {threshold:.0f})"
+    )
+
+    recent = memory.get_recent(100)
+    if len(recent) < 3:
+        log.debug(f"  [{agent_name}] Too few memories to reflect ({len(recent)})")
+        return []
+
+    questions = await _async_generate_questions(agent_name, combat_class, recent, llm)
+    if not questions:
+        log.warning(f"  [{agent_name}] Question generation failed")
+        return []
+
+    log.debug(f"  [{agent_name}] Reflection questions: {questions}")
+
+    new_ids: list[int] = []
+    for question in questions:
+        relevant = retrieve(
+            memory=memory,
+            query=question,
+            current_turn=current_turn,
+            top_k=10,
+        )
+        if not relevant:
+            continue
+
+        insight, evidence_ids = await _async_generate_insight(
+            agent_name, combat_class, question, relevant, llm
+        )
+        if not insight:
+            continue
+
+        node = memory.add(
+            turn=current_turn,
+            memory_type=MemoryType.REFLECTION,
+            description=insight,
+            poignancy=8,
+            depth=1,
+            subject=agent_name,
+            predicate="reflected",
+            object_=question[:50],
+            evidence_ids=evidence_ids,
+        )
+        new_ids.append(node.node_id)
+        log.info(f"  [{agent_name}] Reflection: {insight}")
+
+    memory.reset_importance()
+    log.info(f"  [{agent_name}] Reflection complete: {len(new_ids)} insights generated")
+    return new_ids
+
+
+async def _async_generate_questions(
+    agent_name: str,
+    combat_class: str,
+    recent_memories: list,
+    llm: LLMAdapter,
+) -> list[str]:
+    """Async version of _generate_questions()."""
+    system, user = build_question_prompts(agent_name, combat_class, recent_memories)
+
+    try:
+        raw = await llm.async_complete(
+            system=system,
+            user=user,
+            max_tokens=256,
+            temperature=0.6,
+            response_format="json",
+        )
+        parsed = extract_json(raw)
+        if isinstance(parsed, dict) and "questions" in parsed:
+            questions = parsed["questions"]
+            if isinstance(questions, list):
+                return [str(q) for q in questions[:3]]
+    except Exception as e:
+        log.warning(f"  [{agent_name}] Question generation LLM error: {e}")
+
+    return []
+
+
+async def _async_generate_insight(
+    agent_name: str,
+    combat_class: str,
+    question: str,
+    relevant_memories: list,
+    llm: LLMAdapter,
+) -> tuple[str, list[int]]:
+    """Async version of _generate_insight()."""
+    system, user = build_insight_prompts(
+        agent_name, combat_class, question, relevant_memories
+    )
+
+    try:
+        raw = await llm.async_complete(
+            system=system,
+            user=user,
+            max_tokens=256,
+            temperature=0.5,
+            response_format="json",
+        )
+        parsed = extract_json(raw)
+        if isinstance(parsed, dict) and "insight" in parsed:
+            insight = str(parsed["insight"])
+            evidence_nums = parsed.get("evidence", [])
+            evidence_ids = []
+            for num in evidence_nums:
+                try:
+                    idx = int(num) - 1
+                    if 0 <= idx < len(relevant_memories):
+                        evidence_ids.append(relevant_memories[idx].node_id)
+                except (ValueError, TypeError):
+                    continue
+            return insight, evidence_ids
+    except Exception as e:
+        log.warning(f"  [{agent_name}] Insight generation LLM error: {e}")
+
+    return "", []

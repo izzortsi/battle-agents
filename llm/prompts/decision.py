@@ -29,7 +29,7 @@ you must actively engage enemies and deal damage. Standing around or \
 endlessly talking will get you killed.
 
 YOUR COMBAT PROFILE:
-- Damage type: {damage_type} (you deal {damage_type} damage based on your {'ATK' if damage_type == 'physical' else 'MGK'} stat)
+- Damage type: {damage_type} (you deal {damage_type} damage based on your {primary_stat} stat)
 - Attack range: {attack_range} tiles (Manhattan distance)
 - Accuracy depends on your HIT vs enemy SPD — low accuracy means you may miss
 - You can land critical hits (chance scales with your SPD)
@@ -102,13 +102,15 @@ Choose your action. Respond with JSON only."""
 def build_system_prompt(agent: Agent) -> str:
     """Build the system prompt from an agent's identity and attributes."""
     personality = ", ".join(agent.identity.personality_traits) or "unknown"
+    damage_type = agent.attributes.damage_type
     return SYSTEM_TEMPLATE.format(
         name=agent.identity.name,
         combat_class=agent.identity.combat_class,
         personality=personality,
         backstory=agent.identity.backstory,
         attack_range=agent.attributes.attack_range,
-        damage_type=agent.attributes.damage_type,
+        damage_type=damage_type,
+        primary_stat="ATK" if damage_type == "physical" else "MGK",
     )
 
 

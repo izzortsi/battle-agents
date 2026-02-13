@@ -11,18 +11,23 @@ Each agent gets a CognitiveState that persists across both phases.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
 
-from cognition.decision import CombatDecision, decide
+from cognition.decision import CombatDecision, async_decide, decide
 from cognition.dialogue import run_dialogue_session
 from cognition.embeddings import EmbeddingCache
 from cognition.memory_stream import MemoryNode, MemoryStream, MemoryType
 from cognition.perceiver import perceive_to_memory
 from cognition.planner import Planner
-from cognition.pre_battle_decision import PreBattleDecision, decide_pre_battle
-from cognition.reflection import reflect
+from cognition.pre_battle_decision import (
+    PreBattleDecision,
+    async_decide_pre_battle,
+    decide_pre_battle,
+)
+from cognition.reflection import async_reflect, reflect
 from cognition.retrieval import retrieve
 
 if TYPE_CHECKING:
@@ -526,6 +531,290 @@ class CognitiveLoop:
         ):
             parts.append(perceptions_text)
         return " ".join(parts)
+
+    # ==================================================================
+    # Async embedding helpers
+    # ==================================================================
+
+    async def _async_embed_nodes(self, memory: MemoryStream, node_ids: list[int]) -> None:
+        """Async version of _embed_nodes(). Uses async_embed_batch."""
+        if self._embedder is None or not node_ids:
+            return
+
+        nodes: list[MemoryNode] = []
+        for nid in node_ids:
+            node = memory.get(nid)
+            if node is not None and node.embedding is None:
+                nodes.append(node)
+
+        if not nodes:
+            return
+
+        texts = [n.description for n in nodes]
+        try:
+            vectors = await self._embedder.async_embed_batch(texts)
+            for node, vec in zip(nodes, vectors):
+                node.embedding = vec
+        except Exception as e:
+            log.warning(f"Async embedding failed (graceful degradation): {e}")
+
+    async def _async_embed_query(self, query: str) -> Optional[list[float]]:
+        """Async version of _embed_query(). Uses async_embed_one."""
+        if self._embedder is None:
+            return None
+        try:
+            return await self._embedder.async_embed_one(query)
+        except Exception as e:
+            log.warning(f"Async query embedding failed (keyword fallback): {e}")
+            return None
+
+    # ==================================================================
+    # Async combat cognitive turn
+    # ==================================================================
+
+    async def async_run_turn(
+        self,
+        agent: Agent,
+        env: Environment,
+        round_number: int,
+        urgency_text: str = "",
+    ) -> CombatDecision:
+        """Async version of run_turn().
+
+        Parallelises reflect + plan via asyncio.gather() since they are
+        independent once perception/memory is done.
+        """
+        state = self._states.get(agent.agent_id)
+        if state is None:
+            state = self.register(agent)
+
+        current_turn = env.turn_manager.global_turn
+
+        # 1. PERCEIVE
+        observations = env.get_perceptions(agent)
+        perceptions_text = env.perception_engine.format_perception_text(
+            agent, observations
+        )
+
+        # 2. REMEMBER
+        new_ids = perceive_to_memory(observations, state.memory, current_turn)
+        if new_ids:
+            log.debug(
+                f"{agent.name}: stored {len(new_ids)} new observations "
+                f"(total memories: {len(state.memory)})"
+            )
+        await self._async_embed_nodes(state.memory, new_ids)
+
+        # 3+4. REFLECT + PLAN in parallel
+        reflect_task = async_reflect(
+            agent_name=agent.name,
+            combat_class=agent.identity.combat_class,
+            memory=state.memory,
+            llm=self.llm,
+            current_turn=current_turn,
+            threshold=self._reflection_threshold,
+        )
+
+        pre_plan_count = len(state.memory)
+
+        async def _do_plan() -> str:
+            return await self._planner.async_maybe_replan(
+                agent=agent,
+                env=env,
+                memory=state.memory,
+                llm=self.llm,
+                round_number=round_number,
+                current_turn=current_turn,
+            )
+
+        reflect_ids, current_plan = await asyncio.gather(reflect_task, _do_plan())
+
+        # Embed reflection and plan nodes
+        await self._async_embed_nodes(state.memory, reflect_ids)
+        if len(state.memory) > pre_plan_count:
+            await self._async_embed_nodes(
+                state.memory, list(range(pre_plan_count, len(state.memory)))
+            )
+
+        # 5. RETRIEVE
+        query = self._build_retrieval_query(agent, perceptions_text)
+        query_embedding = await self._async_embed_query(query)
+        retrieved = retrieve(
+            memory=state.memory,
+            query=query,
+            current_turn=current_turn,
+            top_k=state.retrieval_top_k,
+            gamma=state.retrieval_decay,
+            query_embedding=query_embedding,
+        )
+
+        # Check chat cooldown
+        chat_allowed = self.can_chat_combat(agent.agent_id, round_number)
+
+        # 6. DECIDE
+        decision = await async_decide(
+            agent=agent,
+            env=env,
+            perceptions_text=perceptions_text,
+            memories=retrieved,
+            llm=self.llm,
+            round_number=round_number,
+            current_plan=current_plan,
+            chat_allowed=chat_allowed,
+            urgency_text=urgency_text,
+        )
+
+        return decision
+
+    # ==================================================================
+    # Async pre-battle social phase
+    # ==================================================================
+
+    async def async_run_pre_battle_tick(
+        self,
+        agents: list[Agent],
+        env: Environment,
+        tick_number: int,
+        total_ticks: int,
+    ) -> list[tuple[Agent, PreBattleDecision]]:
+        """Async version of run_pre_battle_tick().
+
+        All agents run their full cognitive loops concurrently via
+        asyncio.gather(). Returns list of (agent, decision) pairs.
+        """
+        alive = [a for a in agents if a.is_alive]
+
+        async def _run_single(agent: Agent) -> tuple[Agent, PreBattleDecision]:
+            return agent, await self._async_single_agent_pre_battle(
+                agent, env, tick_number, total_ticks
+            )
+
+        results = await asyncio.gather(
+            *[_run_single(a) for a in alive],
+            return_exceptions=True,
+        )
+
+        decisions: list[tuple[Agent, PreBattleDecision]] = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                log.error(
+                    f"Async pre-battle tick failed for {alive[i].name}: {result}"
+                )
+                from combat.actions import make_wait
+
+                fallback = PreBattleDecision(
+                    primary_action=make_wait(alive[i].agent_id, f"async error: {result}")
+                )
+                decisions.append((alive[i], fallback))
+            else:
+                decisions.append(result)
+
+        return decisions
+
+    async def _async_single_agent_pre_battle(
+        self,
+        agent: Agent,
+        env: Environment,
+        tick_number: int,
+        total_ticks: int,
+    ) -> PreBattleDecision:
+        """Run a single agent's pre-battle cognitive loop as a coroutine."""
+        state = self._states.get(agent.agent_id)
+        if state is None:
+            state = self.register(agent)
+
+        current_turn = tick_number
+
+        # 1. PERCEIVE
+        observations = env.get_perceptions(agent)
+        perceptions_text = env.perception_engine.format_perception_text(
+            agent, observations
+        )
+
+        # 2. REMEMBER
+        new_ids = perceive_to_memory(observations, state.memory, current_turn)
+        if new_ids:
+            log.debug(
+                f"{agent.name}: stored {len(new_ids)} new observations "
+                f"(total memories: {len(state.memory)})"
+            )
+        await self._async_embed_nodes(state.memory, new_ids)
+
+        # 3. REFLECT
+        reflect_ids = await async_reflect(
+            agent_name=agent.name,
+            combat_class=agent.identity.combat_class,
+            memory=state.memory,
+            llm=self.llm,
+            current_turn=current_turn,
+            threshold=self._reflection_threshold,
+        )
+        await self._async_embed_nodes(state.memory, reflect_ids)
+
+        # 4. PLAN
+        pre_plan_count = len(state.memory)
+        current_plan = await self._async_maybe_social_plan(
+            agent, env, state.memory, tick_number, current_turn
+        )
+        if len(state.memory) > pre_plan_count:
+            await self._async_embed_nodes(
+                state.memory, list(range(pre_plan_count, len(state.memory)))
+            )
+
+        # 5. RETRIEVE
+        query = self._build_social_retrieval_query(agent, perceptions_text)
+        query_embedding = await self._async_embed_query(query)
+        retrieved = retrieve(
+            memory=state.memory,
+            query=query,
+            current_turn=current_turn,
+            top_k=state.retrieval_top_k,
+            gamma=state.retrieval_decay,
+            query_embedding=query_embedding,
+        )
+
+        # 6. DECIDE
+        action = await async_decide_pre_battle(
+            agent=agent,
+            env=env,
+            perceptions_text=perceptions_text,
+            memories=retrieved,
+            llm=self.llm,
+            tick_number=tick_number,
+            total_ticks=total_ticks,
+            current_plan=current_plan,
+        )
+
+        return action
+
+    async def _async_maybe_social_plan(
+        self,
+        agent: Agent,
+        env: Environment,
+        memory: MemoryStream,
+        tick_number: int,
+        current_turn: int,
+    ) -> str:
+        """Async version of _maybe_social_plan()."""
+        existing = self._planner.get_current_plan(agent.agent_id)
+        if existing:
+            return existing
+
+        if tick_number <= 1:
+            return await self._planner.async_generate_plan(
+                agent=agent,
+                env=env,
+                memory=memory,
+                llm=self.llm,
+                round_number=tick_number,
+                current_turn=current_turn,
+                trigger_context=(
+                    "A social gathering is about to begin before the battle. "
+                    "Plan who you want to talk to, what alliances to form, "
+                    "and what information to gather."
+                ),
+            )
+        return ""
 
     # ==================================================================
     # Combat phase

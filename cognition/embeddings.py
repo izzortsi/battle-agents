@@ -13,6 +13,7 @@ provider is configured or on transient failures.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import os
@@ -45,6 +46,10 @@ class EmbeddingProvider(ABC):
     @property
     @abstractmethod
     def dimension(self) -> int: ...
+
+    async def async_embed(self, texts: list[str]) -> list[list[float]]:
+        """Async version. Default delegates via to_thread."""
+        return await asyncio.to_thread(self.embed, texts)
 
 
 # ---------------------------------------------------------------------------
@@ -119,6 +124,41 @@ class EmbeddingCache:
     def __len__(self) -> int:
         return len(self._cache)
 
+    # -- Async variants --------------------------------------------------------
+
+    async def async_embed_one(self, text: str) -> list[float]:
+        """Async version of embed_one, using cache."""
+        key = self._key(text)
+        if key in self._cache:
+            self._cache.move_to_end(key)
+            return self._cache[key]
+        vec = (await self._provider.async_embed([text]))[0]
+        self._put(key, vec)
+        return vec
+
+    async def async_embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """Async version of embed_batch, using cache."""
+        results: list[Optional[list[float]]] = [None] * len(texts)
+        miss_indices: list[int] = []
+        miss_texts: list[str] = []
+
+        for i, text in enumerate(texts):
+            key = self._key(text)
+            if key in self._cache:
+                self._cache.move_to_end(key)
+                results[i] = self._cache[key]
+            else:
+                miss_indices.append(i)
+                miss_texts.append(text)
+
+        if miss_texts:
+            vectors = await self._provider.async_embed(miss_texts)
+            for idx, vec in zip(miss_indices, vectors):
+                self._put(self._key(texts[idx]), vec)
+                results[idx] = vec
+
+        return results  # type: ignore[return-value]
+
 
 # ---------------------------------------------------------------------------
 # Concrete providers
@@ -162,6 +202,27 @@ class OpenRouterEmbeddingProvider(EmbeddingProvider):
 
         with httpx.Client(timeout=self._timeout) as client:
             resp = client.post(url, headers=headers, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+
+        results = sorted(data["data"], key=lambda d: d["index"])
+        vectors = [item["embedding"] for item in results]
+        if vectors and len(vectors[0]) != self._dimension:
+            self._dimension = len(vectors[0])
+        return vectors
+
+    async def async_embed(self, texts: list[str]) -> list[list[float]]:
+        """Native async embedding using httpx.AsyncClient."""
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {"model": self._model, "input": texts}
+        url = f"{self._base_url}/embeddings"
+        log.debug(f"OpenRouter async embed: {len(texts)} texts, model={self._model}")
+
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            resp = await client.post(url, headers=headers, json=payload)
             resp.raise_for_status()
             data = resp.json()
 

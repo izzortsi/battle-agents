@@ -284,3 +284,79 @@ def decide_pre_battle(
     decision = _parse_pre_battle_decision(parsed, agent, env, ctx)
     log.info(f"  [{agent.name}] thinks: {parsed.get('reasoning', '?')[:100]}")
     return decision
+
+
+# ---------------------------------------------------------------------------
+# Async variant
+# ---------------------------------------------------------------------------
+
+
+async def async_decide_pre_battle(
+    agent: Agent,
+    env: Environment,
+    perceptions_text: str,
+    memories: list[MemoryNode],
+    llm: LLMAdapter,
+    tick_number: int,
+    total_ticks: int,
+    current_plan: str = "",
+) -> PreBattleDecision:
+    """Async version of decide_pre_battle(). Calls llm.async_complete()."""
+    ctx = _gather_pre_battle_context(agent, env)
+    if not ctx:
+        return PreBattleDecision(
+            primary_action=make_wait(agent.agent_id, "no position")
+        )
+
+    system_prompt = build_pre_battle_system_prompt(agent)
+
+    can_move_tiles = []
+    for tile_label in ctx["can_move"]:
+        clean = tile_label.strip("()").replace(" ", "")
+        parts = clean.split(",")
+        if len(parts) == 2:
+            can_move_tiles.append(f"({parts[0]}, {parts[1]})")
+
+    user_prompt = build_pre_battle_user_prompt(
+        agent=agent,
+        tick_number=tick_number,
+        total_ticks=total_ticks,
+        my_x=ctx["ax"],
+        my_y=ctx["ay"],
+        perceptions_text=perceptions_text,
+        memories=memories,
+        visible_agents=ctx["visible_agents"],
+        can_move=can_move_tiles,
+        can_chat=ctx["can_chat"],
+        current_plan=current_plan,
+        social_dispositions=ctx["social_dispositions"],
+    )
+
+    try:
+        raw_response = await llm.async_complete(
+            system=system_prompt,
+            user=user_prompt,
+            max_tokens=256,
+            temperature=0.7,
+            response_format="json",
+        )
+        log.debug(f"{agent.name} pre-battle LLM response: {raw_response[:200]}")
+    except Exception as e:
+        log.error(f"{agent.name}: pre-battle LLM call failed: {e}")
+        return PreBattleDecision(
+            primary_action=make_wait(agent.agent_id, f"LLM error: {e}")
+        )
+
+    try:
+        parsed = extract_json(raw_response)
+        if not isinstance(parsed, dict):
+            raise ValueError(f"Expected dict, got {type(parsed).__name__}")
+    except ValueError as e:
+        log.error(f"{agent.name}: pre-battle JSON parse failed: {e}")
+        return PreBattleDecision(
+            primary_action=make_wait(agent.agent_id, f"JSON parse error: {e}")
+        )
+
+    decision = _parse_pre_battle_decision(parsed, agent, env, ctx)
+    log.info(f"  [{agent.name}] thinks: {parsed.get('reasoning', '?')[:100]}")
+    return decision

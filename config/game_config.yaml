@@ -6,7 +6,7 @@ grid:
 
 pre_battle:
   enabled: true        # Phase 4: social phase before combat
-  duration_ticks: 6
+  duration_ticks: 4
   tick_mode: simultaneous
   chat_max_rounds: 2
   perception_radius: 12
@@ -37,7 +37,7 @@ balance:
   mana_per_mgk: 3              # mana gained per MGK point
 
   # -- Movement --
-  move_base: 3                 # base move range (tiles)
+  move_base: 4                 # base move range (tiles)
   spd_move_threshold: 14       # SPD at which bonus move starts
   spd_move_divisor: 2          # +1 move per this many SPD above threshold
 

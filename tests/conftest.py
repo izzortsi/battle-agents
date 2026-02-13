@@ -61,52 +61,52 @@ def make_agent(
     agent_id: str = "kael",
     name: str = "Kael",
     combat_class: str = "warrior",
-    hp: int = 100,
-    max_hp: int = 100,
-    mana: int = 50,
-    max_mana: int = 50,
-    attack: int = 15,
-    defense: int = 5,
-    speed: int = 10,
+    atk: int = 10,
+    mgk: int = 10,
+    spd: int = 10,
+    con: int = 10,
+    hit: int = 10,
     attack_range: int = 1,
-    move_range: int = 3,
+    speed: int | None = None,
 ) -> Agent:
-    """Helper to create an agent with specific stats."""
+    """Helper to create an agent with specific stats.
+
+    Accepts speed= as alias for spd= for convenience.
+    """
+    if speed is not None:
+        spd = speed
     return Agent(
         agent_id=agent_id,
         identity=Identity(name=name, combat_class=combat_class),
         attributes=Attributes(
-            max_hp=max_hp,
-            hp=hp,
-            max_mana=max_mana,
-            mana=mana,
-            attack=attack,
-            defense=defense,
-            speed=speed,
+            atk=atk,
+            mgk=mgk,
+            spd=spd,
+            con=con,
+            hit=hit,
             attack_range=attack_range,
-            move_range=move_range,
         ),
     )
 
 
 @pytest.fixture
 def kael() -> Agent:
-    return make_agent("kael", "Kael", "warrior", speed=12)
+    return make_agent("kael", "Kael", "warrior", spd=12)
 
 
 @pytest.fixture
 def lyra() -> Agent:
-    return make_agent("lyra", "Lyra", "mage", speed=8, attack_range=3, mana=80, max_mana=80)
+    return make_agent("lyra", "Lyra", "mage", spd=8, mgk=15, attack_range=3)
 
 
 @pytest.fixture
 def vorn() -> Agent:
-    return make_agent("vorn", "Vorn", "rogue", speed=14)
+    return make_agent("vorn", "Vorn", "rogue", spd=14)
 
 
 @pytest.fixture
 def mira() -> Agent:
-    return make_agent("mira", "Mira", "healer", speed=6)
+    return make_agent("mira", "Mira", "healer", spd=6)
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +142,10 @@ def populate_memory(ms: MemoryStream, n: int = 10) -> list[int]:
 
 
 class MockLLM:
-    """A mock LLM adapter that returns configurable JSON responses."""
+    """A mock LLM adapter that returns configurable JSON responses.
+
+    Supports both sync and async interfaces for testing async cognition code.
+    """
 
     def __init__(self, responses: list[str] | None = None):
         self._responses = responses or []
@@ -163,7 +166,21 @@ class MockLLM:
         self._call_count += 1
         return resp
 
+    async def async_complete(
+        self,
+        system: str,
+        user: str,
+        max_tokens: int = 512,
+        temperature: float = 0.7,
+        response_format: str | None = None,
+    ) -> str:
+        """Async version — delegates to sync (no real I/O in mock)."""
+        return self.complete(system, user, max_tokens, temperature, response_format)
+
     def embed(self, texts: list[str]) -> list[list[float]]:
+        raise NotImplementedError
+
+    async def async_embed(self, texts: list[str]) -> list[list[float]]:
         raise NotImplementedError
 
     @property

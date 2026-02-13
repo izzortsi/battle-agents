@@ -93,3 +93,48 @@ class OpenRouterAdapter(LLMAdapter):
 
     def embed(self, texts: List[str]) -> List[List[float]]:
         raise NotImplementedError("OpenRouter does not support embeddings directly.")
+
+    async def async_complete(
+        self,
+        system: str,
+        user: str,
+        max_tokens: int = 512,
+        temperature: float = 0.7,
+        response_format: Optional[str] = None,
+    ) -> str:
+        """Native async completion using httpx.AsyncClient."""
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+        }
+        payload: dict = {
+            "model": self._model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        if response_format == "json":
+            payload["response_format"] = {"type": "json_object"}
+
+        url = f"{self._base_url}/chat/completions"
+        log.debug(f"OpenRouter async request: model={self._model}, tokens={max_tokens}")
+
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                resp = await client.post(url, headers=headers, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                content = data["choices"][0]["message"]["content"]
+                log.debug(f"OpenRouter async response ({len(content)} chars)")
+                return content
+        except httpx.HTTPStatusError as e:
+            log.error(
+                f"OpenRouter HTTP error: {e.response.status_code} — {e.response.text[:200]}"
+            )
+            raise
+        except Exception as e:
+            log.error(f"OpenRouter async error: {e}")
+            raise
