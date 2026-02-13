@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Battle-Agents</title>
+  <link rel="stylesheet" href="/static/css/layout.css">
+  <link rel="stylesheet" href="/static/css/sprites.css">
+  <link rel="stylesheet" href="/static/css/animations.css">
+</head>
+<body>
+  <!-- Header -->
+  <header id="header">
+    <div class="header-left">
+      <span class="logo">Battle-Agents</span>
+      <span id="phase-badge" class="badge">IDLE</span>
+      <span id="round-badge" class="badge badge-dim">Round —</span>
+    </div>
+    <div class="header-controls">
+      <button id="btn-start" title="Start simulation">Start</button>
+      <button id="btn-step" title="Advance one turn" disabled>Step</button>
+      <button id="btn-play" title="Auto-advance" disabled>Play</button>
+      <button id="btn-pause" title="Pause" disabled>Pause</button>
+      <label class="speed-label">
+        Speed
+        <input type="range" id="speed-slider" min="50" max="2000" value="500" step="50">
+        <span id="speed-value">500ms</span>
+      </label>
+    </div>
+  </header>
+
+  <!-- Main layout -->
+  <main id="main">
+    <!-- Left panel: Agent cards -->
+    <aside id="panel-agents" class="panel">
+      <h2>Agents</h2>
+      <div id="agent-cards"></div>
+    </aside>
+
+    <!-- Center: SVG grid -->
+    <section id="panel-grid" class="panel">
+      <svg id="battle-grid" xmlns="http://www.w3.org/2000/svg">
+        <defs id="svg-defs"></defs>
+        <g id="layer-tiles"></g>
+        <g id="layer-highlights"></g>
+        <g id="layer-social-lines"></g>
+        <g id="layer-agents"></g>
+        <g id="layer-effects"></g>
+      </svg>
+    </section>
+
+    <!-- Right panel: Character Sheet + Social + Cognitive -->
+    <aside id="panel-info" class="panel">
+      <div id="character-panel">
+        <h2>Character Sheet</h2>
+        <div id="character-content"></div>
+      </div>
+      <div id="social-panel">
+        <h2>Social</h2>
+        <div id="social-content"></div>
+      </div>
+      <div id="cognitive-panel">
+        <h2>Mind View</h2>
+        <div id="cognitive-content"></div>
+      </div>
+    </aside>
+
+    <!-- Bottom left: Battle log -->
+    <section id="panel-log" class="panel">
+      <h2>Battle Log</h2>
+      <div id="log-content"></div>
+    </section>
+
+    <!-- Bottom right: Dialogue -->
+    <section id="panel-dialogue" class="panel">
+      <h2>Dialogue</h2>
+      <div id="dialogue-content"></div>
+    </section>
+  </main>
+
+  <script src="/static/js/constants.js"></script>
+  <script src="/static/js/state.js"></script>
+  <script src="/static/js/sprites.js"></script>
+  <script src="/static/js/panels.js"></script>
+  <script src="/static/js/renderer.js"></script>
+  <script src="/static/js/main.js"></script>
+</body>
+</html>

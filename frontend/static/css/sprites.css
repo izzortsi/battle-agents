@@ -1,0 +1,97 @@
+/* sprites.css — SVG class-based coloring and HP bar styles */
+
+/* Class color palettes */
+.sprite-warrior { --class-primary: #708090; --class-secondary: #8B0000; --class-accent: #cd5c5c; }
+.sprite-mage    { --class-primary: #4B0082; --class-secondary: #4169E1; --class-accent: #9370db; }
+.sprite-rogue   { --class-primary: #013220; --class-secondary: #2f4f4f; --class-accent: #556b2f; }
+.sprite-healer  { --class-primary: #DAA520; --class-secondary: #FFF8DC; --class-accent: #f0e68c; }
+
+/* Fallback */
+.sprite-group { --class-primary: #666; --class-secondary: #999; --class-accent: #aaa; }
+
+/* Silhouette fill */
+.silhouette-body {
+  fill: var(--class-primary);
+  stroke: var(--class-secondary);
+  stroke-width: 1;
+  transition: fill 0.3s, opacity 0.5s;
+}
+
+.silhouette-detail {
+  fill: var(--class-secondary);
+  stroke: none;
+}
+
+.silhouette-accent {
+  fill: var(--class-accent);
+  stroke: none;
+}
+
+/* HP bar */
+.hp-bar-bg {
+  fill: rgba(255, 255, 255, 0.15);
+  rx: 2;
+  ry: 2;
+}
+
+.hp-bar-fill {
+  rx: 2;
+  ry: 2;
+  transition: width 0.3s ease, fill 0.3s ease;
+}
+
+.hp-bar-fill.hp-high   { fill: #3cb371; }
+.hp-bar-fill.hp-medium { fill: #daa520; }
+.hp-bar-fill.hp-low    { fill: #e94560; animation: pulse-red 1s infinite; }
+
+/* Mana arc */
+.mana-arc {
+  fill: none;
+  stroke: #4169e1;
+  stroke-width: 2;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s ease;
+}
+
+/* Name label */
+.sprite-name {
+  fill: var(--text, #e0e0e0);
+  font-size: 9px;
+  font-family: 'Segoe UI', monospace;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+/* Dead state */
+.sprite-group[data-alive="false"] .silhouette-body {
+  fill: #444;
+  stroke: #555;
+  opacity: 0.3;
+}
+
+.sprite-group[data-alive="false"] .silhouette-detail,
+.sprite-group[data-alive="false"] .silhouette-accent {
+  fill: #555;
+  opacity: 0.3;
+}
+
+.sprite-group[data-alive="false"] {
+  transform-origin: center;
+  filter: grayscale(1);
+}
+
+/* Active turn indicator */
+.sprite-group[data-active-turn="true"] {
+  filter: drop-shadow(0 0 6px rgba(218, 165, 32, 0.8));
+  animation: active-glow 1.5s ease-in-out infinite;
+}
+
+/* Status effect overlays */
+.status-overlay {
+  pointer-events: none;
+}
+
+.status-icon {
+  font-size: 10px;
+  text-anchor: middle;
+}

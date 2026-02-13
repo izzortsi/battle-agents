@@ -1,0 +1,129 @@
+/* animations.css — All keyframe animations and transitions */
+
+/* Move: smooth position transition */
+.sprite-group {
+  transition: transform 300ms ease-in-out;
+}
+
+/* Active turn glow */
+@keyframes active-glow {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(218, 165, 32, 0.5)); }
+  50%      { filter: drop-shadow(0 0 10px rgba(218, 165, 32, 0.9)); }
+}
+
+/* HP bar critical pulse */
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.6; }
+}
+
+/* Attack lunge */
+@keyframes lunge-right { 0%, 100% { transform: translateX(0); } 40% { transform: translateX(12px); } }
+@keyframes lunge-left  { 0%, 100% { transform: translateX(0); } 40% { transform: translateX(-12px); } }
+@keyframes lunge-down  { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(12px); } }
+@keyframes lunge-up    { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-12px); } }
+
+.anim-lunge-right { animation: lunge-right 400ms ease-out; }
+.anim-lunge-left  { animation: lunge-left  400ms ease-out; }
+.anim-lunge-down  { animation: lunge-down  400ms ease-out; }
+.anim-lunge-up    { animation: lunge-up    400ms ease-out; }
+
+/* Damage flash on target */
+@keyframes damage-flash {
+  0%   { filter: brightness(1); }
+  20%  { filter: brightness(2.5); }
+  100% { filter: brightness(1); }
+}
+
+.anim-damage-flash {
+  animation: damage-flash 300ms ease-out;
+}
+
+/* Floating damage number */
+@keyframes float-up-fade {
+  0%   { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-30px); }
+}
+
+.damage-number {
+  animation: float-up-fade 1s ease-out forwards;
+  font-family: 'Segoe UI', monospace;
+  font-weight: 700;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.damage-number.dmg     { fill: #ff4444; font-size: 14px; }
+.damage-number.heal    { fill: #44ff44; font-size: 14px; }
+.damage-number.miss    { fill: #888;    font-size: 12px; }
+.damage-number.crit    { fill: #ff0000; font-size: 18px; }
+.damage-number.counter { fill: #ff8844; font-size: 12px; }
+
+/* Death animation */
+@keyframes death-fall {
+  0%   { transform: rotate(0deg); opacity: 1; filter: grayscale(0); }
+  100% { transform: rotate(90deg); opacity: 0.3; filter: grayscale(1); }
+}
+
+.anim-death {
+  animation: death-fall 800ms ease-in forwards;
+  transform-origin: bottom center;
+}
+
+/* Crit screen shake */
+@keyframes crit-shake {
+  0%, 100% { transform: translate(0, 0); }
+  20%      { transform: translate(-3px, 2px); }
+  40%      { transform: translate(3px, -2px); }
+  60%      { transform: translate(-2px, 3px); }
+  80%      { transform: translate(2px, -1px); }
+}
+
+.anim-crit-shake {
+  animation: crit-shake 300ms ease-out;
+}
+
+/* Status overlays */
+@keyframes drip {
+  0%, 100% { transform: translateY(0); opacity: 0.8; }
+  50%      { transform: translateY(4px); opacity: 0.4; }
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 0.9; }
+  50%      { opacity: 0.3; }
+}
+
+@keyframes orbit {
+  0%   { transform: rotate(0deg) translateX(6px) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(6px) rotate(-360deg); }
+}
+
+@keyframes shimmer {
+  0%, 100% { opacity: 0.6; fill: #88ddff; }
+  50%      { opacity: 1;   fill: #aaeeff; }
+}
+
+@keyframes defend-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50%      { opacity: 0.8; transform: scale(1.1); }
+}
+
+.status-poison  { animation: drip 1.5s infinite; }
+.status-burn    { animation: flicker 0.8s infinite; }
+.status-stun    { animation: orbit 2s linear infinite; }
+.status-freeze  { animation: shimmer 2s ease-in-out infinite; }
+.status-defend  { animation: defend-pulse 1.5s ease-in-out infinite; }
+.status-blind   { animation: flicker 1.2s infinite; }
+.status-enrage  { animation: pulse-red 0.8s infinite; }
+.status-haste   { animation: shimmer 1s ease-in-out infinite; }
+
+/* Defend shield pulse */
+@keyframes shield-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50%      { transform: scale(1.15); opacity: 0.9; }
+}
+
+.anim-defend {
+  animation: shield-pulse 600ms ease-out;
+}
