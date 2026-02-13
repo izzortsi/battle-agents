@@ -94,12 +94,15 @@ class Attributes:
     attack_range: int = 1  # melee = 1, ranged > 1
 
     # Runtime mutable state (initialised in __post_init__)
-    hp: int = -1      # sentinel; set to max_hp in __post_init__
-    mana: int = -1     # sentinel; set to max_mana in __post_init__
+    hp: int = -1  # sentinel; set to max_hp in __post_init__
+    mana: int = -1  # sentinel; set to max_mana in __post_init__
 
     # Status effect tracking
     status_effects: list[dict] = field(default_factory=list)
     # Each: {"type": str, "duration": int, "magnitude": float, "source": str}
+
+    # Abilities — list of ability dicts from character YAML / LLM generation
+    abilities: list[dict] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.hp < 0:
@@ -234,3 +237,28 @@ class Attributes:
         if damage_type == "magical":
             return self.get_effective_mag_def()
         return self.get_effective_phys_def()
+
+    # -- Ability helpers ---------------------------------------------------
+
+    def tick_cooldowns(self) -> None:
+        """Decrement current_cd on all abilities (min 0).  Called at end of round."""
+        for ability in self.abilities:
+            cd = ability.get("current_cd", 0)
+            if cd > 0:
+                ability["current_cd"] = cd - 1
+
+    def get_ready_abilities(self) -> list[dict]:
+        """Return abilities that are off cooldown and affordable."""
+        return [
+            a
+            for a in self.abilities
+            if a.get("current_cd", 0) == 0 and a.get("mana_cost", 0) <= self.mana
+        ]
+
+    def get_ability_by_name(self, name: str) -> dict | None:
+        """Case-insensitive lookup of an ability by name."""
+        low = name.lower().strip()
+        for a in self.abilities:
+            if a.get("name", "").lower().strip() == low:
+                return a
+        return None

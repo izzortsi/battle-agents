@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING
 
 from agent.attributes import get_balance
 from combat.actions import ActionType, CombatAction
+from combat.aoe import get_affected_tiles
+from combat.status_registry import get_behavior
 from world.battle_grid import BattleGrid
 
 if TYPE_CHECKING:
@@ -52,6 +54,8 @@ def resolve(action: CombatAction, env: "Environment") -> "ActionResult":
             return _resolve_chat(action, env)
         case ActionType.WAIT:
             return _resolve_wait(action, env)
+        case ActionType.ABILITY:
+            return _resolve_ability(action, env)
         case _:
             return ActionResult(
                 agent_id=action.agent_id,
@@ -68,6 +72,15 @@ def _resolve_move(action: CombatAction, env: "Environment") -> "ActionResult":
         return ActionResult(
             agent.agent_id, False, f"{agent.name} tried to move but specified no tile."
         )
+
+    # Check for prevent_move statuses (root, freeze, entangle, etc.)
+    for eff in agent.attributes.status_effects:
+        if get_behavior(eff["type"]) == "prevent_move":
+            return ActionResult(
+                agent.agent_id,
+                False,
+                f"{agent.name} is {eff['type']}ed and cannot move!",
+            )
 
     current = env.world_state.get_position(agent.agent_id)
     if current is None:
@@ -200,6 +213,23 @@ def _resolve_attack(action: CombatAction, env: "Environment") -> "ActionResult":
             f"{agent.name} tried to attack {target.name} but they are {dist} tiles away (range: {agent.attributes.attack_range}).",
         )
 
+    # --- Blind check (miss_chance behavior on attacker) ---
+    for eff in agent.attributes.status_effects:
+        if get_behavior(eff["type"]) == "miss_chance":
+            if random.random() < eff.get("magnitude", 0.3):
+                return ActionResult(
+                    agent.agent_id,
+                    True,
+                    f"{agent.name} attacked {target.name} but is {eff['type']}ed and MISSED!",
+                    details={
+                        "target": target_id,
+                        "damage": 0,
+                        "hit": False,
+                        "target_hp": target.attributes.hp,
+                        "killed": False,
+                    },
+                )
+
     # --- Hit / Miss roll ---
     hit_chance = _calc_hit_chance(agent.attributes.hit, target.attributes.spd)
     hit_roll = random.randint(1, 100)
@@ -295,7 +325,7 @@ def _resolve_defend(action: CombatAction, env: "Environment") -> "ActionResult":
     consecutive = sum(
         1 for e in agent.attributes.status_effects if e["type"] == "defend"
     )
-    magnitude = bal.defend_bonus_fraction * (bal.defend_diminishing ** consecutive)
+    magnitude = bal.defend_bonus_fraction * (bal.defend_diminishing**consecutive)
 
     agent.attributes.status_effects.append(
         {
@@ -358,3 +388,338 @@ def _resolve_wait(action: CombatAction, env: "Environment") -> "ActionResult":
 
     agent = env.agents[action.agent_id]
     return ActionResult(agent.agent_id, True, f"{agent.name} waits.")
+
+
+# ===================================================================
+# Ability resolution
+# ===================================================================
+
+
+def _apply_damage(
+    raw_damage: int,
+    attacker: "Agent",
+    target: "Agent",
+    damage_type: str | None = None,
+) -> int:
+    """Apply ability damage through the modifier pipeline and return actual damage.
+
+    Pipeline:
+      1. boost_outgoing_damage  on attacker:  raw * (1 + magnitude)
+      2. reduce_outgoing_damage on attacker:  raw * (1 - magnitude)
+      3. reduce_incoming_damage on target:    raw * (1 - magnitude)
+      4. Defend buff already factored into effective_defense if relevant
+      5. Floor at 1
+    """
+    dmg = float(raw_damage)
+
+    # Attacker outgoing modifiers
+    for eff in attacker.attributes.status_effects:
+        beh = get_behavior(eff["type"])
+        if beh == "boost_outgoing_damage":
+            dmg *= 1.0 + eff.get("magnitude", 0.2)
+        elif beh == "reduce_outgoing_damage":
+            dmg *= 1.0 - eff.get("magnitude", 0.2)
+
+    # Target incoming modifiers
+    for eff in target.attributes.status_effects:
+        beh = get_behavior(eff["type"])
+        if beh == "reduce_incoming_damage":
+            dmg *= 1.0 - eff.get("magnitude", 0.2)
+
+    final = max(1, int(dmg))
+    actual = target.attributes.take_damage(final)
+    return actual
+
+
+def _resolve_effect(
+    effect: dict,
+    caster: "Agent",
+    target: "Agent | None",
+    env: "Environment",
+) -> str:
+    """Dispatch a single ability effect.  Returns a description string.
+
+    Routes by category:
+      movement — find empty adjacent tile, move caster
+      heal     — restore HP based on magnitude * max_hp
+      buff     — append status to caster (unconditional)
+      debuff   — roll chance, append to target on success
+    """
+    category = effect.get("category", "debuff")
+    effect_target = effect.get("target", "enemy")
+    magnitude = effect.get("magnitude", 0.2)
+    duration = effect.get("duration", 1)
+    chance = effect.get("chance", 1.0)
+    etype = effect.get("type", "unknown")
+
+    # --- Movement ---
+    if category == "movement":
+        # Move the caster to an adjacent passable, unoccupied tile
+        pos = env.world_state.get_position(caster.agent_id)
+        if not pos:
+            return f"{caster.name} tried to move but has no position."
+        cx, cy = BattleGrid.parse_tile(pos)
+        adj = env.grid.adjacent_tiles(cx, cy)
+        for ax, ay in adj:
+            tile_key = BattleGrid.tile_key(ax, ay)
+            occupants = env.world_state.agents_at(tile_key)
+            living = [
+                o
+                for o in occupants
+                if o != caster.agent_id and env.agents.get(o) and env.agents[o].is_alive
+            ]
+            if not living:
+                env.world_state.set_position(caster.agent_id, tile_key)
+                return f"{caster.name} dashes to ({ax},{ay})."
+        return f"{caster.name} tried to dash but all adjacent tiles are blocked."
+
+    # --- Heal ---
+    if category == "heal" or etype == "heal":
+        recipient = caster if effect_target == "self" else target
+        if recipient is None:
+            recipient = caster
+        heal_amount = int(recipient.attributes.max_hp * magnitude)
+        actual = recipient.attributes.heal(heal_amount)
+        return (
+            f"{recipient.name} heals for {actual} HP "
+            f"({recipient.attributes.hp}/{recipient.attributes.max_hp})."
+        )
+
+    # --- Buff (applied to caster, unconditional) ---
+    if category == "buff" or effect_target == "self":
+        caster.attributes.status_effects.append(
+            {
+                "type": etype,
+                "duration": duration,
+                "magnitude": magnitude,
+                "source": caster.agent_id,
+            }
+        )
+        return f"{caster.name} gains {etype} ({duration} turns)."
+
+    # --- Debuff (applied to target, roll chance) ---
+    if target is None:
+        return ""
+    if random.random() < chance:
+        target.attributes.status_effects.append(
+            {
+                "type": etype,
+                "duration": duration,
+                "magnitude": magnitude,
+                "source": caster.agent_id,
+            }
+        )
+        return f"{target.name} is afflicted with {etype} ({duration} turns)!"
+    else:
+        return f"{target.name} resists {etype}!"
+
+
+def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult":
+    """Resolve an ABILITY action."""
+    from world.environment import ActionResult
+
+    if TYPE_CHECKING:
+        from agent.agent import Agent
+
+    agent = env.agents[action.agent_id]
+    ability_name = action.ability_name or ""
+
+    # --- Validate ability exists ---
+    ability = agent.attributes.get_ability_by_name(ability_name)
+    if ability is None:
+        return ActionResult(
+            agent.agent_id,
+            False,
+            f"{agent.name} tried to use unknown ability '{ability_name}'.",
+        )
+
+    # --- Off cooldown? ---
+    if ability.get("current_cd", 0) > 0:
+        return ActionResult(
+            agent.agent_id,
+            False,
+            f"{agent.name} tried to use {ability['name']} but it's on cooldown ({ability['current_cd']} turns).",
+        )
+
+    # --- Mana sufficient? ---
+    mana_cost = ability.get("mana_cost", 0)
+    if not agent.attributes.spend_mana(mana_cost):
+        return ActionResult(
+            agent.agent_id,
+            False,
+            f"{agent.name} tried to use {ability['name']} but lacks mana ({agent.attributes.mana}/{mana_cost}).",
+        )
+
+    # --- Determine if self-targeting ---
+    effects = ability.get("effects", [])
+    is_self_targeting = (
+        all(e.get("target", "enemy") == "self" for e in effects) if effects else False
+    )
+    # Also self-target if ability has no damage and no enemy-targeting effects
+    if ability.get("damage", 0) == 0 and is_self_targeting:
+        is_self_targeting = True
+
+    # --- Resolve target ---
+    target = None
+    target_pos = None
+    if is_self_targeting:
+        # Self-targeting: target is the caster
+        target = agent
+        target_pos = env.world_state.get_position(agent.agent_id)
+    else:
+        target_id = action.target_agent
+        if not target_id or target_id not in env.agents:
+            # Refund mana on invalid target
+            agent.attributes.mana = min(
+                agent.attributes.max_mana, agent.attributes.mana + mana_cost
+            )
+            return ActionResult(
+                agent.agent_id,
+                False,
+                f"{agent.name} tried to use {ability['name']} on an invalid target.",
+            )
+        target = env.agents[target_id]
+        if not target.is_alive:
+            agent.attributes.mana = min(
+                agent.attributes.max_mana, agent.attributes.mana + mana_cost
+            )
+            return ActionResult(
+                agent.agent_id,
+                False,
+                f"{agent.name} tried to use {ability['name']} on {target.name} but they are dead.",
+            )
+        target_pos = env.world_state.get_position(target_id)
+
+    # --- Range check (skip for self-targeting) ---
+    agent_pos = env.world_state.get_position(agent.agent_id)
+    if not agent_pos:
+        return ActionResult(agent.agent_id, False, f"{agent.name} has no position.")
+
+    if not is_self_targeting:
+        if not target_pos:
+            agent.attributes.mana = min(
+                agent.attributes.max_mana, agent.attributes.mana + mana_cost
+            )
+            return ActionResult(
+                agent.agent_id,
+                False,
+                f"{target.name} has no position.",
+            )
+        dist = BattleGrid.tile_distance(agent_pos, target_pos)
+        ability_range = ability.get("range", 1)
+        if dist > ability_range:
+            agent.attributes.mana = min(
+                agent.attributes.max_mana, agent.attributes.mana + mana_cost
+            )
+            return ActionResult(
+                agent.agent_id,
+                False,
+                f"{agent.name} tried to use {ability['name']} on {target.name} but they are {dist} tiles away (range: {ability_range}).",
+            )
+
+    # --- Blind check (miss_chance on caster) ---
+    for eff in agent.attributes.status_effects:
+        if get_behavior(eff["type"]) == "miss_chance":
+            if random.random() < eff.get("magnitude", 0.3):
+                # Set cooldown regardless of miss
+                ability["current_cd"] = ability.get("cooldown", 0)
+                return ActionResult(
+                    agent.agent_id,
+                    True,
+                    f"{agent.name} uses {ability['name']} but is {eff['type']}ed and MISSES!",
+                    details={
+                        "ability": ability["name"],
+                        "damage": 0,
+                        "hit": False,
+                    },
+                )
+
+    # --- Compute AoE tiles ---
+    ax, ay = BattleGrid.parse_tile(agent_pos)
+    origin = (ax, ay)
+    if target_pos:
+        tx, ty = BattleGrid.parse_tile(target_pos)
+        target_tile = (tx, ty)
+    else:
+        target_tile = origin
+
+    aoe_pattern = ability.get("aoe_pattern", "single")
+    affected_tiles = get_affected_tiles(origin, target_tile, aoe_pattern, env.grid)
+
+    # --- Apply damage and effects to affected agents ---
+    base_damage = ability.get("damage", 0)
+    log_parts: list[str] = [f"{agent.name} uses {ability['name']}!"]
+    total_damage = 0
+    kills: list[str] = []
+
+    # Collect all agents on affected tiles
+    affected_agents: list["Agent"] = []
+    for tile_xy in affected_tiles:
+        tile_key = BattleGrid.tile_key(*tile_xy)
+        for occupant_id in env.world_state.agents_at(tile_key):
+            occupant = env.agents.get(occupant_id)
+            if occupant and occupant.is_alive and occupant.agent_id != agent.agent_id:
+                if occupant not in affected_agents:
+                    affected_agents.append(occupant)
+
+    # For self-targeting abilities with no enemy effects, just apply effects to self
+    if is_self_targeting:
+        for effect in effects:
+            desc = _resolve_effect(effect, agent, None, env)
+            if desc:
+                log_parts.append(desc)
+    else:
+        if not affected_agents and base_damage > 0:
+            log_parts.append("But no enemies are caught in the area.")
+        else:
+            for affected in affected_agents:
+                # Dodge check: (target.spd - attacker.spd) * 0.03
+                dodge_chance = max(
+                    0.0, (affected.attributes.spd - agent.attributes.spd) * 0.03
+                )
+                if random.random() < dodge_chance:
+                    log_parts.append(f"{affected.name} dodges!")
+                    continue
+
+                # Apply damage
+                if base_damage > 0:
+                    actual = _apply_damage(base_damage, agent, affected)
+                    total_damage += actual
+                    log_parts.append(
+                        f"{affected.name} takes {actual} damage "
+                        f"({affected.attributes.hp}/{affected.attributes.max_hp} HP)."
+                    )
+                    if not affected.is_alive:
+                        env.handle_agent_death(affected.agent_id)
+                        kills.append(affected.name)
+                        log_parts.append(f"{affected.name} has been slain!")
+                        continue  # Dead — don't apply effects
+
+                # Apply effects to this target
+                for effect in effects:
+                    eff_target = effect.get("target", "enemy")
+                    if eff_target == "self":
+                        # Self-targeting effect on an offensive ability (e.g., self-buff)
+                        desc = _resolve_effect(effect, agent, None, env)
+                    else:
+                        desc = _resolve_effect(effect, agent, affected, env)
+                    if desc:
+                        log_parts.append(desc)
+
+    # --- Set cooldown (always, even on miss — but miss returns early above) ---
+    ability["current_cd"] = ability.get("cooldown", 0)
+
+    description = " ".join(log_parts)
+    return ActionResult(
+        agent.agent_id,
+        True,
+        description,
+        details={
+            "ability": ability["name"],
+            "damage": total_damage,
+            "hit": True,
+            "kills": kills,
+            "aoe_pattern": aoe_pattern,
+            "affected_count": len(affected_agents),
+        },
+    )

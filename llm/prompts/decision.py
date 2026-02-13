@@ -37,28 +37,30 @@ YOUR COMBAT PROFILE:
 
 COMBAT RULES:
 - You are on a 2D tile grid. Coordinates are (x, y).
-- Each turn you choose a PRIMARY action: move, attack, defend, or wait.
-- ATTACK is your most important action. Attack enemies whenever you can. \
-You can only attack targets within your attack range ({attack_range} tiles, Manhattan distance).
-- Attacks can MISS (based on HIT vs target SPD), CRIT (based on your SPD), \
-or be COUNTERED (based on target HIT). Choose targets you can reliably hit.
-- MOVE toward enemies if none are in attack range. Closing distance is critical.
+- Each turn you choose a PRIMARY action: move, attack, defend, ability, or wait.
+- ATTACK is your basic attack. You can only attack targets within your attack \
+range ({attack_range} tiles, Manhattan distance). Attacks can MISS, CRIT, or be COUNTERED.
+- ABILITY uses a special ability (costs mana, has cooldown). Abilities can deal \
+damage, apply status effects, heal, or buff. Using an ability is exclusive — \
+no chatting. Include "ability_name" and "target_agent" (omit target_agent for \
+self-targeting abilities like heals/buffs).
+- MOVE toward enemies if none are in range. Closing distance is critical.
 - DEFEND raises your defense for one turn (diminishing returns if used repeatedly). \
 Use DEFEND only when badly wounded and enemies are far away.
 - WAIT is almost never correct. Only wait if you have a very specific tactical reason.
-- You may OCCASIONALLY send a brief chat alongside move/defend/wait (NOT attack). \
-Chat is for taunts, threats, or last-second alliance pleas — use it sparingly, \
-not every turn. Include "chat_target" and "chat_message" to chat.
-- Attacking is a focused action and cannot be combined with chatting.
+- You may OCCASIONALLY send a brief chat alongside move/defend/wait (NOT attack or ability). \
+Chat is for taunts, threats, or last-second alliance pleas — use it sparingly.
+- Attacking and using abilities are focused actions and cannot be combined with chatting.
 
-PRIORITY ORDER: Attack > Move toward enemy > Defend (if hurt) > everything else.
+PRIORITY ORDER: Ability (if impactful) > Attack > Move toward enemy > Defend (if hurt) > everything else.
 
 Respond with a JSON object. No other text. The JSON must have this exact schema:
 {{
   "reasoning": "<your internal tactical reasoning, 1-3 sentences, in character>",
-  "action": "<one of: move, attack, defend, wait>",
+  "action": "<one of: move, attack, defend, ability, wait>",
   "target_tile": "<x_y format, required for move, omit otherwise>",
-  "target_agent": "<agent_id, required for attack, omit otherwise>",
+  "target_agent": "<agent_id, required for attack/ability targeting an enemy, omit for self-targeting abilities>",
+  "ability_name": "<name of ability, required for ability action, omit otherwise>",
   "chat_target": "<agent_id of who to talk to, optional, rare>",
   "chat_message": "<message text, optional, rare>"
 }}
@@ -77,6 +79,7 @@ YOUR STATUS:
   Damage type: {damage_type}  |  Phys Def: {phys_def}  |  Mag Def: {mag_def}
   Move range: {move_range}  |  Attack range: {attack_range}
 {status_effects_line}
+{abilities_section}
 {plan_section}
 {urgency_section}
 CURRENT PERCEPTIONS:
@@ -91,9 +94,20 @@ ENEMIES YOU CAN SEE:
 AVAILABLE ACTIONS:
 {available_actions}
 
-REMEMBER: You MUST fight. Attack if enemies are in range. Move closer if they \
-are not. Defend only if critically wounded. Chatting is optional and rare.
+REMEMBER: You MUST fight. Use abilities when they are impactful. Attack if enemies \
+are in range. Move closer if they are not. Defend only if critically wounded. \
+Chatting is optional and rare.
 Choose your action. Respond with JSON only."""
+
+
+# -- Bonus action prompt addendum -------------------------------------------
+
+BONUS_ACTION_ADDENDUM = """\
+
+*** BONUS ACTION ***
+Your exceptional speed grants you a FREE extra action this round!
+You may MOVE, ATTACK, DEFEND, or CHAT — but you may NOT use abilities.
+This is a bonus action, not your main turn. Make the most of it."""
 
 
 # -- Builder functions ------------------------------------------------------
@@ -122,6 +136,56 @@ def format_memories(memories: list[MemoryNode]) -> str:
     for i, m in enumerate(memories, 1):
         turn_label = f"[turn {m.turn_created}]"
         lines.append(f"  {i}. {turn_label} {m.description}")
+    return "\n".join(lines)
+
+
+def format_abilities(abilities: list[dict], mana: int) -> str:
+    """Format the agent's abilities for the user prompt.
+
+    Shows each ability's key stats, cooldown status, and tactical hints.
+    """
+    if not abilities:
+        return ""
+    lines = ["YOUR ABILITIES:"]
+    for a in abilities:
+        name = a.get("name", "?")
+        damage = a.get("damage", 0)
+        ab_range = a.get("range", 1)
+        mana_cost = a.get("mana_cost", 0)
+        pattern = a.get("aoe_pattern", "single")
+        cooldown = a.get("cooldown", 0)
+        current_cd = a.get("current_cd", 0)
+        desc = a.get("description", "").strip()
+        hint = a.get("tactical_hint", "").strip()
+
+        # Status
+        if current_cd > 0:
+            cd_status = f"ON COOLDOWN ({current_cd} turns)"
+        elif mana_cost > mana:
+            cd_status = f"NOT ENOUGH MANA (need {mana_cost})"
+        else:
+            cd_status = "READY"
+
+        lines.append(f"  [{name}] {cd_status}")
+        lines.append(
+            f"    Damage: {damage} | Range: {ab_range} | Mana: {mana_cost} | Pattern: {pattern} | Cooldown: {cooldown}"
+        )
+        if desc:
+            lines.append(f"    What: {desc}")
+        if hint:
+            lines.append(f"    Hint: {hint}")
+
+        effects = a.get("effects", [])
+        if effects:
+            eff_parts = []
+            for e in effects:
+                etype = e.get("type", "?")
+                dur = e.get("duration", 1)
+                mag = e.get("magnitude", 0)
+                tgt = e.get("target", "enemy")
+                cat = e.get("category", "debuff")
+                eff_parts.append(f"{etype} ({cat}, {tgt}, {dur}t, mag={mag})")
+            lines.append(f"    Effects: {'; '.join(eff_parts)}")
     return "\n".join(lines)
 
 
@@ -170,9 +234,14 @@ def format_available_actions(
     can_move: list[str],
     can_attack: list[str],
     can_chat: list[str],
+    can_ability: list[str] | None = None,
 ) -> str:
     """Format the set of available actions for the prompt."""
     lines = []
+    if can_ability:
+        lines.append(
+            f"  ABILITY options: {', '.join(can_ability)} (exclusive — no chat)"
+        )
     if can_attack:
         lines.append(f"  ATTACK targets: {', '.join(can_attack)} (exclusive — no chat)")
     if can_move:
@@ -203,6 +272,7 @@ def build_user_prompt(
     current_plan: str = "",
     social_dispositions: dict[str, float] | None = None,
     urgency_text: str = "",
+    can_ability: list[str] | None = None,
 ) -> str:
     """Build the user prompt with full situational context."""
     status_effects = agent.attributes.status_effects
@@ -221,6 +291,10 @@ def build_user_prompt(
         urgency_section = f"\n*** URGENT: {urgency_text} ***\n"
     else:
         urgency_section = ""
+
+    abilities_section = format_abilities(
+        agent.attributes.abilities, agent.attributes.mana
+    )
 
     return USER_TEMPLATE.format(
         round_number=round_number,
@@ -241,10 +315,13 @@ def build_user_prompt(
         move_range=agent.attributes.move_range,
         attack_range=agent.attributes.attack_range,
         status_effects_line=status_effects_line,
+        abilities_section=abilities_section,
         plan_section=plan_section,
         urgency_section=urgency_section,
         perceptions=perceptions_text,
         memories=format_memories(memories),
         visible_enemies=format_visible_enemies(visible_enemies, social_dispositions),
-        available_actions=format_available_actions(can_move, can_attack, can_chat),
+        available_actions=format_available_actions(
+            can_move, can_attack, can_chat, can_ability
+        ),
     )

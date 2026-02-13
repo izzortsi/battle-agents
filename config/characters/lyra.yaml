@@ -17,3 +17,39 @@ attributes:
   con: 6
   hit: 8
   attack_range: 3
+abilities:
+  - name: Arcane Barrage
+    mana_cost: 8
+    damage: 18
+    range: 3
+    aoe_pattern: cross
+    cooldown: 3
+    current_cd: 0
+    description: >
+      Lyra conjures a barrage of arcane bolts that strike in a cross pattern,
+      shredding anyone caught in the blast zone with raw magical energy.
+    tactical_hint: >
+      Aim at clusters of enemies to maximize multi-target damage.
+      The cross pattern can hit up to 5 tiles — devastating when enemies group up.
+    effects: []
+  - name: Frost Nova
+    mana_cost: 6
+    damage: 8
+    range: 3
+    aoe_pattern: radius
+    cooldown: 4
+    current_cd: 0
+    description: >
+      An explosion of freezing energy centred on a target area, dealing
+      moderate damage and rooting all caught enemies in place.
+    tactical_hint: >
+      Use to lock down melee fighters and kite them.
+      Great when enemies are closing in — freeze them and maintain distance.
+    effects:
+      - type: freeze
+        behavior: prevent_move
+        duration: 2
+        magnitude: 0.0
+        target: enemy
+        category: debuff
+        chance: 0.7

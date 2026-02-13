@@ -1,0 +1,72 @@
+name: Zara
+combat_class: Sand-Shaper Assassin
+backstory: Born of the shifting dunes in the Sun-Scorched Wastes, Zara was the sole
+  survivor of a caravan raided by imperial zealots. She spent years mastering the
+  forbidden art of lithomancy, learning to bind the very grains of the desert to her
+  twin curved blades. Now, she hunts those who exploit the desert's resources, leaving
+  only glass-filled craters and wind-blown dust in her wake.
+personality_traits:
+- stoic
+- fiercely independent
+- observant
+- unforgiving
+attributes:
+  atk: 16
+  mgk: 12
+  spd: 18
+  con: 10
+  hit: 15
+  attack_range: 1
+abilities:
+- name: Sandstorm Shroud
+  mana_cost: 6
+  damage: 8
+  range: 2
+  aoe_pattern: radius
+  cooldown: 4
+  current_cd: 0
+  description: Zara conjures a swirling vortex of abrasive sand that shreds armor
+    and blinds those caught within the dunes.
+  tactical_hint: Use this when surrounded to reduce incoming damage and lower the
+    enemy's chance to hit you.
+  effects:
+  - type: blind
+    behavior: miss_chance
+    duration: 2
+    magnitude: 0.4
+    target: enemy
+    category: debuff
+    chance: 0.75
+  - type: sand_armor
+    behavior: reduce_incoming_damage
+    duration: 2
+    magnitude: 0.25
+    target: self
+    category: buff
+    chance: 1.0
+- name: Mirage Strike
+  mana_cost: 8
+  damage: 22
+  range: 3
+  aoe_pattern: single
+  cooldown: 3
+  current_cd: 0
+  description: Zara dissolves into a cloud of dust, instantly reappearing behind her
+    target to deliver a devastating twin-blade execute.
+  tactical_hint: Ideal for closing the gap on ranged casters or finishing off low-health
+    targets from a distance.
+  effects:
+  - type: dust_step
+    behavior: stat_modifier
+    duration: 1
+    magnitude: 0.3
+    target: self
+    category: movement
+    chance: 1.0
+  - type: hemorrhage
+    behavior: damage_over_time
+    duration: 3
+    magnitude: 0.05
+    target: enemy
+    category: debuff
+    chance: 0.8

@@ -38,7 +38,9 @@ def load_balance_config(game_cfg: dict[str, Any] | None = None) -> BalanceConfig
     if game_cfg is None:
         game_cfg = load_game_config()
     raw = game_cfg.get("balance", {})
-    cfg = BalanceConfig(**{k: v for k, v in raw.items() if k in BalanceConfig.__dataclass_fields__})
+    cfg = BalanceConfig(
+        **{k: v for k, v in raw.items() if k in BalanceConfig.__dataclass_fields__}
+    )
     set_balance(cfg)
     return cfg
 
@@ -53,6 +55,7 @@ def load_character(path: str | Path) -> Agent:
         combat_class=data.get("combat_class", "warrior"),
     )
     attrs_data = data.get("attributes", {})
+    abilities_data = data.get("abilities", [])
     attributes = Attributes(
         atk=attrs_data.get("atk", 10),
         mgk=attrs_data.get("mgk", 10),
@@ -60,6 +63,7 @@ def load_character(path: str | Path) -> Agent:
         con=attrs_data.get("con", 10),
         hit=attrs_data.get("hit", 10),
         attack_range=attrs_data.get("attack_range", 1),
+        abilities=abilities_data if abilities_data else [],
     )
     agent_id = data["name"].lower().replace(" ", "_")
     return Agent(agent_id=agent_id, identity=identity, attributes=attributes)

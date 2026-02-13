@@ -536,7 +536,9 @@ class CognitiveLoop:
     # Async embedding helpers
     # ==================================================================
 
-    async def _async_embed_nodes(self, memory: MemoryStream, node_ids: list[int]) -> None:
+    async def _async_embed_nodes(
+        self, memory: MemoryStream, node_ids: list[int]
+    ) -> None:
         """Async version of _embed_nodes(). Uses async_embed_batch."""
         if self._embedder is None or not node_ids:
             return
@@ -697,13 +699,13 @@ class CognitiveLoop:
         decisions: list[tuple[Agent, PreBattleDecision]] = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                log.error(
-                    f"Async pre-battle tick failed for {alive[i].name}: {result}"
-                )
+                log.error(f"Async pre-battle tick failed for {alive[i].name}: {result}")
                 from combat.actions import make_wait
 
                 fallback = PreBattleDecision(
-                    primary_action=make_wait(alive[i].agent_id, f"async error: {result}")
+                    primary_action=make_wait(
+                        alive[i].agent_id, f"async error: {result}"
+                    )
                 )
                 decisions.append((alive[i], fallback))
             else:
@@ -839,3 +841,125 @@ class CognitiveLoop:
             parts.append(perceptions_text)
 
         return " ".join(parts)
+
+    # ==================================================================
+    # Bonus action — lightweight decide-only (no perceive/reflect/plan)
+    # ==================================================================
+
+    def run_bonus_turn(
+        self,
+        agent: Agent,
+        env: Environment,
+        round_number: int,
+    ) -> CombatDecision:
+        """Execute a lightweight bonus-action turn: retrieve + decide only.
+
+        No perceive/remember/reflect/plan — reuses existing cognitive state.
+        Abilities are excluded from the available actions.
+        """
+        state = self._states.get(agent.agent_id)
+        if state is None:
+            state = self.register(agent)
+
+        current_turn = env.turn_manager.global_turn
+
+        # Get fresh perceptions (minimal — just for context)
+        observations = env.get_perceptions(agent)
+        perceptions_text = env.perception_engine.format_perception_text(
+            agent, observations
+        )
+
+        # RETRIEVE — reuse existing memories
+        query = self._build_retrieval_query(agent, perceptions_text)
+        query_embedding = self._embed_query(query)
+        retrieved = retrieve(
+            memory=state.memory,
+            query=query,
+            current_turn=current_turn,
+            top_k=state.retrieval_top_k,
+            gamma=state.retrieval_decay,
+            query_embedding=query_embedding,
+        )
+
+        # DECIDE — with bonus action addendum, no abilities
+        from llm.prompts.decision import BONUS_ACTION_ADDENDUM
+
+        decision = decide(
+            agent=agent,
+            env=env,
+            perceptions_text=perceptions_text,
+            memories=retrieved,
+            llm=self.llm,
+            round_number=round_number,
+            current_plan="",
+            chat_allowed=self.can_chat_combat(agent.agent_id, round_number),
+            urgency_text=BONUS_ACTION_ADDENDUM,
+        )
+
+        # Strip any ability action — bonus actions don't allow abilities
+        from combat.actions import ActionType, make_wait
+
+        if decision.primary_action.action_type == ActionType.ABILITY:
+            decision = CombatDecision(
+                primary_action=make_wait(
+                    agent.agent_id, "abilities not allowed in bonus action"
+                ),
+                chat_action=decision.chat_action,
+            )
+
+        return decision
+
+    async def async_run_bonus_turn(
+        self,
+        agent: Agent,
+        env: Environment,
+        round_number: int,
+    ) -> CombatDecision:
+        """Async version of run_bonus_turn(). Lightweight retrieve + decide."""
+        state = self._states.get(agent.agent_id)
+        if state is None:
+            state = self.register(agent)
+
+        current_turn = env.turn_manager.global_turn
+
+        observations = env.get_perceptions(agent)
+        perceptions_text = env.perception_engine.format_perception_text(
+            agent, observations
+        )
+
+        query = self._build_retrieval_query(agent, perceptions_text)
+        query_embedding = await self._async_embed_query(query)
+        retrieved = retrieve(
+            memory=state.memory,
+            query=query,
+            current_turn=current_turn,
+            top_k=state.retrieval_top_k,
+            gamma=state.retrieval_decay,
+            query_embedding=query_embedding,
+        )
+
+        from llm.prompts.decision import BONUS_ACTION_ADDENDUM
+
+        decision = await async_decide(
+            agent=agent,
+            env=env,
+            perceptions_text=perceptions_text,
+            memories=retrieved,
+            llm=self.llm,
+            round_number=round_number,
+            current_plan="",
+            chat_allowed=self.can_chat_combat(agent.agent_id, round_number),
+            urgency_text=BONUS_ACTION_ADDENDUM,
+        )
+
+        from combat.actions import ActionType, make_wait
+
+        if decision.primary_action.action_type == ActionType.ABILITY:
+            decision = CombatDecision(
+                primary_action=make_wait(
+                    agent.agent_id, "abilities not allowed in bonus action"
+                ),
+                chat_action=decision.chat_action,
+            )
+
+        return decision

@@ -8,6 +8,9 @@ Usage:
     python runner.py             # LLM-driven (pre-battle + combat)
     python runner.py --random    # Phase 1 random-action fallback (combat only)
     python runner.py --no-social # LLM combat only, skip pre-battle
+    python runner.py --generate  # Generate a new character via LLM
+    python runner.py --generate --save  # Generate + save to config/characters/
+    python runner.py --generate --battle  # Generate, save, then run a full battle
 """
 
 from __future__ import annotations
@@ -28,7 +31,13 @@ from combat.actions import (
     make_move,
     make_wait,
 )
-from config_loader import load_all_characters, load_balance_config, load_game_config, load_llm_config
+from combat.status_registry import get_behavior
+from config_loader import (
+    load_all_characters,
+    load_balance_config,
+    load_game_config,
+    load_llm_config,
+)
 from world.battle_grid import BattleGrid
 from world.environment import Environment
 
@@ -135,10 +144,7 @@ def place_agents(agents: list[Agent], env: Environment) -> None:
 
     for agent in agents:
         for x, y in passable:
-            if all(
-                BattleGrid.manhattan(x, y, px, py) >= min_dist
-                for px, py in placed
-            ):
+            if all(BattleGrid.manhattan(x, y, px, py) >= min_dist for px, py in placed):
                 env.register_agent(agent, x, y)
                 placed.append((x, y))
                 log.info(f"  Placed {agent.name} at ({x}, {y})")
@@ -427,6 +433,70 @@ def run_battle(
                     if restored > 0:
                         log.debug(f"  {a.name} regenerated {restored} mana")
 
+                # End-of-round cooldown tick for all living agents
+                for a in env.alive_agents():
+                    a.attributes.tick_cooldowns()
+
+                # End-of-round DoT tick for all living agents
+                for a in list(env.alive_agents()):
+                    for eff in a.attributes.status_effects:
+                        if get_behavior(eff.get("type", "")) == "damage_over_time":
+                            mag = eff.get("magnitude", 0)
+                            dot_dmg = int(mag * a.attributes.max_hp)
+                            if dot_dmg > 0:
+                                a.attributes.take_damage(dot_dmg)
+                                log.info(
+                                    f"  {a.name} takes {dot_dmg} {eff.get('type', 'DoT')} damage!"
+                                )
+                                damage_this_round = True
+                                if not a.is_alive:
+                                    env.handle_agent_death(a.agent_id)
+                                    log.info(
+                                        f"  {a.name} has been killed by {eff.get('type', 'DoT')}!"
+                                    )
+                                    break  # agent is dead, no more DoT processing
+
+                # End-of-round bonus actions for fast agents (spd >= 15)
+                if cognitive_loop is not None and not env.is_combat_over():
+                    for a in list(env.alive_agents()):
+                        if a.attributes.spd >= 15:
+                            chance = 10 + (a.attributes.spd - 15) * 2
+                            if random.random() * 100 < chance:
+                                log.info(
+                                    f"  *** {a.name}'s speed grants a BONUS ACTION! ***"
+                                )
+                                bonus_decision = cognitive_loop.run_bonus_turn(
+                                    a, env, round_num - 1
+                                )
+                                bonus_result = env.resolve_action(
+                                    bonus_decision.primary_action
+                                )
+                                log.info(f"  [BONUS] {bonus_result.description}")
+                                if bonus_result.success and (
+                                    bonus_decision.primary_action.action_type
+                                    == ActionType.ATTACK
+                                ):
+                                    damage_this_round = True
+                                # Handle optional bonus chat
+                                if (
+                                    bonus_decision.chat_action
+                                    and bonus_decision.chat_action.target_agent
+                                ):
+                                    if cognitive_loop.can_chat_combat(
+                                        a.agent_id, round_num - 1
+                                    ):
+                                        cognitive_loop._handle_chat(
+                                            a,
+                                            bonus_decision.chat_action,
+                                            env,
+                                            round_num - 1,
+                                        )
+                                        cognitive_loop.record_chat(
+                                            a.agent_id, round_num - 1
+                                        )
+                                if env.is_combat_over():
+                                    break
+
             log.info(f"\n--- Round {round_num} ---")
             if rounds_without_damage >= max_no_damage_rounds:
                 log.info(
@@ -452,6 +522,17 @@ def run_battle(
                 current.agent_id, eff if eff != "defend" else "defending"
             )
 
+        # Skip-turn check: if agent has a skip_turn status, they lose their turn
+        skip = False
+        for eff in current.attributes.status_effects:
+            if get_behavior(eff.get("type", "")) == "skip_turn":
+                skip = True
+                break
+        if skip:
+            log.info(f"  [{current.name}] is stunned and loses their turn!")
+            env.advance_turn()
+            continue
+
         # Pick action: cognitive loop or random fallback
         if cognitive_loop is not None:
             decision = cognitive_loop.run_turn(
@@ -463,9 +544,12 @@ def run_battle(
             log.info(f"  {result.description}")
 
             # Track damage
-            if (
-                result.success
-                and decision.primary_action.action_type == ActionType.ATTACK
+            if result.success and (
+                decision.primary_action.action_type == ActionType.ATTACK
+                or (
+                    decision.primary_action.action_type == ActionType.ABILITY
+                    and result.details.get("damage", 0) > 0
+                )
             ):
                 damage_this_round = True
 
@@ -641,6 +725,72 @@ async def async_run_battle(
                     if restored > 0:
                         log.debug(f"  {a.name} regenerated {restored} mana")
 
+                # End-of-round cooldown tick for all living agents
+                for a in env.alive_agents():
+                    a.attributes.tick_cooldowns()
+
+                # End-of-round DoT tick for all living agents
+                for a in list(env.alive_agents()):
+                    for eff in a.attributes.status_effects:
+                        if get_behavior(eff.get("type", "")) == "damage_over_time":
+                            mag = eff.get("magnitude", 0)
+                            dot_dmg = int(mag * a.attributes.max_hp)
+                            if dot_dmg > 0:
+                                a.attributes.take_damage(dot_dmg)
+                                log.info(
+                                    f"  {a.name} takes {dot_dmg} {eff.get('type', 'DoT')} damage!"
+                                )
+                                damage_this_round = True
+                                if not a.is_alive:
+                                    env.handle_agent_death(a.agent_id)
+                                    log.info(
+                                        f"  {a.name} has been killed by {eff.get('type', 'DoT')}!"
+                                    )
+                                    break  # agent is dead, no more DoT processing
+
+                # End-of-round bonus actions for fast agents (spd >= 15)
+                if not env.is_combat_over():
+                    for a in list(env.alive_agents()):
+                        if a.attributes.spd >= 15:
+                            chance = 10 + (a.attributes.spd - 15) * 2
+                            if random.random() * 100 < chance:
+                                log.info(
+                                    f"  *** {a.name}'s speed grants a BONUS ACTION! ***"
+                                )
+                                bonus_decision = (
+                                    await cognitive_loop.async_run_bonus_turn(
+                                        a, env, round_num - 1
+                                    )
+                                )
+                                bonus_result = env.resolve_action(
+                                    bonus_decision.primary_action
+                                )
+                                log.info(f"  [BONUS] {bonus_result.description}")
+                                if bonus_result.success and (
+                                    bonus_decision.primary_action.action_type
+                                    == ActionType.ATTACK
+                                ):
+                                    damage_this_round = True
+                                # Handle optional bonus chat
+                                if (
+                                    bonus_decision.chat_action
+                                    and bonus_decision.chat_action.target_agent
+                                ):
+                                    if cognitive_loop.can_chat_combat(
+                                        a.agent_id, round_num - 1
+                                    ):
+                                        cognitive_loop._handle_chat(
+                                            a,
+                                            bonus_decision.chat_action,
+                                            env,
+                                            round_num - 1,
+                                        )
+                                        cognitive_loop.record_chat(
+                                            a.agent_id, round_num - 1
+                                        )
+                                if env.is_combat_over():
+                                    break
+
             log.info(f"\n--- Round {round_num} ---")
             if rounds_without_damage >= max_no_damage_rounds:
                 log.info(
@@ -664,6 +814,17 @@ async def async_run_battle(
                 current.agent_id, eff if eff != "defend" else "defending"
             )
 
+        # Skip-turn check: if agent has a skip_turn status, they lose their turn
+        skip = False
+        for eff in current.attributes.status_effects:
+            if get_behavior(eff.get("type", "")) == "skip_turn":
+                skip = True
+                break
+        if skip:
+            log.info(f"  [{current.name}] is stunned and loses their turn!")
+            env.advance_turn()
+            continue
+
         decision = await cognitive_loop.async_run_turn(
             current, env, round_num, urgency_text=urgency_text
         )
@@ -671,9 +832,12 @@ async def async_run_battle(
         result = env.resolve_action(decision.primary_action)
         log.info(f"  {result.description}")
 
-        if (
-            result.success
-            and decision.primary_action.action_type == ActionType.ATTACK
+        if result.success and (
+            decision.primary_action.action_type == ActionType.ATTACK
+            or (
+                decision.primary_action.action_type == ActionType.ABILITY
+                and result.details.get("damage", 0) > 0
+            )
         ):
             damage_this_round = True
 
@@ -730,6 +894,68 @@ async def _async_main(
 
 
 # ==========================================================================
+# Character generation
+# ==========================================================================
+
+
+def _run_generate(args: argparse.Namespace) -> None:
+    """Interactive character generation via LLM."""
+    from character_generator import generate_character, save_character, to_yaml
+    from llm.openrouter_adapter import OpenRouterAdapter
+
+    print("=== Battle-Agents Character Generator ===\n")
+
+    # Use CLI args if provided, otherwise prompt interactively.
+    name = args.name
+    description = args.desc
+
+    if not name:
+        try:
+            name = input("Character name: ").strip()
+        except EOFError:
+            print("Error: no input available. Use --name and --desc flags.")
+            sys.exit(1)
+    if not name:
+        print("Error: name cannot be empty.")
+        sys.exit(1)
+
+    if not description:
+        try:
+            description = input(
+                "Description (fighting style, personality, etc.): "
+            ).strip()
+        except EOFError:
+            print("Error: no input available. Use --name and --desc flags.")
+            sys.exit(1)
+    if not description:
+        print("Error: description cannot be empty.")
+        sys.exit(1)
+
+    # Set up LLM adapter (lightweight — no full cognitive loop needed).
+    llm_cfg = load_llm_config()
+    adapters_cfg = llm_cfg.get("adapters", {})
+    or_cfg = adapters_cfg.get("openrouter", {})
+    models_cfg = or_cfg.get("models", {})
+    model_id = "google/gemini-2.5-flash"
+    for _name, mcfg in models_cfg.items():
+        model_id = mcfg.get("model_id", model_id)
+        break
+    adapter = OpenRouterAdapter(model=model_id)
+
+    print(f"\nGenerating character with {model_id}...\n")
+
+    data = generate_character(name, description, adapter)
+    yaml_str = to_yaml(data)
+
+    print("--- Generated Character YAML ---")
+    print(yaml_str)
+
+    if args.save:
+        path = save_character(data)
+        print(f"Saved to {path}")
+
+
+# ==========================================================================
 # Entry point
 # ==========================================================================
 
@@ -752,7 +978,62 @@ def main() -> None:
         default=3,
         help="Number of characters to use (default: 3)",
     )
+    parser.add_argument(
+        "--generate",
+        action="store_true",
+        help="Generate a new character via LLM (interactive, prints YAML)",
+    )
+    parser.add_argument(
+        "--name",
+        type=str,
+        default=None,
+        help="Character name (use with --generate to skip interactive prompt)",
+    )
+    parser.add_argument(
+        "--desc",
+        type=str,
+        default=None,
+        help="Character description (use with --generate to skip interactive prompt)",
+    )
+    parser.add_argument(
+        "--save",
+        action="store_true",
+        help="Save the generated character to config/characters/ (use with --generate)",
+    )
+    parser.add_argument(
+        "--battle",
+        action="store_true",
+        help="After generating, run a full battle with all characters (implies --save)",
+    )
     args = parser.parse_args()
+
+    # --save and --battle only make sense with --generate
+    if args.save and not args.generate:
+        parser.error("--save requires --generate")
+    if args.battle and not args.generate:
+        parser.error("--battle requires --generate")
+    if (args.name or args.desc) and not args.generate:
+        parser.error("--name and --desc require --generate")
+
+    # --generate and --random are mutually exclusive
+    if args.generate and args.random:
+        parser.error("--generate and --random are mutually exclusive")
+
+    # --battle implies --save (character must be on disk for the battle loader)
+    if args.battle:
+        args.save = True
+
+    # --- Character generation mode ---
+    if args.generate:
+        _run_generate(args)
+        if not args.battle:
+            return
+        # Fall through to normal battle setup — the generated character
+        # is already saved to config/characters/ and will be picked up
+        # by load_all_characters() below.
+        log.info("\n" + "=" * 60)
+        log.info("Continuing to battle with all characters...")
+        log.info("=" * 60)
 
     use_llm = not args.random
     skip_social = args.random or args.no_social

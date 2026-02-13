@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 from combat.actions import (
     ActionType,
     CombatAction,
+    make_ability,
     make_attack,
     make_chat,
     make_defend,
@@ -131,8 +132,61 @@ def _gather_context(
         "can_attack": can_attack,
         "can_move": can_move,
         "can_chat": can_chat,
+        "can_ability": _compute_can_ability(agent, env, ax, ay),
         "social_dispositions": social_dispositions,
     }
+
+
+def _compute_can_ability(
+    agent: Agent,
+    env: Environment,
+    ax: int,
+    ay: int,
+) -> list[str]:
+    """Compute which abilities the agent can use and against whom.
+
+    Returns a list of display strings like:
+      "Berserker Slash -> Kael (kael), Lyra (lyra)"
+      "Divine Light -> self"
+    """
+    ready = agent.attributes.get_ready_abilities()
+    if not ready:
+        return []
+
+    result: list[str] = []
+    for ability in ready:
+        ab_range = ability.get("range", 1)
+        effects = ability.get("effects", [])
+
+        # Determine if self-targeting
+        is_self = (
+            all(e.get("target", "enemy") == "self" for e in effects)
+            if effects
+            else False
+        )
+        if ability.get("damage", 0) == 0 and is_self:
+            is_self = True
+
+        if is_self:
+            result.append(f"{ability['name']} -> self")
+        else:
+            # Find valid targets in range
+            targets_in_range: list[str] = []
+            for other in env.alive_agents():
+                if other.agent_id == agent.agent_id:
+                    continue
+                other_pos = env.world_state.get_position(other.agent_id)
+                if other_pos is None:
+                    continue
+                ox, oy = BattleGrid.parse_tile(other_pos)
+                dist = BattleGrid.manhattan(ax, ay, ox, oy)
+                if dist <= ab_range:
+                    targets_in_range.append(f"{other.identity.name} ({other.agent_id})")
+            if targets_in_range:
+                result.append(f"{ability['name']} -> {', '.join(targets_in_range)}")
+            # If no targets in range, don't list this ability
+
+    return result
 
 
 def _resolve_chat_target(target: str, agent: Agent, env: Environment) -> str | None:
@@ -192,6 +246,68 @@ def _parse_action(
                 primary = make_wait(agent.agent_id, f"invalid attack target: {target}")
 
         # Attack is exclusive — no free chat allowed
+        return CombatDecision(primary_action=primary, chat_action=None)
+
+    if action_str == "ability":
+        ability_name = raw.get("ability_name", "")
+        if not ability_name:
+            log.warning(
+                f"{agent.name}: ability action but no ability_name, falling back to wait"
+            )
+            primary = make_wait(agent.agent_id, "ability without name")
+        else:
+            ability = agent.attributes.get_ability_by_name(ability_name)
+            if ability is None:
+                log.warning(
+                    f"{agent.name}: unknown ability '{ability_name}', falling back to wait"
+                )
+                primary = make_wait(agent.agent_id, f"unknown ability: {ability_name}")
+            else:
+                # Determine if self-targeting
+                effects = ability.get("effects", [])
+                is_self = (
+                    all(e.get("target", "enemy") == "self" for e in effects)
+                    if effects
+                    else False
+                )
+                if ability.get("damage", 0) == 0 and is_self:
+                    is_self = True
+
+                if is_self:
+                    primary = make_ability(
+                        agent.agent_id, None, ability["name"], reasoning
+                    )
+                else:
+                    target_str = raw.get("target_agent", "")
+                    resolved = None
+                    if (
+                        target_str
+                        and target_str in env.agents
+                        and env.agents[target_str].is_alive
+                    ):
+                        resolved = target_str
+                    else:
+                        for other in env.alive_agents():
+                            if other.agent_id == agent.agent_id:
+                                continue
+                            if target_str and (
+                                target_str.lower() == other.identity.name.lower()
+                                or target_str.lower() == other.agent_id.lower()
+                            ):
+                                resolved = other.agent_id
+                                break
+                    if resolved:
+                        primary = make_ability(
+                            agent.agent_id, resolved, ability["name"], reasoning
+                        )
+                    else:
+                        log.warning(
+                            f"{agent.name}: invalid ability target '{target_str}', falling back to wait"
+                        )
+                        primary = make_wait(
+                            agent.agent_id, f"invalid ability target: {target_str}"
+                        )
+        # Ability is exclusive — no free chat allowed
         return CombatDecision(primary_action=primary, chat_action=None)
 
     if action_str == "move":
@@ -305,6 +421,7 @@ def decide(
         current_plan=current_plan,
         social_dispositions=ctx["social_dispositions"],
         urgency_text=urgency_text,
+        can_ability=ctx.get("can_ability"),
     )
 
     # Call LLM
@@ -389,6 +506,7 @@ async def async_decide(
         current_plan=current_plan,
         social_dispositions=ctx["social_dispositions"],
         urgency_text=urgency_text,
+        can_ability=ctx.get("can_ability"),
     )
 
     try:

@@ -108,7 +108,10 @@ class Environment:
 
         turn = self.turn_manager.global_turn
 
-        if action.action_type == ActionType.ATTACK and action.target_agent:
+        if (
+            action.action_type in (ActionType.ATTACK, ActionType.ABILITY)
+            and action.target_agent
+        ):
             attacker = self.agents.get(action.agent_id)
             target = self.agents.get(action.target_agent)
             if not attacker or not target:
@@ -116,6 +119,10 @@ class Environment:
 
             damage = result.details.get("damage", 0)
             killed = result.details.get("killed", False)
+            # For ABILITY, check kills list instead of single killed flag
+            if action.action_type == ActionType.ABILITY:
+                kills = result.details.get("kills", [])
+                killed = len(kills) > 0
 
             # Target's social model: attacked by attacker
             target.social.on_attacked_by(

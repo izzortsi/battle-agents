@@ -16,3 +16,47 @@ attributes:
   con: 14
   hit: 7
   attack_range: 1
+abilities:
+  - name: Berserker Slash
+    mana_cost: 6
+    damage: 22
+    range: 1
+    aoe_pattern: single
+    cooldown: 3
+    current_cd: 0
+    description: >
+      A reckless, devastating melee strike fueled by pure rage.
+      Kael throws all caution aside, dealing massive damage and entering
+      a frenzied state that amplifies his follow-up attacks.
+    tactical_hint: >
+      Use when you want to burst down an enemy at close range.
+      The self-buff makes your next regular attacks hit harder too.
+    effects:
+      - type: enrage
+        behavior: boost_outgoing_damage
+        duration: 2
+        magnitude: 0.25
+        target: self
+        category: buff
+        chance: 1.0
+  - name: Shield Bash
+    mana_cost: 4
+    damage: 10
+    range: 1
+    aoe_pattern: single
+    cooldown: 3
+    current_cd: 0
+    description: >
+      A brutal strike with the flat of his blade that stuns the target,
+      leaving them unable to act for a short time.
+    tactical_hint: >
+      Use against dangerous enemies to deny them a turn.
+      Great for interrupting a mage about to cast a powerful ability.
+    effects:
+      - type: stun
+        behavior: skip_turn
+        duration: 1
+        magnitude: 0.0
+        target: enemy
+        category: debuff
+        chance: 0.75

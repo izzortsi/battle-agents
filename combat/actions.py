@@ -81,3 +81,19 @@ def make_wait(agent_id: str, reasoning: str = "") -> CombatAction:
     return CombatAction(
         agent_id=agent_id, action_type=ActionType.WAIT, reasoning=reasoning
     )
+
+
+def make_ability(
+    agent_id: str,
+    target: str | None,
+    ability_name: str,
+    reasoning: str = "",
+) -> CombatAction:
+    """Create an ABILITY action.  *target* is None for self-targeting abilities."""
+    return CombatAction(
+        agent_id=agent_id,
+        action_type=ActionType.ABILITY,
+        target_agent=target,
+        ability_name=ability_name,
+        reasoning=reasoning,
+    )
