@@ -96,6 +96,9 @@ def _gather_context(
                 "distance": dist,
                 "hp": other.attributes.hp,
                 "max_hp": other.attributes.max_hp,
+                "damage_type": other.attributes.damage_type,
+                "phys_def": other.attributes.phys_def,
+                "mag_def": other.attributes.mag_def,
                 "in_attack_range": in_range,
             }
         )

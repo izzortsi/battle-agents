@@ -63,7 +63,8 @@ PRE-BATTLE TICK {tick_number} of {total_ticks}. Combat begins after the social p
 
 YOUR STATUS:
   Position: ({my_x}, {my_y})
-  Combat class: {combat_class}  |  HP: {hp}  |  Attack: {attack}  |  Defense: {defense}
+  Combat class: {combat_class}  |  Damage type: {damage_type}
+  HP: {hp}/{max_hp}  |  ATK: {atk}  |  MGK: {mgk}  |  SPD: {spd}  |  CON: {con}  |  HIT: {hit}
 {plan_section}
 PEOPLE YOU CAN SEE:
 {visible_agents}
@@ -187,9 +188,14 @@ def build_pre_battle_user_prompt(
         my_x=my_x,
         my_y=my_y,
         combat_class=agent.identity.combat_class,
+        damage_type=agent.attributes.damage_type,
         hp=agent.attributes.hp,
-        attack=agent.attributes.attack,
-        defense=agent.attributes.defense,
+        max_hp=agent.attributes.max_hp,
+        atk=agent.attributes.atk,
+        mgk=agent.attributes.mgk,
+        spd=agent.attributes.spd,
+        con=agent.attributes.con,
+        hit=agent.attributes.hit,
         plan_section=plan_section,
         perceptions=perceptions_text,
         memories=format_pre_battle_memories(memories),

@@ -39,7 +39,9 @@ class Agent:
             status_str = f" [{', '.join(effects)}]"
         return (
             f"{self.identity.name} ({self.identity.combat_class}) "
-            f"HP:{a.hp}/{a.max_hp} MP:{a.mana}/{a.max_mana}{status_str}"
+            f"HP:{a.hp}/{a.max_hp} MP:{a.mana}/{a.max_mana} "
+            f"ATK:{a.atk} MGK:{a.mgk} SPD:{a.spd} CON:{a.con} HIT:{a.hit}"
+            f"{status_str}"
         )
 
     def __str__(self) -> str:

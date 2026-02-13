@@ -28,11 +28,20 @@ personality, your memories, and your tactical assessment — but above all, \
 you must actively engage enemies and deal damage. Standing around or \
 endlessly talking will get you killed.
 
+YOUR COMBAT PROFILE:
+- Damage type: {damage_type} (you deal {damage_type} damage based on your {'ATK' if damage_type == 'physical' else 'MGK'} stat)
+- Attack range: {attack_range} tiles (Manhattan distance)
+- Accuracy depends on your HIT vs enemy SPD — low accuracy means you may miss
+- You can land critical hits (chance scales with your SPD)
+- Enemies may counter-attack if you miss or they are skilled (scales with their HIT)
+
 COMBAT RULES:
 - You are on a 2D tile grid. Coordinates are (x, y).
 - Each turn you choose a PRIMARY action: move, attack, defend, or wait.
 - ATTACK is your most important action. Attack enemies whenever you can. \
 You can only attack targets within your attack range ({attack_range} tiles, Manhattan distance).
+- Attacks can MISS (based on HIT vs target SPD), CRIT (based on your SPD), \
+or be COUNTERED (based on target HIT). Choose targets you can reliably hit.
 - MOVE toward enemies if none are in attack range. Closing distance is critical.
 - DEFEND raises your defense for one turn (diminishing returns if used repeatedly). \
 Use DEFEND only when badly wounded and enemies are far away.
@@ -64,7 +73,8 @@ ROUND {round_number}, YOUR TURN.
 YOUR STATUS:
   Position: ({my_x}, {my_y})
   HP: {hp}/{max_hp}  |  Mana: {mana}/{max_mana}
-  Attack: {attack}  |  Defense: {defense}  |  Speed: {speed}
+  ATK: {atk}  |  MGK: {mgk}  |  SPD: {spd}  |  CON: {con}  |  HIT: {hit}
+  Damage type: {damage_type}  |  Phys Def: {phys_def}  |  Mag Def: {mag_def}
   Move range: {move_range}  |  Attack range: {attack_range}
 {status_effects_line}
 {plan_section}
@@ -98,6 +108,7 @@ def build_system_prompt(agent: Agent) -> str:
         personality=personality,
         backstory=agent.identity.backstory,
         attack_range=agent.attributes.attack_range,
+        damage_type=agent.attributes.damage_type,
     )
 
 
@@ -118,7 +129,7 @@ def format_visible_enemies(
 ) -> str:
     """Format visible enemy information.
 
-    Each dict: {name, agent_id, x, y, distance, hp, max_hp}
+    Each dict: {name, agent_id, x, y, distance, hp, max_hp, damage_type, phys_def, mag_def}
     social_dispositions: optional map of agent_id -> disposition float.
     """
     if not enemies:
@@ -127,6 +138,9 @@ def format_visible_enemies(
     for e in enemies:
         hp_pct = int(100 * e["hp"] / e["max_hp"]) if e["max_hp"] > 0 else 0
         in_range = "IN RANGE" if e.get("in_attack_range") else ""
+        dmg_type = e.get("damage_type", "physical")
+        phys_def = e.get("phys_def", "?")
+        mag_def = e.get("mag_def", "?")
         disp_str = ""
         if social_dispositions and e["agent_id"] in social_dispositions:
             d = social_dispositions[e["agent_id"]]
@@ -143,7 +157,9 @@ def format_visible_enemies(
             disp_str = f" [disposition: {d:+.2f} ({label})]"
         lines.append(
             f"  - {e['name']} ({e['agent_id']}) at ({e['x']}, {e['y']}), "
-            f"distance {e['distance']}, HP {e['hp']}/{e['max_hp']} ({hp_pct}%) {in_range}{disp_str}"
+            f"distance {e['distance']}, HP {e['hp']}/{e['max_hp']} ({hp_pct}%), "
+            f"deals {dmg_type} dmg, pDef {phys_def} / mDef {mag_def} "
+            f"{in_range}{disp_str}"
         )
     return "\n".join(lines)
 
@@ -212,9 +228,14 @@ def build_user_prompt(
         max_hp=agent.attributes.max_hp,
         mana=agent.attributes.mana,
         max_mana=agent.attributes.max_mana,
-        attack=agent.attributes.attack,
-        defense=agent.attributes.defense,
-        speed=agent.attributes.speed,
+        atk=agent.attributes.atk,
+        mgk=agent.attributes.mgk,
+        spd=agent.attributes.spd,
+        con=agent.attributes.con,
+        hit=agent.attributes.hit,
+        damage_type=agent.attributes.damage_type,
+        phys_def=agent.attributes.phys_def,
+        mag_def=agent.attributes.mag_def,
         move_range=agent.attributes.move_range,
         attack_range=agent.attributes.attack_range,
         status_effects_line=status_effects_line,

@@ -35,3 +35,5 @@ coverage/
 logs/
 *.log
 *-pytest-*.pyc
+*-314.pyc
+*/__pycache__/*

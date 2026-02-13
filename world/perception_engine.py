@@ -81,7 +81,7 @@ class PerceptionEngine:
             observations.append(
                 Observation(
                     category="agent_position",
-                    description=f"{agent.identity.name} is at tile ({ax}, {ay}), distance {dist}.",
+                    description=f"{agent.identity.name} ({agent.identity.combat_class}, {agent.attributes.damage_type}) is at tile ({ax}, {ay}), distance {dist}.",
                     subject=agent.agent_id,
                     details={
                         "agent_id": agent.agent_id,
@@ -90,6 +90,8 @@ class PerceptionEngine:
                         "distance": dist,
                         "hp": agent.attributes.hp,
                         "max_hp": agent.attributes.max_hp,
+                        "combat_class": agent.identity.combat_class,
+                        "damage_type": agent.attributes.damage_type,
                     },
                 )
             )

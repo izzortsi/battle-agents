@@ -27,7 +27,7 @@ from combat.actions import (
     make_move,
     make_wait,
 )
-from config_loader import load_all_characters, load_game_config, load_llm_config
+from config_loader import load_all_characters, load_balance_config, load_game_config, load_llm_config
 from world.battle_grid import BattleGrid
 from world.environment import Environment
 
@@ -410,13 +410,19 @@ def run_battle(
 
         # Print round header on first agent of each round
         if env.turn_manager._current_idx == 0:
-            # End-of-round stagnation tracking
+            # End-of-round processing (mana regen, stagnation tracking)
             if round_num > 1:
                 if not damage_this_round:
                     rounds_without_damage += 1
                 else:
                     rounds_without_damage = 0
                 damage_this_round = False
+
+                # End-of-round mana regen for all living agents
+                for a in env.alive_agents():
+                    restored = a.attributes.regen_mana()
+                    if restored > 0:
+                        log.debug(f"  {a.name} regenerated {restored} mana")
 
             log.info(f"\n--- Round {round_num} ---")
             if rounds_without_damage >= max_no_damage_rounds:
@@ -543,6 +549,7 @@ def main() -> None:
 
     # Load config
     game_cfg = load_game_config()
+    load_balance_config(game_cfg)  # initialise BalanceConfig for Attributes
     grid_cfg = game_cfg.get("grid", {})
     combat_cfg = game_cfg.get("combat", {})
     pre_battle_cfg = game_cfg.get("pre_battle", {})

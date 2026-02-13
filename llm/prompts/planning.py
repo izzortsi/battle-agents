@@ -45,8 +45,8 @@ CURRENT SITUATION:
   Round: {round_number}
   Position: ({my_x}, {my_y})
   HP: {hp}/{max_hp}  |  Mana: {mana}/{max_mana}
-  Attack: {attack}  |  Defense: {defense}
-  Attack range: {attack_range}
+  ATK: {atk}  |  MGK: {mgk}  |  SPD: {spd}  |  CON: {con}  |  HIT: {hit}
+  Damage type: {damage_type}  |  Attack range: {attack_range}
 
 RELATIONSHIPS:
 {relationships}
@@ -104,8 +104,12 @@ def build_plan_prompts(
     max_hp: int,
     mana: int,
     max_mana: int,
-    attack: int,
-    defense: int,
+    atk: int,
+    mgk: int,
+    spd: int,
+    con: int,
+    hit: int,
+    damage_type: str,
     attack_range: int,
     relationships_text: str,
     memories: list[MemoryNode],
@@ -129,8 +133,12 @@ def build_plan_prompts(
         max_hp=max_hp,
         mana=mana,
         max_mana=max_mana,
-        attack=attack,
-        defense=defense,
+        atk=atk,
+        mgk=mgk,
+        spd=spd,
+        con=con,
+        hit=hit,
+        damage_type=damage_type,
         attack_range=attack_range,
         relationships=relationships_text,
         memories=mem_text,
