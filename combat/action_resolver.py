@@ -279,14 +279,24 @@ def _resolve_attack(action: CombatAction, env: "Environment") -> "ActionResult":
     crit_text = " CRITICAL HIT!" if is_crit else ""
     kill_text = ""
     if not target.is_alive:
-        env.handle_agent_death(target_id)
+        env.handle_agent_death(
+            target_id,
+            killer=agent.name,
+            method="basic attack",
+            round_num=env.turn_manager.global_turn,
+        )
         kill_text = f" {target.name} has been slain!"
 
     counter_text = ""
     if counter:
         counter_kill = ""
         if not agent.is_alive:
-            env.handle_agent_death(agent.agent_id)
+            env.handle_agent_death(
+                agent.agent_id,
+                killer=target.name,
+                method="counter-attack",
+                round_num=env.turn_manager.global_turn,
+            )
             counter_kill = f" {agent.name} has been slain by the counter!"
         counter_text = (
             f" {target.name} counters for {counter_dmg} damage!{counter_kill}"
@@ -772,7 +782,12 @@ def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult"
                         f"({affected.attributes.hp}/{affected.attributes.max_hp} HP)."
                     )
                     if not affected.is_alive:
-                        env.handle_agent_death(affected.agent_id)
+                        env.handle_agent_death(
+                            affected.agent_id,
+                            killer=agent.name,
+                            method=ability.get("name", "ability"),
+                            round_num=env.turn_manager.global_turn,
+                        )
                         kills.append(affected.name)
                         log_parts.append(f"{affected.name} has been slain!")
                         continue  # Dead — don't apply effects

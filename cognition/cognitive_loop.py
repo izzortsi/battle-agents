@@ -117,6 +117,49 @@ class CognitiveLoop:
         return self._states.get(agent_id)
 
     # ==================================================================
+    # Death broadcast
+    # ==================================================================
+
+    def broadcast_death(
+        self,
+        dead_agent: "Agent",
+        killer_name: str,
+        method: str,
+        round_num: int,
+        env: "Environment",
+    ) -> None:
+        """Inject a high-poignancy death memory into every surviving agent's memory.
+
+        Called by the runner whenever an agent is killed (attack, ability, DoT,
+        counter).  Ensures all survivors *know* the agent is dead and won't
+        waste turns targeting a corpse.
+        """
+        dead_name = dead_agent.name
+        dead_class = dead_agent.identity.combat_class
+        desc = (
+            f"{dead_name} ({dead_class}) was slain by {killer_name} "
+            f"using {method} in round {round_num}. "
+            f"{dead_name} is eliminated from combat."
+        )
+        current_turn = env.turn_manager.global_turn
+
+        for survivor in env.alive_agents():
+            state = self.get_state(survivor.agent_id)
+            if state is None:
+                continue
+            state.memory.add(
+                turn=current_turn,
+                memory_type=MemoryType.OBSERVATION,
+                description=desc,
+                poignancy=9,  # death is a critical battlefield event
+                depth=0,
+                subject=dead_name,
+                predicate="slain_by",
+                object_=killer_name,
+            )
+        log.debug(f"  [Death broadcast] {desc}")
+
+    # ==================================================================
     # Embedding helpers
     # ==================================================================
 

@@ -1,4 +1,4 @@
-default_adapter: "openrouter/gemini-3-flash"
+default_adapter: "openrouter/gemini-2.5-flash-free"
 
 adapters:
   openrouter:
@@ -79,11 +79,11 @@ embedding:
   cache_size: 2048
 
 routing:
-  action_decision: "openrouter/gemini-3-flash"
-  reflection: "openrouter/gemini-3-flash"
-  dialogue: "openrouter/gemini-3-flash"
-  planning: "openrouter/gemini-3-flash"
-  commentary: "openrouter/gemini-3-flash"
-  lore_generation: "openrouter/gemini-3-flash"
-  character_generation: "openrouter/gemini-3-flash"
+  action_decision: "openrouter/gemini-2.5-flash-free"
+  reflection: "openrouter/gemini-2.5-flash-free"
+  dialogue: "openrouter/gemini-2.5-flash-free"
+  planning: "openrouter/gemini-2.5-flash-free"
+  commentary: "openrouter/gemini-2.5-flash-free"
+  lore_generation: "openrouter/gemini-2.5-flash-free"
+  character_generation: "openrouter/gemini-2.5-flash-free"
   importance_rating: "heuristic"

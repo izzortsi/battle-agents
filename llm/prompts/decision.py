@@ -104,7 +104,7 @@ RELEVANT MEMORIES:
 
 COMBATANTS YOU CAN SEE:
 {visible_enemies}
-
+{eliminated_section}
 AVAILABLE ACTIONS:
 {available_actions}
 
@@ -267,6 +267,22 @@ def format_visible_enemies(
     return "\n".join(lines)
 
 
+def format_eliminated(eliminated: list[dict] | None) -> str:
+    """Format the list of eliminated combatants for the prompt.
+
+    Each dict: {name, combat_class, killer, method, round}
+    """
+    if not eliminated:
+        return ""
+    lines = ["\nELIMINATED (dead — do NOT target these agents):"]
+    for e in eliminated:
+        lines.append(
+            f"  - {e['name']} ({e['combat_class']}) — killed by {e['killer']} "
+            f"using {e['method']} in round {e['round']}"
+        )
+    return "\n".join(lines)
+
+
 def format_available_actions(
     can_move: list[str],
     can_attack: list[str],
@@ -311,6 +327,7 @@ def build_user_prompt(
     urgency_text: str = "",
     can_ability: list[str] | None = None,
     alliance_statuses: dict[str, AllianceStatus] | None = None,
+    eliminated: list[dict] | None = None,
 ) -> str:
     """Build the user prompt with full situational context."""
     status_effects = agent.attributes.status_effects
@@ -361,6 +378,7 @@ def build_user_prompt(
         visible_enemies=format_visible_enemies(
             visible_enemies, social_dispositions, alliance_statuses
         ),
+        eliminated_section=format_eliminated(eliminated),
         available_actions=format_available_actions(
             can_move, can_attack, can_chat, can_ability
         ),

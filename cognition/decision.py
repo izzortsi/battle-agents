@@ -128,6 +128,9 @@ def _gather_context(
         if not living_occ:
             can_move.append(f"({tx}, {ty})")
 
+    # Eliminated combatants (from the death log)
+    eliminated = list(env.death_log)  # shallow copy
+
     return {
         "ax": ax,
         "ay": ay,
@@ -138,6 +141,7 @@ def _gather_context(
         "can_ability": _compute_can_ability(agent, env, ax, ay),
         "social_dispositions": social_dispositions,
         "alliance_statuses": alliance_statuses,
+        "eliminated": eliminated,
     }
 
 
@@ -489,6 +493,7 @@ def decide(
         urgency_text=urgency_text,
         can_ability=ctx.get("can_ability"),
         alliance_statuses=ctx.get("alliance_statuses"),
+        eliminated=ctx.get("eliminated"),
     )
 
     # Call LLM
@@ -576,6 +581,7 @@ async def async_decide(
         urgency_text=urgency_text,
         can_ability=ctx.get("can_ability"),
         alliance_statuses=ctx.get("alliance_statuses"),
+        eliminated=ctx.get("eliminated"),
     )
 
     try:

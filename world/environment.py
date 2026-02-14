@@ -53,6 +53,9 @@ class Environment:
         self.recent_actions: dict[str, dict] = {}  # last tick's action descriptions
         self.event_log: list[ActionResult] = []
         self.victory_mode = victory_mode
+        self.death_log: list[
+            dict
+        ] = []  # [{agent_id, name, combat_class, killer, method, round}]
 
     # -- Setup -----------------------------------------------------------------
 
@@ -278,6 +281,24 @@ class Environment:
                 return agent
         return None
 
-    def handle_agent_death(self, agent_id: str) -> None:
+    def handle_agent_death(
+        self,
+        agent_id: str,
+        *,
+        killer: str = "unknown",
+        method: str = "unknown",
+        round_num: int = 0,
+    ) -> None:
         self.turn_manager.remove_agent(agent_id)
+        agent = self.agents.get(agent_id)
+        self.death_log.append(
+            {
+                "agent_id": agent_id,
+                "name": agent.name if agent else agent_id,
+                "combat_class": (agent.identity.combat_class if agent else "unknown"),
+                "killer": killer,
+                "method": method,
+                "round": round_num,
+            }
+        )
         log.info(f"{agent_id} has been eliminated.")

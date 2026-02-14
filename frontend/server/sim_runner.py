@@ -563,7 +563,18 @@ class SimRunner:
                                     a.attributes.take_damage(dot_dmg)
                                     damage_this_round = True
                                     if not a.is_alive:
-                                        self._env.handle_agent_death(a.agent_id)
+                                        dot_type = eff.get("type", "DoT")
+                                        dot_src = eff.get("source", "unknown")
+                                        self._env.handle_agent_death(
+                                            a.agent_id,
+                                            killer=(
+                                                self._env.agents[dot_src].name
+                                                if dot_src in self._env.agents
+                                                else dot_src
+                                            ),
+                                            method=f"{dot_type} damage",
+                                            round_num=self._env.turn_manager.global_turn,
+                                        )
                                         await self._broadcast(
                                             {
                                                 "type": "death",

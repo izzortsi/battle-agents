@@ -131,6 +131,76 @@ def pick_random_action(agent: Agent, env: Environment) -> CombatAction:
 
 
 # ==========================================================================
+# Death broadcast helper
+# ==========================================================================
+
+
+def _broadcast_kills(
+    result: "ActionResult",
+    agent: Agent,
+    env: Environment,
+    round_num: int,
+    cognitive_loop: "CognitiveLoop | None",
+) -> None:
+    """Check an action result for kills and broadcast death memories.
+
+    Handles three kill sources:
+      - Direct kill (attack or single-target ability): details["killed"] is True
+      - AoE ability kills: details["kills"] is a non-empty list
+      - Counter-attack kill: details["counter"] and attacker died
+    """
+    if cognitive_loop is None or not result.success:
+        return
+
+    details = result.details
+
+    # Direct kill (attack or ability hit that killed the target)
+    if details.get("killed"):
+        target_id = details.get("target")
+        target_agent = env.agents.get(target_id) if target_id else None
+        if target_agent:
+            method = details.get("ability", "basic attack")
+            cognitive_loop.broadcast_death(
+                dead_agent=target_agent,
+                killer_name=agent.name,
+                method=method,
+                round_num=round_num,
+                env=env,
+            )
+
+    # AoE ability kills (multiple possible)
+    kills_list = details.get("kills", [])
+    if kills_list and not details.get("killed"):
+        # kills is a list of *names*; find agents by name
+        ability_name = details.get("ability", "ability")
+        for dead_name in kills_list:
+            for a in env.agents.values():
+                if a.name == dead_name and not a.is_alive:
+                    cognitive_loop.broadcast_death(
+                        dead_agent=a,
+                        killer_name=agent.name,
+                        method=ability_name,
+                        round_num=round_num,
+                        env=env,
+                    )
+                    break
+
+    # Counter-attack kill (the attacker was killed by the counter)
+    if details.get("counter") and details.get("counter_damage", 0) > 0:
+        if not agent.is_alive:
+            target_id = details.get("target")
+            target_agent = env.agents.get(target_id) if target_id else None
+            counter_killer_name = target_agent.name if target_agent else "unknown"
+            cognitive_loop.broadcast_death(
+                dead_agent=agent,
+                killer_name=counter_killer_name,
+                method="counter-attack",
+                round_num=round_num,
+                env=env,
+            )
+
+
+# ==========================================================================
 # Grid display and agent placement
 # ==========================================================================
 
@@ -595,9 +665,29 @@ def run_battle(
                                 )
                                 damage_this_round = True
                                 if not a.is_alive:
-                                    env.handle_agent_death(a.agent_id)
+                                    dot_type = eff.get("type", "DoT")
+                                    dot_source = eff.get("source", "unknown")
+                                    killer_name = (
+                                        env.agents[dot_source].name
+                                        if dot_source in env.agents
+                                        else dot_source
+                                    )
+                                    env.handle_agent_death(
+                                        a.agent_id,
+                                        killer=killer_name,
+                                        method=f"{dot_type} damage",
+                                        round_num=round_num,
+                                    )
+                                    if cognitive_loop is not None:
+                                        cognitive_loop.broadcast_death(
+                                            dead_agent=a,
+                                            killer_name=killer_name,
+                                            method=f"{dot_type} damage",
+                                            round_num=round_num,
+                                            env=env,
+                                        )
                                     log.info(
-                                        f"  {a.name} has been killed by {eff.get('type', 'DoT')}!"
+                                        f"  {a.name} has been killed by {dot_type}!"
                                     )
                                     break  # agent is dead, no more DoT processing
 
@@ -617,6 +707,9 @@ def run_battle(
                                     bonus_decision.primary_action
                                 )
                                 log.info(f"  [BONUS] {bonus_result.description}")
+                                _broadcast_kills(
+                                    bonus_result, a, env, round_num - 1, cognitive_loop
+                                )
                                 if bonus_result.success and (
                                     bonus_decision.primary_action.action_type
                                     == ActionType.ATTACK
@@ -687,6 +780,7 @@ def run_battle(
             # Resolve primary action
             result = env.resolve_action(decision.primary_action)
             log.info(f"  {result.description}")
+            _broadcast_kills(result, current, env, round_num, cognitive_loop)
 
             # Track damage
             if result.success and (
@@ -711,6 +805,7 @@ def run_battle(
             action = pick_random_action(current, env)
             result = env.resolve_action(action)
             log.info(f"  {result.description}")
+            _broadcast_kills(result, current, env, round_num, cognitive_loop)
             if result.success and action.action_type == ActionType.ATTACK:
                 damage_this_round = True
 
@@ -891,9 +986,28 @@ async def async_run_battle(
                                 )
                                 damage_this_round = True
                                 if not a.is_alive:
-                                    env.handle_agent_death(a.agent_id)
+                                    dot_type = eff.get("type", "DoT")
+                                    dot_source = eff.get("source", "unknown")
+                                    killer_name = (
+                                        env.agents[dot_source].name
+                                        if dot_source in env.agents
+                                        else dot_source
+                                    )
+                                    env.handle_agent_death(
+                                        a.agent_id,
+                                        killer=killer_name,
+                                        method=f"{dot_type} damage",
+                                        round_num=round_num,
+                                    )
+                                    cognitive_loop.broadcast_death(
+                                        dead_agent=a,
+                                        killer_name=killer_name,
+                                        method=f"{dot_type} damage",
+                                        round_num=round_num,
+                                        env=env,
+                                    )
                                     log.info(
-                                        f"  {a.name} has been killed by {eff.get('type', 'DoT')}!"
+                                        f"  {a.name} has been killed by {dot_type}!"
                                     )
                                     break  # agent is dead, no more DoT processing
 
@@ -915,6 +1029,13 @@ async def async_run_battle(
                                     bonus_decision.primary_action
                                 )
                                 log.info(f"  [BONUS] {bonus_result.description}")
+                                _broadcast_kills(
+                                    bonus_result,
+                                    a,
+                                    env,
+                                    round_num - 1,
+                                    cognitive_loop,
+                                )
                                 if bonus_result.success and (
                                     bonus_decision.primary_action.action_type
                                     == ActionType.ATTACK
@@ -980,6 +1101,7 @@ async def async_run_battle(
 
         result = env.resolve_action(decision.primary_action)
         log.info(f"  {result.description}")
+        _broadcast_kills(result, current, env, round_num, cognitive_loop)
 
         if result.success and (
             decision.primary_action.action_type == ActionType.ATTACK
