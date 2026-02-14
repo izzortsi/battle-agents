@@ -603,14 +603,29 @@ def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult"
             target = env.agents[target_id]
             target_pos = env.world_state.get_position(target_id)
         else:
-            agent.attributes.mana = min(
-                agent.attributes.max_mana, agent.attributes.mana + mana_cost
-            )
-            return ActionResult(
-                agent.agent_id,
-                False,
-                f"{agent.name} tried to use {ability['name']} on an invalid ally.",
-            )
+            # Fuzzy name→id resolution (including self)
+            resolved_id = None
+            for aid, a in env.agents.items():
+                if not a.is_alive:
+                    continue
+                if target_id and (
+                    target_id.lower() == a.name.lower()
+                    or target_id.lower() == aid.lower()
+                ):
+                    resolved_id = aid
+                    break
+            if resolved_id:
+                target = env.agents[resolved_id]
+                target_pos = env.world_state.get_position(resolved_id)
+            else:
+                agent.attributes.mana = min(
+                    agent.attributes.max_mana, agent.attributes.mana + mana_cost
+                )
+                return ActionResult(
+                    agent.agent_id,
+                    False,
+                    f"{agent.name} tried to use {ability['name']} on an invalid ally.",
+                )
     else:
         target_id = action.target_agent
         if not target_id or target_id not in env.agents:

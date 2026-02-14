@@ -302,10 +302,46 @@ def _parse_action(
                 if ability.get("damage", 0) == 0 and is_self:
                     is_self = True
 
+                # Determine if ally-targeting (heal/buff an ally)
+                is_ally_target = False
+                if not is_self and effects:
+                    has_ally_effects = any(e.get("target") == "ally" for e in effects)
+                    if has_ally_effects and ability.get("damage", 0) == 0:
+                        is_ally_target = True
+
                 if is_self:
                     primary = make_ability(
                         agent.agent_id, None, ability["name"], reasoning
                     )
+                elif is_ally_target:
+                    # Ally-targeting: self is a valid target
+                    target_str = raw.get("target_agent", "")
+                    resolved = None
+                    if not target_str or target_str == "self":
+                        # No target or explicit "self" → target self
+                        resolved = agent.agent_id
+                    elif target_str in env.agents and env.agents[target_str].is_alive:
+                        resolved = target_str
+                    else:
+                        # Fuzzy name→id resolution (including self)
+                        for other in env.alive_agents():
+                            if target_str and (
+                                target_str.lower() == other.identity.name.lower()
+                                or target_str.lower() == other.agent_id.lower()
+                            ):
+                                resolved = other.agent_id
+                                break
+                    if resolved:
+                        primary = make_ability(
+                            agent.agent_id, resolved, ability["name"], reasoning
+                        )
+                    else:
+                        log.warning(
+                            f"{agent.name}: invalid ally-ability target '{target_str}', falling back to wait"
+                        )
+                        primary = make_wait(
+                            agent.agent_id, f"invalid ally-ability target: {target_str}"
+                        )
                 else:
                     target_str = raw.get("target_agent", "")
                     resolved = None
