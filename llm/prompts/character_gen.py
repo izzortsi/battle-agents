@@ -71,7 +71,7 @@ ABILITIES — generate exactly 2. Each ability has:
   - range: Integer 1-4 (Manhattan distance)
   - aoe_pattern: One of "single", "line", "cross", "radius", "cone"
     - single: hits 1 tile
-    - line: hits 3 tiles along dominant axis from caster to target
+    - line: hits 5 tiles along dominant axis from caster to target
     - cross: hits + shape (5 tiles) centered on target
     - radius: hits 3x3 area (9 tiles) centered on target
     - cone: fan shape widening from caster toward target

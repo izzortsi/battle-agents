@@ -23,7 +23,7 @@ abilities:
 - name: Ricochet Proof
   mana_cost: 6
   damage: 18
-  range: 4
+  range: 6
   aoe_pattern: line
   cooldown: 3
   current_cd: 0

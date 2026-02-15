@@ -20,9 +20,9 @@ if TYPE_CHECKING:
 
 _AOE_TIPS: dict[str, str] = {
     "line": (
-        "Fires 3 tiles in a straight line FROM YOU toward the target "
-        "(hits at distance 1, 2, 3 from you). Move so the target is within "
-        "3 tiles on a cardinal axis to ensure they are on the line."
+        "Fires 5 tiles in a straight line FROM YOU toward the target "
+        "(hits at distance 1, 2, 3, 4, 5 from you). Move so the target is "
+        "within 5 tiles on a cardinal axis to ensure they are on the line."
     ),
     "cross": (
         "Hits a + shape (5 tiles) centered on the target. "
@@ -77,10 +77,10 @@ self-targeting abilities like self-heals/self-buffs). Ally-targeting abilities \
 as target_agent.
 - AoE PATTERNS — abilities hit multiple tiles depending on their pattern:
   * single: hits only the target's tile.
-  * line: hits 3 tiles in a straight line FROM YOU toward the target (tiles at \
-distance 1, 2, 3 from you along the dominant axis). The TARGET is hit ONLY if \
-they are within 3 tiles of you on a cardinal line. Position yourself so the \
-target falls on the line.
+  * line: hits 5 tiles in a straight line FROM YOU toward the target (tiles at \
+distance 1, 2, 3, 4, 5 from you along the dominant axis). The TARGET is hit \
+ONLY if they are within 5 tiles of you on a cardinal line. Position yourself \
+so the target falls on the line.
   * cross: hits a + shape (5 tiles) centered ON the target.
   * radius: hits a 3x3 area (9 tiles) centered ON the target.
   * cone: hits a fan shape from you toward the target, 1-wide near you and \

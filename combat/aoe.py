@@ -2,7 +2,7 @@
 
 Five patterns are supported:
   single — just the target tile
-  line   — 3 tiles from caster toward target along the dominant axis
+  line   — 5 tiles from caster toward target along the dominant axis
   cross  — + shape centred on target (5 tiles)
   radius — 3x3 centred on target (up to 9 tiles)
   cone   — fan shape, 3-wide at target distance
@@ -56,7 +56,7 @@ def _line(
     target: tuple[int, int],
     grid: BattleGrid,
 ) -> list[tuple[int, int]]:
-    """3 tiles from caster toward target along the dominant axis."""
+    """5 tiles from caster toward target along the dominant axis."""
     ox, oy = origin
     tx, ty = target
 
@@ -70,8 +70,8 @@ def _line(
         sx, sy = 0, (1 if dy > 0 else -1)
 
     tiles: list[tuple[int, int]] = []
-    # Start one step from origin, lay 3 tiles
-    for i in range(1, 4):
+    # Start one step from origin, lay 5 tiles
+    for i in range(1, 6):
         nx, ny = ox + sx * i, oy + sy * i
         if grid.is_passable(nx, ny):
             tiles.append((nx, ny))
