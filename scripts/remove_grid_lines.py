@@ -107,126 +107,168 @@ def _composite_on_white(arr: np.ndarray) -> np.ndarray:
     return (rgb * alpha + white * (1.0 - alpha)).astype(np.uint8)
 
 
-def _expand_to_neighbours(
-    indices: list[int],
-    total: int,
-    comp: np.ndarray,
-    axis: str,
-    g_offset: float,
-    b_offset: float,
-    min_frac: float,
-) -> list[int]:
-    """Expand detected grid-line indices to include adjacent lines.
-
-    For each detected index, check the immediate neighbours (idx-1, idx+1).
-    If a neighbour passes the teal-fraction test (even if its variance was
-    too high to be detected on its own), include it.  This catches the
-    fainter half of 2px-wide grid lines.
-    """
-    idx_set = set(indices)
-    expanded = set(indices)
-
-    for idx in indices:
-        for neighbour in (idx - 1, idx + 1):
-            if neighbour < 0 or neighbour >= total or neighbour in idx_set:
-                continue
-            if axis == "row":
-                line = comp[neighbour].astype(np.float64)
-                extent = comp.shape[1]
-            else:
-                line = comp[:, neighbour].astype(np.float64)
-                extent = comp.shape[0]
-            teal = (line[:, 1] > line[:, 0] + g_offset) & (
-                line[:, 2] > line[:, 0] + b_offset
-            )
-            if np.sum(teal) > extent * min_frac:
-                expanded.add(neighbour)
-
-    return sorted(expanded)
-
-
 def detect_overlay_grid_lines(
     arr: np.ndarray,
 ) -> tuple[list[int], list[int]]:
-    """Detect semi-transparent overlay grid lines by colour analysis.
+    """Detect semi-transparent overlay grid lines by uniformity analysis.
 
-    Composites the image on white and finds rows/columns where a large
-    fraction of pixels have a distinctive colour tint (hue shifted towards
-    blue-green relative to the rest of the image), indicating an overlay.
+    Composites the image on white and finds rows/columns that are
+    *unusually uniform* compared to the image median (low per-pixel
+    variance).  Grid lines -- regardless of colour -- produce a flat band
+    of similar colour, while sprite rows have high variance.
+
+    Detected lines are then expanded to adjacent uniform neighbours
+    (to catch 2-4 px wide grids) and filtered to keep only evenly-spaced
+    interior groups.
 
     Returns (row_indices, col_indices).
     """
     comp = _composite_on_white(arr)
     h, w = arr.shape[:2]
 
-    # Detect rows/cols that look like overlay grid lines.  Two criteria:
-    #
-    # 1. Most pixels show a blue-green tint (G > R + offset, B > R + offset)
-    #    when composited on white.
-    # 2. The row/column is *unusually uniform* compared to the image average.
-    #    Grid lines produce a flat band of similar colour, while sprite rows
-    #    have high variance.  We require the per-channel std dev to be below
-    #    a threshold relative to the image-wide average row/col variance.
-    g_offset = 5
-    b_offset = 10
-    min_frac = 0.50
-
-    # Compute baseline variance per row and per column
+    # --- Per-row / per-column statistics ------------------------------------
     row_stds = np.array([comp[y].astype(float).std(axis=0).mean() for y in range(h)])
     col_stds = np.array([comp[:, x].astype(float).std(axis=0).mean() for x in range(w)])
     median_row_std = float(np.median(row_stds))
     median_col_std = float(np.median(col_stds))
 
-    # A grid-line row/col must have std below this fraction of the median
-    uniformity_threshold = 0.55
+    # Alpha coverage: fraction of non-transparent pixels per row/col.
+    row_alpha_frac = np.array([np.sum(arr[y, :, 3] > 0) / w for y in range(h)])
+    col_alpha_frac = np.array([np.sum(arr[:, x, 3] > 0) / h for x in range(w)])
 
-    teal_rows: list[int] = []
+    # --- Shared helper: alpha-jump check ------------------------------------
+    alpha_jump = 0.25
+
+    def _alpha_jump_ok(frac_arr: np.ndarray, idx: int, total: int) -> bool:
+        window = 3
+        neighbours = []
+        for d in range(-window, window + 1):
+            n = idx + d
+            if n != idx and 0 <= n < total:
+                neighbours.append(frac_arr[n])
+        if not neighbours:
+            return False
+        avg_neighbour = float(np.mean(neighbours))
+        return frac_arr[idx] - avg_neighbour > alpha_jump
+
+    # --- Method A: colour-tint detection (catches teal / coloured overlays) --
+    g_offset = 5
+    b_offset = 10
+    tint_frac = 0.50
+    tint_uniformity = 0.78
+    tint_strict = 0.55  # below this: definitely grid; between strict and uniformity: needs alpha jump
+
+    tint_rows: list[int] = []
     for y in range(h):
         row = comp[y].astype(np.float64)
         teal = (row[:, 1] > row[:, 0] + g_offset) & (row[:, 2] > row[:, 0] + b_offset)
-        if np.sum(teal) <= w * min_frac:
+        if np.sum(teal) <= w * tint_frac:
             continue
-        std_mean = float(row.std(axis=0).mean())
-        if std_mean < median_row_std * uniformity_threshold:
-            teal_rows.append(y)
+        ratio = row_stds[y] / median_row_std
+        if ratio < tint_strict:
+            tint_rows.append(y)
+        elif ratio < tint_uniformity and _alpha_jump_ok(row_alpha_frac, y, h):
+            tint_rows.append(y)
 
-    teal_cols: list[int] = []
+    tint_cols: list[int] = []
     for x in range(w):
         col = comp[:, x].astype(np.float64)
         teal = (col[:, 1] > col[:, 0] + g_offset) & (col[:, 2] > col[:, 0] + b_offset)
-        if np.sum(teal) <= h * min_frac:
+        if np.sum(teal) <= h * tint_frac:
             continue
-        std_mean = float(col.std(axis=0).mean())
-        if std_mean < median_col_std * uniformity_threshold:
-            teal_cols.append(x)
+        ratio = col_stds[x] / median_col_std
+        if ratio < tint_strict:
+            tint_cols.append(x)
+        elif ratio < tint_uniformity and _alpha_jump_ok(col_alpha_frac, x, w):
+            tint_cols.append(x)
 
-    # Expand: include adjacent rows/cols that pass a looser teal check.
-    # This catches the fainter second pixel of a 2px-wide grid line, which
-    # may have higher variance because sprite content bleeds in.
-    teal_rows = _expand_to_neighbours(
-        teal_rows,
-        h,
-        comp,
-        axis="row",
-        g_offset=g_offset,
-        b_offset=b_offset,
-        min_frac=min_frac,
+    # --- Method B: alpha-jump detection (catches white / neutral overlays) ---
+    strict_uniformity = 0.35
+
+    alpha_rows = [
+        y
+        for y in range(h)
+        if (
+            row_stds[y] < median_row_std * strict_uniformity
+            and _alpha_jump_ok(row_alpha_frac, y, h)
+        )
+    ]
+    alpha_cols = [
+        x
+        for x in range(w)
+        if (
+            col_stds[x] < median_col_std * strict_uniformity
+            and _alpha_jump_ok(col_alpha_frac, x, w)
+        )
+    ]
+
+    # --- Method C: full-coverage detection (catches dense overlay grids) -----
+    # Rows/cols where EVERY pixel has alpha > 0 (100% coverage) AND the
+    # composited row/col is very uniform.  This catches overlay grid lines
+    # even when sprites are dense, because sprite rows/cols rarely have
+    # 100% alpha coverage across the full image extent.
+    full_uniformity = 0.20  # very strict: must be extremely uniform
+
+    full_rows = [
+        y
+        for y in range(h)
+        if (
+            row_alpha_frac[y] >= 0.99 and row_stds[y] < median_row_std * full_uniformity
+        )
+    ]
+    full_cols = [
+        x
+        for x in range(w)
+        if (
+            col_alpha_frac[x] >= 0.99 and col_stds[x] < median_col_std * full_uniformity
+        )
+    ]
+
+    # --- Filter each method separately, then merge ---------------------------
+    # Filtering each method individually avoids noise from one method
+    # breaking the even-spacing check of another method's clean detections.
+    filtered_tint_rows = _filter_grid_indices(tint_rows, h)
+    filtered_tint_cols = _filter_grid_indices(tint_cols, w)
+    filtered_alpha_rows = _filter_grid_indices(alpha_rows, h)
+    filtered_alpha_cols = _filter_grid_indices(alpha_cols, w)
+    filtered_full_rows = _filter_grid_indices(full_rows, h)
+    filtered_full_cols = _filter_grid_indices(full_cols, w)
+
+    candidate_rows = sorted(
+        set(filtered_tint_rows) | set(filtered_alpha_rows) | set(filtered_full_rows)
     )
-    teal_cols = _expand_to_neighbours(
-        teal_cols,
-        w,
-        comp,
-        axis="col",
-        g_offset=g_offset,
-        b_offset=b_offset,
-        min_frac=min_frac,
+    candidate_cols = sorted(
+        set(filtered_tint_cols) | set(filtered_alpha_cols) | set(filtered_full_cols)
     )
 
-    # Filter to evenly-spaced interior lines
-    teal_rows = _filter_grid_indices(teal_rows, h)
-    teal_cols = _filter_grid_indices(teal_cols, w)
+    if not candidate_rows and not candidate_cols:
+        return [], []
 
-    return teal_rows, teal_cols
+    # --- Targeted expansion: add +/-1 neighbours from any method's raw set --
+    all_method_rows = sorted(set(tint_rows) | set(alpha_rows) | set(full_rows))
+    all_method_cols = sorted(set(tint_cols) | set(alpha_cols) | set(full_cols))
+
+    def _expand_from_methods(
+        indices: list[int],
+        method_indices: list[int],
+        total: int,
+    ) -> list[int]:
+        method_set = set(method_indices)
+        expanded = set(indices)
+        for idx in indices:
+            for n in (idx - 1, idx + 1):
+                if 0 <= n < total and n in method_set:
+                    expanded.add(n)
+        return sorted(expanded)
+
+    expanded_rows = _expand_from_methods(candidate_rows, all_method_rows, h)
+    expanded_cols = _expand_from_methods(candidate_cols, all_method_cols, w)
+
+    # Final re-filter.
+    expanded_rows = _filter_grid_indices(expanded_rows, h)
+    expanded_cols = _filter_grid_indices(expanded_cols, w)
+
+    return expanded_rows, expanded_cols
 
 
 def replace_with_neighbours(
