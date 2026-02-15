@@ -1113,6 +1113,7 @@ class CognitiveLoop:
                 primary_action=make_wait(
                     agent.agent_id, "abilities not allowed in bonus action"
                 ),
+                move_action=decision.move_action,
                 chat_action=decision.chat_action,
             )
 
@@ -1169,6 +1170,7 @@ class CognitiveLoop:
                 primary_action=make_wait(
                     agent.agent_id, "abilities not allowed in bonus action"
                 ),
+                move_action=decision.move_action,
                 chat_action=decision.chat_action,
             )
 

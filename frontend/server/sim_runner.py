@@ -494,8 +494,18 @@ class SimRunner:
                 cog["reasoning"] = decision.primary_action.reasoning
                 await self._broadcast(cog)
 
+                # Resolve optional move prefix
+                if decision.move_action:
+                    move_result = self._env.resolve_action(decision.move_action)
+                    if move_result.success:
+                        move_event = serialize_action_event(
+                            decision.move_action, move_result, self._env
+                        )
+                        await self._broadcast(move_event)
+
                 primary = decision.primary_action
                 if primary.action_type == ActionType.MOVE:
+                    # Legacy: LLM said "move" as primary — already handled above
                     result = self._env.resolve_action(primary)
                     event = serialize_action_event(primary, result, self._env)
                     await self._broadcast(event)
@@ -642,6 +652,19 @@ class SimRunner:
                                             a, self._env, round_num - 1
                                         )
                                     )
+                                    # Resolve bonus move prefix
+                                    if bonus_dec.move_action:
+                                        bmr = self._env.resolve_action(
+                                            bonus_dec.move_action
+                                        )
+                                        if bmr.success:
+                                            bme = serialize_action_event(
+                                                bonus_dec.move_action,
+                                                bmr,
+                                                self._env,
+                                            )
+                                            bme["bonus"] = True
+                                            await self._broadcast(bme)
                                     bonus_result = self._env.resolve_action(
                                         bonus_dec.primary_action
                                     )
@@ -717,6 +740,15 @@ class SimRunner:
                 decision = await self._cognitive_loop.async_run_turn(
                     current, self._env, round_num, urgency_text=urgency_text
                 )
+
+                # Resolve optional move prefix (before primary action)
+                if decision.move_action:
+                    move_result = self._env.resolve_action(decision.move_action)
+                    if move_result.success:
+                        move_event = serialize_action_event(
+                            decision.move_action, move_result, self._env
+                        )
+                        await self._broadcast(move_event)
 
                 # Resolve primary action with retry on invalid actions
                 max_retries = 2

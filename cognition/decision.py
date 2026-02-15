@@ -4,9 +4,10 @@ Builds the full prompt context (identity, perceptions, memories, available
 actions), sends it to the LLM adapter, parses the JSON response, validates
 it against the current game state, and returns a CombatDecision.
 
-Combat supports compound actions: a primary action (move/attack/defend/wait)
-PLUS an optional free CHAT that can combine with move, defend, or wait
-(but NOT with attack — attacking is exclusive).
+Combat supports compound actions: an optional MOVE prefix, a primary action
+(attack/defend/ability/wait), and an optional free CHAT.  Move can combine
+with any primary action — the agent moves first, then acts from the new
+position.
 
 Falls back to WAIT if the LLM produces an unparseable or invalid action.
 """
@@ -48,12 +49,13 @@ log = logging.getLogger(__name__)
 class CombatDecision:
     """Compound decision for one combat turn.
 
-    primary_action: MOVE, ATTACK, DEFEND, or WAIT (always present).
-    chat_action:    Optional free CHAT — can combine with MOVE, DEFEND, or WAIT,
-                    but NOT with ATTACK (attacking is exclusive).
+    move_action:    Optional MOVE — resolved first, before the primary action.
+    primary_action: ATTACK, DEFEND, ABILITY, or WAIT (always present).
+    chat_action:    Optional free CHAT — can combine with any primary action.
     """
 
     primary_action: CombatAction
+    move_action: CombatAction | None = None
     chat_action: CombatAction | None = None
 
 
@@ -237,6 +239,26 @@ def _resolve_chat_target(target: str, agent: Agent, env: Environment) -> str | N
     return None
 
 
+def _parse_move(raw: dict, agent: Agent) -> CombatAction | None:
+    """Extract an optional move action from target_tile.  Returns None if absent."""
+    tile_str = raw.get("target_tile", "")
+    if not tile_str:
+        return None
+    # Normalise: accept "3_5", "(3, 5)", "3,5", etc.
+    tile_str = tile_str.strip().strip("()")
+    parts = [p.strip() for p in tile_str.replace("_", ",").split(",")]
+    if len(parts) == 2:
+        try:
+            tx, ty = int(parts[0]), int(parts[1])
+            tile_key = BattleGrid.tile_key(tx, ty)
+            return make_move(agent.agent_id, tile_key, raw.get("reasoning", ""))
+        except ValueError:
+            log.warning(f"{agent.name}: invalid move tile '{tile_str}', skipping move")
+            return None
+    log.warning(f"{agent.name}: invalid move tile '{tile_str}', skipping move")
+    return None
+
+
 def _parse_action(
     raw: dict,
     agent: Agent,
@@ -245,12 +267,15 @@ def _parse_action(
 ) -> CombatDecision:
     """Parse and validate a JSON action response from the LLM.
 
-    Returns a CombatDecision with primary_action and optional chat_action.
-    The LLM may provide chat_target/chat_message to combine a free chat with
-    the primary action (allowed for move, defend, wait — not attack).
+    Returns a CombatDecision with optional move_action, primary_action, and
+    optional chat_action.  Move is extracted from target_tile on any action
+    type — the agent moves first, then acts from the new position.
     """
     action_str = raw.get("action", "").lower().strip()
     reasoning = raw.get("reasoning", "")
+
+    # --- Extract optional move prefix from target_tile ---
+    move_action = _parse_move(raw, agent)
 
     primary: CombatAction
 
@@ -278,10 +303,7 @@ def _parse_action(
                 )
                 primary = make_wait(agent.agent_id, f"invalid attack target: {target}")
 
-        # Attack is exclusive — no free chat allowed
-        return CombatDecision(primary_action=primary, chat_action=None)
-
-    if action_str == "ability":
+    elif action_str == "ability":
         ability_name = raw.get("ability_name", "")
         if not ability_name:
             log.warning(
@@ -376,31 +398,15 @@ def _parse_action(
                         primary = make_wait(
                             agent.agent_id, f"invalid ability target: {target_str}"
                         )
-        # Ability is exclusive — no free chat allowed
-        return CombatDecision(primary_action=primary, chat_action=None)
 
-    if action_str == "move":
-        tile_str = raw.get("target_tile", "")
-        if tile_str:
-            # Normalise: accept "3_5", "(3, 5)", "3,5", etc.
-            tile_str = tile_str.strip().strip("()")
-            parts = [p.strip() for p in tile_str.replace("_", ",").split(",")]
-            if len(parts) == 2:
-                try:
-                    tx, ty = int(parts[0]), int(parts[1])
-                    tile_key = BattleGrid.tile_key(tx, ty)
-                    primary = make_move(agent.agent_id, tile_key, reasoning)
-                except ValueError:
-                    primary = make_wait(
-                        agent.agent_id, f"invalid move tile: {tile_str}"
-                    )
-            else:
-                primary = make_wait(agent.agent_id, f"invalid move tile: {tile_str}")
+    elif action_str == "move":
+        # Legacy: LLM said "move" as primary action — the move was already
+        # extracted above, so just use WAIT as the primary action.
+        if move_action is None:
+            # No tile provided, nothing to do
+            primary = make_wait(agent.agent_id, "move with no tile")
         else:
-            log.warning(
-                f"{agent.name}: invalid move tile '{tile_str}', falling back to wait"
-            )
-            primary = make_wait(agent.agent_id, f"invalid move tile: {tile_str}")
+            primary = make_wait(agent.agent_id, reasoning)
 
     elif action_str == "defend":
         primary = make_defend(agent.agent_id, reasoning)
@@ -423,7 +429,7 @@ def _parse_action(
         )
         primary = make_wait(agent.agent_id, f"unrecognised action: {action_str}")
 
-    # --- Optional free chat (for non-attack primary actions) ---
+    # --- Optional free chat ---
     chat_action: CombatAction | None = None
     chat_target = raw.get("chat_target", "")
     chat_message = raw.get("chat_message", "")
@@ -435,7 +441,9 @@ def _parse_action(
         else:
             log.warning(f"{agent.name}: invalid chat target '{chat_target}'")
 
-    return CombatDecision(primary_action=primary, chat_action=chat_action)
+    return CombatDecision(
+        primary_action=primary, move_action=move_action, chat_action=chat_action
+    )
 
 
 def decide(

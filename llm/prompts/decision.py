@@ -66,15 +66,18 @@ YOUR COMBAT PROFILE:
 
 COMBAT RULES:
 - You are on a 2D tile grid. Coordinates are (x, y).
-- Each turn you choose a PRIMARY action: move, attack, defend, ability, or wait.
+- Each turn you choose a PRIMARY action: attack, defend, ability, or wait.
+- You may also MOVE before your primary action by including "target_tile". \
+Movement is a FREE prefix — you move first, then act from the new position. \
+Use this to close distance before attacking or to reposition before using an ability.
 - ATTACK is your basic attack. You can only attack targets within your attack \
-range ({attack_range} tiles, Manhattan distance). Attacks can MISS, CRIT, or be COUNTERED.
+range ({attack_range} tiles, Manhattan distance). Attacks can MISS, CRIT, or be COUNTERED. \
+If the target is out of range, move toward them AND attack in the same turn.
 - ABILITY uses a special ability (costs mana, has cooldown). Abilities can deal \
-damage, apply status effects, heal, or buff. Using an ability is exclusive — \
-no chatting. Include "ability_name" and "target_agent" (omit target_agent for \
-self-targeting abilities like self-heals/self-buffs). Ally-targeting abilities \
-(marked [ALLY]) let you heal or buff an allied combatant — provide their agent_id \
-as target_agent.
+damage, apply status effects, heal, or buff. Include "ability_name" and \
+"target_agent" (omit target_agent for self-targeting abilities like \
+self-heals/self-buffs). Ally-targeting abilities (marked [ALLY]) let you heal \
+or buff an allied combatant — provide their agent_id as target_agent.
 - AoE PATTERNS — abilities hit multiple tiles depending on their pattern:
   * single: hits only the target's tile.
   * line: hits 5 tiles in a straight line FROM YOU toward the target (tiles at \
@@ -88,27 +91,26 @@ so the target falls on the line.
 - WARNING: AoE abilities hit ALL agents on affected tiles — including your \
 ALLIES. Check ally positions before using AoE. If an ally is adjacent to your \
 target, prefer a single-target attack or reposition first.
-- MOVE toward enemies if none are in range. Closing distance is critical.
 - DEFEND raises your defense for one turn (diminishing returns if used repeatedly). \
 Use DEFEND only when badly wounded and enemies are far away.
 - WAIT is almost never correct. Only wait if you have a very specific tactical reason.
-- You may send a brief chat alongside move/defend/wait (NOT attack or ability). \
-Chat is for taunts, threats, alliance offers, coordination, or warnings. \
-Use it when relationships matter — but don't waste turns talking when you should be fighting.
-- Attacking and using abilities are focused actions and cannot be combined with chatting.
+- You may send a brief chat alongside any action. Chat is for taunts, threats, \
+alliance offers, coordination, or warnings. Use it when relationships matter — \
+but don't waste turns talking when you should be fighting.
 
-PRIORITY ORDER: Ability (if impactful) > Attack threats/enemies > Move toward target > \
-Defend (if hurt) > Chat (if socially useful). Avoid attacking allies unless they betray you.
+PRIORITY ORDER: Ability (if impactful, move to reposition first) > Attack \
+threats/enemies (move toward them first) > Defend (if hurt) > Chat (if socially useful). \
+Avoid attacking allies unless they betray you.
 
 Respond with a JSON object. No other text. The JSON must have this exact schema:
 {{
   "reasoning": "<your internal tactical reasoning, 1-3 sentences, in character>",
-  "action": "<one of: move, attack, defend, ability, wait>",
-  "target_tile": "<x_y format, required for move, omit otherwise>",
+  "action": "<one of: attack, defend, ability, wait>",
+  "target_tile": "<(x, y) format, optional — move to this adjacent tile BEFORE your action>",
   "target_agent": "<agent_id, required for attack/ability targeting an enemy, omit for self-targeting abilities>",
   "ability_name": "<name of ability, required for ability action, omit otherwise>",
-  "chat_target": "<agent_id of who to talk to, optional, rare>",
-  "chat_message": "<message text, optional, rare>"
+  "chat_target": "<agent_id of who to talk to, optional>",
+  "chat_message": "<message text, optional>"
 }}
 """
 
@@ -144,7 +146,8 @@ REMEMBER: Engage threats aggressively. Each combatant is labelled ALLIED, \
 NEUTRAL, or HOSTILE — this reflects mutual standing, not just your feelings. \
 Attack HOSTILE and NEUTRAL threats. Do NOT attack ALLIED combatants unless \
 they betray you. Use abilities when impactful — but beware AoE friendly fire \
-on allies. Move closer to targets if out of range. \
+on allies. You can MOVE AND ACT in the same turn — include target_tile to \
+move before attacking or using an ability. \
 Defend only if critically wounded. Chat to coordinate with allies or intimidate foes.
 Choose your action. Respond with JSON only."""
 
@@ -326,23 +329,19 @@ def format_available_actions(
 ) -> str:
     """Format the set of available actions for the prompt."""
     lines = []
-    if can_ability:
-        lines.append(
-            f"  ABILITY options: {', '.join(can_ability)} (exclusive — no chat)"
-        )
-    if can_attack:
-        lines.append(f"  ATTACK targets: {', '.join(can_attack)} (exclusive — no chat)")
     if can_move:
         # Show up to 6 move options to avoid prompt bloat
         display = can_move[:6]
         extra = f" (+{len(can_move) - 6} more)" if len(can_move) > 6 else ""
-        lines.append(f"  MOVE to tiles: {', '.join(display)}{extra}")
+        lines.append(f"  MOVE (free, before your action): {', '.join(display)}{extra}")
+    if can_ability:
+        lines.append(f"  ABILITY options: {', '.join(can_ability)}")
+    if can_attack:
+        lines.append(f"  ATTACK targets: {', '.join(can_attack)}")
     lines.append("  DEFEND (raise defense this turn)")
     lines.append("  WAIT (do nothing)")
     if can_chat:
-        lines.append(
-            f"  FREE CHAT (combine with move/defend/wait): {', '.join(can_chat)}"
-        )
+        lines.append(f"  CHAT (combine with any action): {', '.join(can_chat)}")
     return "\n".join(lines)
 
 

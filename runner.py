@@ -525,7 +525,13 @@ def run_pre_battle(
 
         # Resolve all compound decisions (primary action + optional free chat)
         for agent, decision in decisions:
-            # 1. Resolve primary action (MOVE or WAIT)
+            # 1a. Resolve optional move prefix
+            if decision.move_action:
+                move_result = env.resolve_action(decision.move_action)
+                if move_result.success:
+                    log.info(f"  [{agent.name}] {move_result.description}")
+
+            # 1b. Resolve primary action (MOVE or WAIT)
             primary = decision.primary_action
             if primary.action_type == ActionType.MOVE:
                 result = env.resolve_action(primary)
@@ -704,6 +710,11 @@ def run_battle(
                                 bonus_decision = cognitive_loop.run_bonus_turn(
                                     a, env, round_num - 1
                                 )
+                                # Resolve bonus move prefix
+                                if bonus_decision.move_action:
+                                    bmr = env.resolve_action(bonus_decision.move_action)
+                                    if bmr.success:
+                                        log.info(f"  [BONUS] {bmr.description}")
                                 bonus_result = env.resolve_action(
                                     bonus_decision.primary_action
                                 )
@@ -778,6 +789,12 @@ def run_battle(
                 current, env, round_num, urgency_text=urgency_text
             )
 
+            # Resolve optional move prefix
+            if decision.move_action:
+                move_result = env.resolve_action(decision.move_action)
+                if move_result.success:
+                    log.info(f"  {move_result.description}")
+
             # Resolve primary action
             result = env.resolve_action(decision.primary_action)
             log.info(f"  {result.description}")
@@ -793,7 +810,7 @@ def run_battle(
             ):
                 damage_this_round = True
 
-            # Handle optional free chat (only for non-attack primaries)
+            # Handle optional free chat
             if decision.chat_action and decision.chat_action.target_agent:
                 if cognitive_loop.can_chat_combat(current.agent_id, round_num):
                     cognitive_loop._handle_chat(
@@ -887,6 +904,12 @@ async def async_run_pre_battle(
         chatted_pairs: set[frozenset[str]] = set()
 
         for agent, decision in decisions:
+            # Resolve optional move prefix
+            if decision.move_action:
+                move_result = env.resolve_action(decision.move_action)
+                if move_result.success:
+                    log.info(f"  [{agent.name}] {move_result.description}")
+
             primary = decision.primary_action
             if primary.action_type == ActionType.MOVE:
                 result = env.resolve_action(primary)
@@ -1030,6 +1053,11 @@ async def async_run_battle(
                                         a, env, round_num - 1
                                     )
                                 )
+                                # Resolve bonus move prefix
+                                if bonus_decision.move_action:
+                                    bmr = env.resolve_action(bonus_decision.move_action)
+                                    if bmr.success:
+                                        log.info(f"  [BONUS] {bmr.description}")
                                 bonus_result = env.resolve_action(
                                     bonus_decision.primary_action
                                 )
@@ -1103,6 +1131,12 @@ async def async_run_battle(
         decision = await cognitive_loop.async_run_turn(
             current, env, round_num, urgency_text=urgency_text
         )
+
+        # Resolve optional move prefix
+        if decision.move_action:
+            move_result = env.resolve_action(decision.move_action)
+            if move_result.success:
+                log.info(f"  {move_result.description}")
 
         result = env.resolve_action(decision.primary_action)
         log.info(f"  {result.description}")
