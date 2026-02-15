@@ -16,6 +16,28 @@ if TYPE_CHECKING:
     from cognition.memory_stream import MemoryNode
 
 
+# -- Per-pattern targeting tips shown next to each AoE ability ----------------
+
+_AOE_TIPS: dict[str, str] = {
+    "line": (
+        "Fires 3 tiles in a straight line FROM YOU toward the target "
+        "(hits at distance 1, 2, 3 from you). Move so the target is within "
+        "3 tiles on a cardinal axis to ensure they are on the line."
+    ),
+    "cross": (
+        "Hits a + shape (5 tiles) centered on the target. "
+        "The target is always hit; enemies adjacent to them are also hit."
+    ),
+    "radius": (
+        "Hits a 3x3 area (9 tiles) centered on the target. "
+        "The target is always hit; all agents within 1 tile are also hit."
+    ),
+    "cone": (
+        "Fan shape from you toward the target: 1-wide near you, "
+        "3-wide at the target's distance. Stand close and aim through clusters."
+    ),
+}
+
 # -- System prompt (character sheet + rules) --------------------------------
 
 SYSTEM_TEMPLATE = """\
@@ -53,9 +75,19 @@ no chatting. Include "ability_name" and "target_agent" (omit target_agent for \
 self-targeting abilities like self-heals/self-buffs). Ally-targeting abilities \
 (marked [ALLY]) let you heal or buff an allied combatant — provide their agent_id \
 as target_agent.
-- WARNING: AoE abilities (cross, radius, cone, line) hit ALL agents on affected \
-tiles — including your ALLIES. Check ally positions before using AoE. If an ally \
-is adjacent to your target, prefer a single-target attack or reposition first.
+- AoE PATTERNS — abilities hit multiple tiles depending on their pattern:
+  * single: hits only the target's tile.
+  * line: hits 3 tiles in a straight line FROM YOU toward the target (tiles at \
+distance 1, 2, 3 from you along the dominant axis). The TARGET is hit ONLY if \
+they are within 3 tiles of you on a cardinal line. Position yourself so the \
+target falls on the line.
+  * cross: hits a + shape (5 tiles) centered ON the target.
+  * radius: hits a 3x3 area (9 tiles) centered ON the target.
+  * cone: hits a fan shape from you toward the target, 1-wide near you and \
+3-wide at the target's distance.
+- WARNING: AoE abilities hit ALL agents on affected tiles — including your \
+ALLIES. Check ally positions before using AoE. If an ally is adjacent to your \
+target, prefer a single-target attack or reposition first.
 - MOVE toward enemies if none are in range. Closing distance is critical.
 - DEFEND raises your defense for one turn (diminishing returns if used repeatedly). \
 Use DEFEND only when badly wounded and enemies are far away.
@@ -193,8 +225,11 @@ def format_abilities(abilities: list[dict], mana: int) -> str:
             f"    Damage: {damage} | Range: {ab_range} | Mana: {mana_cost} | Pattern: {pattern} | Cooldown: {cooldown}"
         )
         if pattern != "single":
+            aoe_tip = _AOE_TIPS.get(
+                pattern, "AoE — hits multiple tiles around the target."
+            )
             lines.append(
-                f"    *** AoE WARNING: {pattern} pattern hits ALL agents in area — check ally positions! ***"
+                f"    *** AoE ({pattern}): {aoe_tip} Hits ALL agents in area — check ally positions! ***"
             )
         if desc:
             lines.append(f"    What: {desc}")
