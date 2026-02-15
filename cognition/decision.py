@@ -30,6 +30,7 @@ from combat.actions import (
 )
 from llm.json_utils import extract_json
 from llm.prompts.decision import (
+    build_perception_map,
     build_system_prompt,
     build_user_prompt,
     format_visible_enemies,
@@ -150,6 +151,17 @@ def _gather_context(
     # Eliminated combatants (from the death log)
     eliminated = list(env.death_log)  # shallow copy
 
+    # ASCII perception map
+    perception_map = build_perception_map(
+        ax=ax,
+        ay=ay,
+        grid_width=env.grid.width,
+        grid_height=env.grid.height,
+        is_passable_fn=env.grid.is_passable,
+        visible_agents=visible_enemies,
+        alliance_statuses=alliance_statuses,
+    )
+
     return {
         "ax": ax,
         "ay": ay,
@@ -161,6 +173,7 @@ def _gather_context(
         "social_dispositions": social_dispositions,
         "alliance_statuses": alliance_statuses,
         "eliminated": eliminated,
+        "perception_map": perception_map,
     }
 
 
@@ -546,6 +559,7 @@ def decide(
         can_ability=ctx.get("can_ability"),
         alliance_statuses=ctx.get("alliance_statuses"),
         eliminated=ctx.get("eliminated"),
+        perception_map=ctx.get("perception_map", ""),
     )
 
     # Call LLM
@@ -634,6 +648,7 @@ async def async_decide(
         can_ability=ctx.get("can_ability"),
         alliance_statuses=ctx.get("alliance_statuses"),
         eliminated=ctx.get("eliminated"),
+        perception_map=ctx.get("perception_map", ""),
     )
 
     try:

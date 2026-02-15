@@ -146,6 +146,9 @@ RELEVANT MEMORIES:
 COMBATANTS YOU CAN SEE:
 {visible_enemies}
 {eliminated_section}
+MAP OF THE BATTLEFIELD:
+{perception_map}
+
 AVAILABLE ACTIONS:
 {available_actions}
 
@@ -260,6 +263,71 @@ def format_abilities(abilities: list[dict], mana: int) -> str:
                 cat = e.get("category", "debuff")
                 eff_parts.append(f"{etype} ({cat}, {tgt}, {dur}t, mag={mag})")
             lines.append(f"    Effects: {'; '.join(eff_parts)}")
+    return "\n".join(lines)
+
+
+def build_perception_map(
+    ax: int,
+    ay: int,
+    grid_width: int,
+    grid_height: int,
+    is_passable_fn,
+    visible_agents: list[dict],
+    alliance_statuses: dict | None = None,
+) -> str:
+    """Build an ASCII map of the grid showing agent positions and terrain.
+
+    Returns a compact text map with legend, e.g.::
+
+           0  1  2  3  4  5
+        0  .  .  #  .  .  .
+        1  .  .  .  @  1  .
+        2  .  .  .  .  .  .
+        1=Grimwar [HOSTILE]  @ = You  # = impassable
+    """
+    labels = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    agent_at: dict[tuple[int, int], str] = {}
+    legend_parts: list[str] = []
+
+    for i, a in enumerate(visible_agents):
+        if i >= len(labels):
+            break
+        lbl = labels[i]
+        agent_at[(a["x"], a["y"])] = lbl
+        status = ""
+        if alliance_statuses and a["agent_id"] in alliance_statuses:
+            status = f" [{alliance_statuses[a['agent_id']].value.upper()}]"
+        legend_parts.append(f"{lbl}={a['name']}{status}")
+
+    lines: list[str] = []
+
+    # Column header
+    row_pad = 2 if grid_height >= 10 else 1
+    header = " " * (row_pad + 2)
+    for x in range(grid_width):
+        header += f"{x:>2} "
+    lines.append(header)
+
+    # Grid rows
+    for y in range(grid_height):
+        row = f"{y:>{row_pad}}  "
+        for x in range(grid_width):
+            if x == ax and y == ay:
+                cell = "@"
+            elif (x, y) in agent_at:
+                cell = agent_at[(x, y)]
+            elif not is_passable_fn(x, y):
+                cell = "#"
+            else:
+                cell = "."
+            row += f"{cell:>2} "
+        lines.append(row)
+
+    # Legend
+    if legend_parts:
+        lines.append("  ".join(legend_parts))
+    lines.append("@ = You  # = impassable (wall/pillar/furniture)  . = passable")
+
     return "\n".join(lines)
 
 
@@ -379,6 +447,7 @@ def build_user_prompt(
     can_ability: list[str] | None = None,
     alliance_statuses: dict[str, AllianceStatus] | None = None,
     eliminated: list[dict] | None = None,
+    perception_map: str = "",
 ) -> str:
     """Build the user prompt with full situational context."""
     status_effects = agent.attributes.status_effects
@@ -430,6 +499,7 @@ def build_user_prompt(
             visible_enemies, social_dispositions, alliance_statuses
         ),
         eliminated_section=format_eliminated(eliminated),
+        perception_map=perception_map,
         available_actions=format_available_actions(
             can_move, can_attack, can_chat, can_ability
         ),
