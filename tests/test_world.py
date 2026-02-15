@@ -87,6 +87,213 @@ class TestBattleGrid:
         for x, y in tiles:
             assert grid_5x5.in_bounds(x, y)
 
+    # --- New tile types (STONE, PILLAR, GRAVEL, CRACKED, RUNE) ---
+
+    def test_stone_is_passable(self):
+        grid = BattleGrid(width=5, height=5)
+        grid._tiles[(2, 2)] = TileType.STONE
+        assert grid.is_passable(2, 2)
+
+    def test_gravel_is_passable(self):
+        grid = BattleGrid(width=5, height=5)
+        grid._tiles[(2, 2)] = TileType.GRAVEL
+        assert grid.is_passable(2, 2)
+
+    def test_cracked_is_passable(self):
+        grid = BattleGrid(width=5, height=5)
+        grid._tiles[(2, 2)] = TileType.CRACKED
+        assert grid.is_passable(2, 2)
+
+    def test_rune_is_passable(self):
+        grid = BattleGrid(width=5, height=5)
+        grid._tiles[(2, 2)] = TileType.RUNE
+        assert grid.is_passable(2, 2)
+
+    def test_pillar_is_impassable(self):
+        grid = BattleGrid(width=5, height=5)
+        grid._tiles[(2, 2)] = TileType.PILLAR
+        assert not grid.is_passable(2, 2)
+
+    def test_pillar_blocked_in_adjacent(self):
+        grid = BattleGrid(width=5, height=5)
+        grid._tiles[(3, 2)] = TileType.PILLAR
+        adj = grid.adjacent_tiles(2, 2)
+        assert (3, 2) not in adj
+
+    def test_pillar_excluded_from_tiles_in_range(self):
+        grid = BattleGrid(width=5, height=5)
+        grid._tiles[(3, 2)] = TileType.PILLAR
+        tiles = grid.tiles_in_range(2, 2, 1)
+        assert (3, 2) not in tiles
+
+    def test_pillar_included_in_tiles_in_radius(self):
+        grid = BattleGrid(width=5, height=5)
+        grid._tiles[(3, 2)] = TileType.PILLAR
+        tiles = grid.tiles_in_radius(2, 2, 1)
+        assert (3, 2) in tiles
+
+    def test_stone_in_all_passable(self):
+        grid = BattleGrid(width=3, height=3)
+        grid._tiles[(1, 1)] = TileType.STONE
+        passable = list(grid.all_passable())
+        assert (1, 1) in passable
+
+    def test_pillar_not_in_all_passable(self):
+        grid = BattleGrid(width=3, height=3)
+        grid._tiles[(1, 1)] = TileType.PILLAR
+        passable = list(grid.all_passable())
+        assert (1, 1) not in passable
+
+    def test_tile_char_stone(self):
+        grid = BattleGrid(width=3, height=3)
+        grid._tiles[(1, 1)] = TileType.STONE
+        assert grid.tile_char(1, 1) == "s"
+
+    def test_tile_char_pillar(self):
+        grid = BattleGrid(width=3, height=3)
+        grid._tiles[(1, 1)] = TileType.PILLAR
+        assert grid.tile_char(1, 1) == "O"
+
+    def test_tile_char_gravel(self):
+        grid = BattleGrid(width=3, height=3)
+        grid._tiles[(1, 1)] = TileType.GRAVEL
+        assert grid.tile_char(1, 1) == ","
+
+    def test_tile_char_cracked(self):
+        grid = BattleGrid(width=3, height=3)
+        grid._tiles[(1, 1)] = TileType.CRACKED
+        assert grid.tile_char(1, 1) == "x"
+
+    def test_tile_char_rune(self):
+        grid = BattleGrid(width=3, height=3)
+        grid._tiles[(1, 1)] = TileType.RUNE
+        assert grid.tile_char(1, 1) == "*"
+
+    def test_gravel_in_all_passable(self):
+        grid = BattleGrid(width=3, height=3)
+        grid._tiles[(1, 1)] = TileType.GRAVEL
+        assert (1, 1) in list(grid.all_passable())
+
+    def test_cracked_in_all_passable(self):
+        grid = BattleGrid(width=3, height=3)
+        grid._tiles[(1, 1)] = TileType.CRACKED
+        assert (1, 1) in list(grid.all_passable())
+
+    def test_rune_in_all_passable(self):
+        grid = BattleGrid(width=3, height=3)
+        grid._tiles[(1, 1)] = TileType.RUNE
+        assert (1, 1) in list(grid.all_passable())
+
+    # --- Arena layout ---
+
+    def test_create_arena_dimensions(self):
+        arena = BattleGrid.create_arena()
+        assert arena.width == 12
+        assert arena.height == 10
+
+    def test_create_arena_has_pillars(self):
+        arena = BattleGrid.create_arena()
+        pillar_tiles = [
+            (x, y)
+            for x in range(arena.width)
+            for y in range(arena.height)
+            if arena.get_tile(x, y) == TileType.PILLAR
+        ]
+        assert len(pillar_tiles) == 4
+
+    def test_create_arena_pillars_are_symmetric(self):
+        arena = BattleGrid.create_arena()
+        pillars = {
+            (x, y)
+            for x in range(arena.width)
+            for y in range(arena.height)
+            if arena.get_tile(x, y) == TileType.PILLAR
+        }
+        cx = (arena.width - 1) / 2
+        cy = (arena.height - 1) / 2
+        for px, py in pillars:
+            mirror_x = int(2 * cx - px)
+            mirror_y = int(2 * cy - py)
+            assert (mirror_x, py) in pillars, (
+                f"Missing horizontal mirror of pillar ({px},{py})"
+            )
+            assert (px, mirror_y) in pillars, (
+                f"Missing vertical mirror of pillar ({px},{py})"
+            )
+
+    def test_create_arena_has_stone_tiles(self):
+        arena = BattleGrid.create_arena()
+        stone_count = sum(
+            1
+            for x in range(arena.width)
+            for y in range(arena.height)
+            if arena.get_tile(x, y) == TileType.STONE
+        )
+        assert stone_count > 0
+
+    def test_create_arena_mostly_passable(self):
+        arena = BattleGrid.create_arena()
+        total = arena.width * arena.height
+        passable = len(list(arena.all_passable()))
+        ratio = passable / total
+        assert ratio >= 0.90, f"Arena is only {ratio:.0%} passable, expected >= 90%"
+
+    def test_create_arena_serialize_includes_new_types(self):
+        arena = BattleGrid.create_arena()
+        serialized = arena.serialize_tiles()
+        all_types = {
+            serialized[y][x] for x in range(arena.width) for y in range(arena.height)
+        }
+        assert "stone" in all_types
+        assert "pillar" in all_types
+        assert "floor" in all_types
+        assert "gravel" in all_types
+        assert "cracked" in all_types
+        assert "rune" in all_types
+
+    def test_create_arena_has_gravel_tiles(self):
+        arena = BattleGrid.create_arena()
+        gravel_count = sum(
+            1
+            for x in range(arena.width)
+            for y in range(arena.height)
+            if arena.get_tile(x, y) == TileType.GRAVEL
+        )
+        assert gravel_count > 0
+
+    def test_create_arena_has_cracked_tiles(self):
+        arena = BattleGrid.create_arena()
+        cracked_count = sum(
+            1
+            for x in range(arena.width)
+            for y in range(arena.height)
+            if arena.get_tile(x, y) == TileType.CRACKED
+        )
+        assert cracked_count > 0
+
+    def test_create_arena_has_rune_tiles(self):
+        arena = BattleGrid.create_arena()
+        rune_count = sum(
+            1
+            for x in range(arena.width)
+            for y in range(arena.height)
+            if arena.get_tile(x, y) == TileType.RUNE
+        )
+        assert rune_count > 0
+
+    def test_create_arena_custom_dimensions(self):
+        arena = BattleGrid.create_arena(width=8, height=6)
+        assert arena.width == 8
+        assert arena.height == 6
+        # Should still have pillars
+        pillar_tiles = [
+            (x, y)
+            for x in range(arena.width)
+            for y in range(arena.height)
+            if arena.get_tile(x, y) == TileType.PILLAR
+        ]
+        assert len(pillar_tiles) == 4
+
 
 # ---------------------------------------------------------------------------
 # TurnManager

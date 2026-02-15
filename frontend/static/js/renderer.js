@@ -108,6 +108,9 @@ class Renderer {
     // Create tiles (pass tile type data for per-tile styling)
     createGridTiles(this.layerTiles, width, height, tiles || null);
 
+    // Ambient decorations (pillar shadows, corner runes, vignette)
+    createGridDecorations(this.layerHighlights, width, height, tiles || null, this.svg);
+
     this._gridW = width;
     this._gridH = height;
     this._gridTiles = tiles;

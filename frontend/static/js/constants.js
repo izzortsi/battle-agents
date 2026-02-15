@@ -54,7 +54,68 @@ const TILE_COLORS = {
                detail: '#6b5030' },
   door:      { even: '#2a2a3a', odd: '#303044', stroke: '#4a4a6a', strokeWidth: 0.5,
                dashArray: '3 2' },
+  stone:     { even: '#282848', odd: '#2e2e52', stroke: '#40406a', strokeWidth: 0.5 },
+  pillar:    { even: '#352844', odd: '#3e2e50', stroke: '#52406a', strokeWidth: 1.0,
+               detail: '#6a5a88', detailShape: 'circle' },
+  gravel:    { even: '#302828', odd: '#382e2e', stroke: '#4a3a38', strokeWidth: 0.5,
+               detail: '#5a4a44', detailShape: 'speckle' },
+  cracked:   { even: '#22202e', odd: '#282636', stroke: '#38344a', strokeWidth: 0.5,
+               detail: '#5a506a', detailShape: 'cracks' },
+  rune:      { even: '#1c1c38', odd: '#201e40', stroke: '#2a2a4a', strokeWidth: 0.5,
+               detail: '#9b8aff', detailShape: 'rune' },
 };
+
+/**
+ * Rune glyph SVG paths — 4 distinct designs drawn within a 0-1 normalised
+ * coordinate space (scaled at render time to fit the cell).
+ * Each glyph is an array of SVG path-data strings.
+ */
+const RUNE_GLYPHS = [
+  // Glyph 0 — Arcane circle: concentric rings + cross
+  {
+    paths: [],
+    circles: [
+      { cx: 0.5, cy: 0.5, r: 0.40 },
+      { cx: 0.5, cy: 0.5, r: 0.25 },
+    ],
+    lines: [
+      { x1: 0.5, y1: 0.08, x2: 0.5, y2: 0.92 },
+      { x1: 0.08, y1: 0.5, x2: 0.92, y2: 0.5 },
+    ],
+  },
+  // Glyph 1 — Diamond ward: rotated square + inner dot
+  {
+    paths: ['M 0.5 0.1 L 0.9 0.5 L 0.5 0.9 L 0.1 0.5 Z'],
+    circles: [
+      { cx: 0.5, cy: 0.5, r: 0.10 },
+    ],
+    lines: [
+      { x1: 0.5, y1: 0.1, x2: 0.5, y2: 0.9 },
+      { x1: 0.1, y1: 0.5, x2: 0.9, y2: 0.5 },
+    ],
+  },
+  // Glyph 2 — Star hex: 6-pointed star
+  {
+    paths: [
+      'M 0.5 0.1 L 0.72 0.37 L 0.95 0.37 L 0.78 0.57 L 0.85 0.82 L 0.5 0.68 L 0.15 0.82 L 0.22 0.57 L 0.05 0.37 L 0.28 0.37 Z',
+    ],
+    circles: [
+      { cx: 0.5, cy: 0.47, r: 0.12 },
+    ],
+    lines: [],
+  },
+  // Glyph 3 — Triangle ward: nested triangles
+  {
+    paths: [
+      'M 0.5 0.1 L 0.9 0.85 L 0.1 0.85 Z',
+      'M 0.5 0.35 L 0.72 0.75 L 0.28 0.75 Z',
+    ],
+    circles: [
+      { cx: 0.5, cy: 0.6, r: 0.06 },
+    ],
+    lines: [],
+  },
+];
 
 /**
  * SVG symbol definitions — class silhouettes.

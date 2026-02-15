@@ -127,3 +127,13 @@
 .anim-defend {
   animation: shield-pulse 600ms ease-out;
 }
+
+/* Ambient rune glow — visible breathing on arena rune decorations */
+@keyframes rune-pulse {
+  0%, 100% { opacity: var(--rune-base-opacity, 0.30); }
+  50%      { opacity: var(--rune-peak-opacity, 0.55); }
+}
+
+.rune-glow {
+  animation: rune-pulse 3s ease-in-out infinite;
+}

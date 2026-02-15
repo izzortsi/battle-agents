@@ -26,12 +26,78 @@ function injectDefs(svgRoot) {
 }
 
 /**
+ * Draw a rune glyph from RUNE_GLYPHS onto a tile.
+ * Coordinates in the glyph definitions are normalised 0-1; this function
+ * scales them into the cell's pixel space with an inset margin.
+ */
+function _drawRuneGlyph(layer, tileX, tileY, glyphIdx, color) {
+  const glyph = RUNE_GLYPHS[glyphIdx % RUNE_GLYPHS.length];
+  const inset = 8;
+  const ox = tileX * CELL_SIZE + inset;
+  const oy = tileY * CELL_SIZE + inset;
+  const sz = CELL_SIZE - inset * 2;
+
+  // Paths (filled outlines)
+  for (const d of (glyph.paths || [])) {
+    // Scale normalised coords: replace numeric values
+    const scaled = d.replace(/(\d+\.\d+)/g, (_, v) => '___' + v);
+    // We need to manually transform — parse M/L/Z tokens
+    const tokens = d.match(/[MLZ]|[\d.]+/g) || [];
+    let sd = '';
+    let isX = true;
+    for (const tok of tokens) {
+      if (tok === 'M' || tok === 'L' || tok === 'Z') {
+        sd += tok + ' ';
+        isX = true;
+      } else {
+        const n = parseFloat(tok);
+        sd += (isX ? (ox + n * sz) : (oy + n * sz)).toFixed(1) + ' ';
+        isX = !isX;
+      }
+    }
+    layer.appendChild(svgEl('path', {
+      d: sd.trim(),
+      fill: 'none', stroke: color,
+      'stroke-width': 1.5, opacity: 0.55,
+      'stroke-linejoin': 'round',
+      class: 'rune-glow',
+      'pointer-events': 'none',
+    }));
+  }
+
+  // Circles
+  for (const c of (glyph.circles || [])) {
+    layer.appendChild(svgEl('circle', {
+      cx: ox + c.cx * sz,
+      cy: oy + c.cy * sz,
+      r: c.r * sz,
+      fill: 'none', stroke: color,
+      'stroke-width': 1.2, opacity: 0.50,
+      class: 'rune-glow',
+      'pointer-events': 'none',
+    }));
+  }
+
+  // Lines
+  for (const l of (glyph.lines || [])) {
+    layer.appendChild(svgEl('line', {
+      x1: ox + l.x1 * sz, y1: oy + l.y1 * sz,
+      x2: ox + l.x2 * sz, y2: oy + l.y2 * sz,
+      stroke: color,
+      'stroke-width': 1.0, opacity: 0.45,
+      class: 'rune-glow',
+      'pointer-events': 'none',
+    }));
+  }
+}
+
+/**
  * Create tile grid rects.
  * @param {SVGGElement} layerTiles - The SVG <g> to append tile elements to.
  * @param {number} gridW - Grid width in cells.
  * @param {number} gridH - Grid height in cells.
  * @param {string[][]|null} tiles - Row-major tile type array (tiles[y][x]).
- *        Each value is "floor"|"wall"|"furniture"|"door".
+ *        Each value is a tile type string (e.g. "floor", "stone", "rune").
  *        Falls back to all-floor if null/undefined.
  */
 function createGridTiles(layerTiles, gridW, gridH, tiles) {
@@ -61,20 +127,100 @@ function createGridTiles(layerTiles, gridW, gridH, tiles) {
       rect.dataset.tileY = y;
       layerTiles.appendChild(rect);
 
-      // Furniture: draw an inner detail rect (tabletop surface)
-      if (tileType === 'furniture' && style.detail) {
-        const inset = 10;
-        const detail = svgEl('rect', {
-          x: x * CELL_SIZE + inset,
-          y: y * CELL_SIZE + inset,
-          width: CELL_SIZE - inset * 2,
-          height: CELL_SIZE - inset * 2,
-          rx: 4,
-          fill: style.detail,
-          opacity: 0.6,
-          'pointer-events': 'none',
-        });
-        layerTiles.appendChild(detail);
+      // Inner detail elements for special tile types
+      if (style.detail) {
+        const cx = x * CELL_SIZE + CELL_SIZE / 2;
+        const cy = y * CELL_SIZE + CELL_SIZE / 2;
+        const shape = style.detailShape || 'rect';
+
+        if (shape === 'circle') {
+          // Pillar: circular column viewed top-down
+          const r = (CELL_SIZE - 2) / 2 - 8;
+          layerTiles.appendChild(svgEl('circle', {
+            cx: cx, cy: cy, r: r,
+            fill: style.detail, opacity: 0.7,
+            'pointer-events': 'none',
+          }));
+          // Inner highlight for 3D convexity
+          layerTiles.appendChild(svgEl('circle', {
+            cx: cx - 3, cy: cy - 3, r: r * 0.45,
+            fill: '#8878a0', opacity: 0.25,
+            'pointer-events': 'none',
+          }));
+
+        } else if (shape === 'speckle') {
+          // Gravel: scattered dots and small irregular shapes for gritty texture
+          const offsets = [[-8,-6],[6,-8],[0,4],[-5,7],[8,2],[-3,-2],[5,-3],[-7,3],[7,-4],[2,-7],[-4,5]];
+          for (const [dx, dy] of offsets) {
+            layerTiles.appendChild(svgEl('circle', {
+              cx: cx + dx, cy: cy + dy,
+              r: 1.5 + ((x * 7 + y * 3 + dx) % 3) * 0.6,
+              fill: style.detail, opacity: 0.50,
+              'pointer-events': 'none',
+            }));
+          }
+          // A few larger pebble shapes for variety
+          layerTiles.appendChild(svgEl('ellipse', {
+            cx: cx - 4, cy: cy + 2, rx: 3, ry: 2,
+            fill: style.detail, opacity: 0.35,
+            'pointer-events': 'none',
+          }));
+          layerTiles.appendChild(svgEl('ellipse', {
+            cx: cx + 5, cy: cy - 5, rx: 2.5, ry: 1.5,
+            fill: style.detail, opacity: 0.30,
+            'pointer-events': 'none',
+          }));
+
+        } else if (shape === 'cracks') {
+          // Cracked: bold jagged crack lines across the tile
+          const tl = x * CELL_SIZE;
+          const tt = y * CELL_SIZE;
+          const s = CELL_SIZE;
+          // Main diagonal crack
+          layerTiles.appendChild(svgEl('path', {
+            d: `M${tl + s*0.15},${tt + s*0.1} L${tl + s*0.35},${tt + s*0.38} L${tl + s*0.28},${tt + s*0.55} L${tl + s*0.52},${tt + s*0.72} L${tl + s*0.8},${tt + s*0.88}`,
+            fill: 'none', stroke: style.detail,
+            'stroke-width': 1.8, opacity: 0.55,
+            'stroke-linecap': 'round',
+            'stroke-linejoin': 'round',
+            'pointer-events': 'none',
+          }));
+          // Branch crack
+          layerTiles.appendChild(svgEl('path', {
+            d: `M${tl + s*0.35},${tt + s*0.38} L${tl + s*0.58},${tt + s*0.28} L${tl + s*0.72},${tt + s*0.38}`,
+            fill: 'none', stroke: style.detail,
+            'stroke-width': 1.3, opacity: 0.45,
+            'stroke-linecap': 'round',
+            'stroke-linejoin': 'round',
+            'pointer-events': 'none',
+          }));
+          // Secondary hairline crack
+          layerTiles.appendChild(svgEl('path', {
+            d: `M${tl + s*0.28},${tt + s*0.55} L${tl + s*0.15},${tt + s*0.7} L${tl + s*0.22},${tt + s*0.85}`,
+            fill: 'none', stroke: style.detail,
+            'stroke-width': 0.9, opacity: 0.35,
+            'stroke-linecap': 'round',
+            'pointer-events': 'none',
+          }));
+
+        } else if (shape === 'rune') {
+          // Rune glyph — pick a design based on tile position
+          const glyphIdx = (x * 3 + y * 7) % RUNE_GLYPHS.length;
+          _drawRuneGlyph(layerTiles, x, y, glyphIdx, style.detail);
+
+        } else {
+          // Default: rectangular detail (furniture tabletop)
+          const inset = 10;
+          layerTiles.appendChild(svgEl('rect', {
+            x: x * CELL_SIZE + inset,
+            y: y * CELL_SIZE + inset,
+            width: CELL_SIZE - inset * 2,
+            height: CELL_SIZE - inset * 2,
+            rx: 4,
+            fill: style.detail, opacity: 0.6,
+            'pointer-events': 'none',
+          }));
+        }
       }
     }
   }
@@ -382,4 +528,162 @@ function getLungeDirection(ax, ay, tx, ty) {
     return dx > 0 ? 'anim-lunge-right' : 'anim-lunge-left';
   }
   return dy > 0 ? 'anim-lunge-down' : 'anim-lunge-up';
+}
+
+// ===== Grid decorations =====
+
+/**
+ * Draw a large decorative rune on the highlights layer.
+ * Uses a RUNE_GLYPHS design scaled to span multiple cells.
+ */
+function _drawLargeRune(layer, cx, cy, size, glyphIdx, color, baseOpacity) {
+  const glyph = RUNE_GLYPHS[glyphIdx % RUNE_GLYPHS.length];
+  const ox = cx - size / 2;
+  const oy = cy - size / 2;
+
+  // Outer containment circle
+  layer.appendChild(svgEl('circle', {
+    cx: cx, cy: cy, r: size / 2,
+    fill: 'none', stroke: color,
+    'stroke-width': 1.5, opacity: baseOpacity,
+    class: 'rune-glow',
+    'pointer-events': 'none',
+  }));
+
+  // Glyph paths
+  for (const d of (glyph.paths || [])) {
+    const tokens = d.match(/[MLZ]|[\d.]+/g) || [];
+    let sd = '';
+    let isX = true;
+    for (const tok of tokens) {
+      if (tok === 'M' || tok === 'L' || tok === 'Z') {
+        sd += tok + ' ';
+        isX = true;
+      } else {
+        const n = parseFloat(tok);
+        sd += (isX ? (ox + n * size) : (oy + n * size)).toFixed(1) + ' ';
+        isX = !isX;
+      }
+    }
+    layer.appendChild(svgEl('path', {
+      d: sd.trim(),
+      fill: 'none', stroke: color,
+      'stroke-width': 1.5, opacity: baseOpacity * 0.9,
+      'stroke-linejoin': 'round',
+      class: 'rune-glow',
+      'pointer-events': 'none',
+    }));
+  }
+
+  // Glyph circles
+  for (const c of (glyph.circles || [])) {
+    layer.appendChild(svgEl('circle', {
+      cx: ox + c.cx * size,
+      cy: oy + c.cy * size,
+      r: c.r * size,
+      fill: 'none', stroke: color,
+      'stroke-width': 1.2, opacity: baseOpacity * 0.8,
+      class: 'rune-glow',
+      'pointer-events': 'none',
+    }));
+  }
+
+  // Glyph lines
+  for (const l of (glyph.lines || [])) {
+    layer.appendChild(svgEl('line', {
+      x1: ox + l.x1 * size, y1: oy + l.y1 * size,
+      x2: ox + l.x2 * size, y2: oy + l.y2 * size,
+      stroke: color,
+      'stroke-width': 1.0, opacity: baseOpacity * 0.7,
+      class: 'rune-glow',
+      'pointer-events': 'none',
+    }));
+  }
+}
+
+/**
+ * Add ambient decorations to the grid: pillar shadows, scattered rune
+ * glyphs, and an edge vignette for depth.  Appended to the highlights
+ * layer (between tiles and agents).
+ *
+ * @param {SVGGElement} layerHighlights - The #layer-highlights <g>.
+ * @param {number} gridW - Grid width in cells.
+ * @param {number} gridH - Grid height in cells.
+ * @param {string[][]|null} tiles - Row-major tile data.
+ * @param {SVGElement} svgRoot - The top-level <svg> for defs.
+ */
+function createGridDecorations(layerHighlights, gridW, gridH, tiles, svgRoot) {
+  layerHighlights.innerHTML = '';
+  const totalW = gridW * CELL_SIZE;
+  const totalH = gridH * CELL_SIZE;
+
+  // --- Pillar shadows: dark ellipses offset to bottom-right ---
+  if (tiles) {
+    for (let y = 0; y < gridH; y++) {
+      for (let x = 0; x < gridW; x++) {
+        if (tiles[y] && tiles[y][x] === 'pillar') {
+          const cx = x * CELL_SIZE + CELL_SIZE / 2 + 4;
+          const cy = y * CELL_SIZE + CELL_SIZE / 2 + 6;
+          layerHighlights.appendChild(svgEl('ellipse', {
+            cx: cx, cy: cy,
+            rx: (CELL_SIZE - 2) / 2 - 4,
+            ry: (CELL_SIZE - 2) / 2 - 8,
+            fill: '#000', opacity: 0.18,
+            'pointer-events': 'none',
+          }));
+        }
+      }
+    }
+  }
+
+  // --- Large rune glyphs scattered across the arena ---
+  // 4 corner runes (large, each a different glyph design)
+  const cornerInset = CELL_SIZE * 1.0;
+  const cornerSize = CELL_SIZE * 1.5;
+  const cornerPositions = [
+    [cornerInset,             cornerInset,              0],
+    [totalW - cornerInset,    cornerInset,              1],
+    [cornerInset,             totalH - cornerInset,     2],
+    [totalW - cornerInset,    totalH - cornerInset,     3],
+  ];
+  for (const [cx, cy, gIdx] of cornerPositions) {
+    _drawLargeRune(layerHighlights, cx, cy, cornerSize, gIdx, '#9b8aff', 0.35);
+  }
+
+  // Center rune (largest, most prominent)
+  const centerCx = totalW / 2;
+  const centerCy = totalH / 2;
+  _drawLargeRune(layerHighlights, centerCx, centerCy, CELL_SIZE * 2.0, 0, '#a090ff', 0.30);
+
+  // Mid-edge runes (smaller, between center and corners)
+  if (gridW >= 8 && gridH >= 6) {
+    const midRuneSize = CELL_SIZE * 1.0;
+    const midRunePositions = [
+      [totalW / 2,  CELL_SIZE * 1.0,           1],  // top center
+      [totalW / 2,  totalH - CELL_SIZE * 1.0,  3],  // bottom center
+      [CELL_SIZE * 1.0,  totalH / 2,           2],  // left center
+      [totalW - CELL_SIZE * 1.0, totalH / 2,   0],  // right center
+    ];
+    for (const [cx, cy, gIdx] of midRunePositions) {
+      _drawLargeRune(layerHighlights, cx, cy, midRuneSize, gIdx, '#8878ee', 0.28);
+    }
+  }
+
+  // --- Edge vignette: radial gradient mask for depth ---
+  const defsEl = svgRoot.querySelector('#svg-defs');
+  if (defsEl) {
+    if (!defsEl.querySelector('#vignette-gradient')) {
+      const radial = svgEl('radialGradient', { id: 'vignette-gradient' });
+      radial.appendChild(svgEl('stop', { offset: '55%', 'stop-color': '#000', 'stop-opacity': '0' }));
+      radial.appendChild(svgEl('stop', { offset: '100%', 'stop-color': '#000', 'stop-opacity': '0.35' }));
+      defsEl.appendChild(radial);
+    }
+
+    layerHighlights.appendChild(svgEl('rect', {
+      x: 0, y: 0,
+      width: totalW, height: totalH,
+      fill: 'url(#vignette-gradient)',
+      'pointer-events': 'none',
+    }));
+  }
 }
