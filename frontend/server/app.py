@@ -179,7 +179,7 @@ async def list_sprites():
 class GenerateCharacterRequest(BaseModel):
     name: str
     description: str
-    combat_class: str = "warrior"
+    sprite: str = ""
     save: bool = False
 
 
@@ -193,8 +193,9 @@ async def generate_character_endpoint(req: GenerateCharacterRequest):
     llm_cfg = load_llm_config()
     adapter, _ = create_adapter(llm_cfg)
 
+    sprite = req.sprite or None
     data = await asyncio.to_thread(
-        generate_character, req.name, req.description, adapter
+        lambda: generate_character(req.name, req.description, adapter, sprite=sprite)
     )
 
     if req.save:
@@ -204,7 +205,7 @@ async def generate_character_endpoint(req: GenerateCharacterRequest):
     return {
         "id": data["name"].lower().replace(" ", "_"),
         "name": data["name"],
-        "combat_class": data.get("combat_class", req.combat_class),
+        "combat_class": data.get("combat_class", "warrior"),
         "backstory": data.get("backstory", ""),
         "personality_traits": data.get("personality_traits", []),
         "sprite": data.get("sprite", ""),

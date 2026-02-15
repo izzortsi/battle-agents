@@ -35,13 +35,30 @@ Respond with a JSON object only. No other text. Schema:
 }"""
 
 
-def build_layer1_user(name: str, description: str) -> str:
-    """Build the Layer 1 user prompt."""
-    return (
-        f"Character name: {name}\n"
-        f"Description: {description}\n\n"
-        f"Generate this character's narrative identity."
-    )
+def build_layer1_user(
+    name: str,
+    description: str,
+    *,
+    sprite_hint: str | None = None,
+) -> str:
+    """Build the Layer 1 user prompt.
+
+    If *sprite_hint* is provided (e.g. ``"Berserker"``), it nudges the LLM
+    to generate a combat class that fits that visual archetype.
+    """
+    lines = [
+        f"Character name: {name}",
+        f"Description: {description}",
+    ]
+    if sprite_hint:
+        # Turn "Cat_Shadowmage" → "Cat Shadowmage" for readability
+        archetype = sprite_hint.replace("_", " ")
+        lines.append(
+            f"Visual archetype: {archetype} (choose a combat class that fits this look)"
+        )
+    lines.append("")
+    lines.append("Generate this character's narrative identity.")
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------

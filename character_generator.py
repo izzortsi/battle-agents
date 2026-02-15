@@ -3,10 +3,16 @@
 Layer 1 (Narrative): name + description → combat_class, backstory, personality_traits
 Layer 2 (Mechanics): Layer 1 output → attributes, abilities
 
+Data-driven registries:
+    config/classes.yaml   — maps class names → sprite presets
+    config/abilities.yaml — flat list of all known abilities
+
 Public API:
-    generate_character(name, description, llm) -> dict
+    generate_character(name, description, llm, *, sprite=None) -> dict
     to_yaml(data) -> str
     save_character(data, directory) -> Path
+    load_class_registry() -> dict
+    load_ability_registry() -> list[dict]
 """
 
 from __future__ import annotations
@@ -35,6 +41,10 @@ log = logging.getLogger(__name__)
 _VALID_AOE_PATTERNS = {"single", "line", "cross", "radius", "cone"}
 
 _STAT_KEYS = ("atk", "mgk", "spd", "con", "hit")
+
+_CONFIG_DIR = Path(__file__).resolve().parent / "config"
+_CLASSES_PATH = _CONFIG_DIR / "classes.yaml"
+_ABILITIES_PATH = _CONFIG_DIR / "abilities.yaml"
 
 # Sprite selection — maps keyword fragments found in combat_class to sprite
 # preset IDs.  Checked in order; first match wins.  Fallback is "Fighter".
@@ -70,16 +80,114 @@ _SPRITE_KEYWORDS: list[tuple[str, str]] = [
 
 
 # ---------------------------------------------------------------------------
+# Registry helpers
+# ---------------------------------------------------------------------------
+
+
+def load_class_registry() -> dict:
+    """Load ``config/classes.yaml`` → ``{class_name_lower: {sprite: ...}}``.
+
+    Returns an empty dict if the file does not exist.
+    """
+    if not _CLASSES_PATH.exists():
+        return {}
+    with _CLASSES_PATH.open(encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data if isinstance(data, dict) else {}
+
+
+def load_ability_registry() -> list[dict]:
+    """Load ``config/abilities.yaml`` → list of ability dicts.
+
+    Returns an empty list if the file does not exist.
+    """
+    if not _ABILITIES_PATH.exists():
+        return []
+    with _ABILITIES_PATH.open(encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data if isinstance(data, list) else []
+
+
+def _save_class(combat_class: str, sprite: str) -> None:
+    """Append a new class→sprite mapping to the class registry (if novel)."""
+    registry = load_class_registry()
+    key = combat_class.lower().strip()
+    if key in registry:
+        return  # already known
+    registry[key] = {"sprite": sprite}
+    _CLASSES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with _CLASSES_PATH.open("w", encoding="utf-8") as f:
+        f.write(
+            "# Combat class registry — maps class names to sprites.\n"
+            "# New classes are appended automatically during character generation.\n\n"
+        )
+        yaml.dump(
+            registry,
+            f,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+            width=80,
+        )
+    log.info("Registered new class '%s' → sprite '%s'.", combat_class, sprite)
+
+
+def _save_abilities(abilities: list[dict]) -> None:
+    """Append novel abilities to the ability registry (deduplicated by name)."""
+    registry = load_ability_registry()
+    known_names = {a["name"].lower().strip() for a in registry if "name" in a}
+    added = 0
+    for ability in abilities:
+        name_key = ability.get("name", "").lower().strip()
+        if name_key and name_key not in known_names:
+            # Store a clean copy without runtime fields
+            entry = {k: v for k, v in ability.items() if k != "current_cd"}
+            registry.append(entry)
+            known_names.add(name_key)
+            added += 1
+    if not added:
+        return
+    _ABILITIES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with _ABILITIES_PATH.open("w", encoding="utf-8") as f:
+        f.write(
+            "# Ability registry — all known abilities across all characters.\n"
+            "# New abilities are appended automatically during character generation.\n\n"
+        )
+        yaml.dump(
+            registry,
+            f,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+            width=80,
+        )
+    log.info("Registered %d new abilities.", added)
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
 
-def generate_character(name: str, description: str, llm: LLMAdapter) -> dict:
+def generate_character(
+    name: str,
+    description: str,
+    llm: LLMAdapter,
+    *,
+    sprite: str | None = None,
+) -> dict:
     """Generate a complete character dict from *name* and *description*.
 
     Uses two sequential LLM calls:
       1. Narrative identity (class, backstory, personality)
       2. Mechanical stats and abilities
+
+    If *sprite* is provided the character uses that spritesheet directly;
+    otherwise a sprite is inferred from the generated combat class via
+    keyword matching.
+
+    New combat classes and abilities are persisted to the data-driven
+    registries (``config/classes.yaml``, ``config/abilities.yaml``).
 
     Returns a dict matching the character YAML schema, validated and fixed.
     """
@@ -87,7 +195,7 @@ def generate_character(name: str, description: str, llm: LLMAdapter) -> dict:
     log.info("Layer 1: Generating narrative identity for '%s'...", name)
     layer1_raw = llm.complete(
         system=LAYER1_SYSTEM,
-        user=build_layer1_user(name, description),
+        user=build_layer1_user(name, description, sprite_hint=sprite),
         max_tokens=512,
         temperature=0.8,
         response_format="json",
@@ -131,10 +239,21 @@ def generate_character(name: str, description: str, llm: LLMAdapter) -> dict:
     data = _validate_and_fix(data)
 
     # --- Sprite selection ---
-    data["sprite"] = _pick_sprite(combat_class)
+    data["sprite"] = sprite if sprite else _pick_sprite(combat_class)
     log.info(
         "Character '%s' generated and validated (sprite=%s).", name, data["sprite"]
     )
+
+    # --- Persist to registries ---
+    try:
+        _save_class(combat_class, data["sprite"])
+    except Exception:
+        log.warning("Failed to save class registry entry.", exc_info=True)
+    try:
+        _save_abilities(data.get("abilities", []))
+    except Exception:
+        log.warning("Failed to save ability registry entries.", exc_info=True)
+
     return data
 
 

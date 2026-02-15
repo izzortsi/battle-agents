@@ -67,9 +67,9 @@ YOUR COMBAT PROFILE:
 COMBAT RULES:
 - You are on a 2D tile grid. Coordinates are (x, y).
 - Each turn you choose a PRIMARY action: attack, defend, ability, or wait.
-- You may also MOVE before your primary action by including "target_tile". \
-Movement is a FREE prefix — you move first, then act from the new position. \
-Use this to close distance before attacking or to reposition before using an ability.
+- You may also MOVE before OR after your primary action by including "target_tile". \
+Movement is FREE — you choose whether to move first then act, or act first then \
+reposition. Set "move_order" to "before" (default) or "after".
 - ATTACK is your basic attack. You can only attack targets within your attack \
 range ({attack_range} tiles, Manhattan distance). Attacks can MISS, CRIT, or be COUNTERED. \
 If the target is out of range, move toward them AND attack in the same turn.
@@ -106,7 +106,8 @@ Respond with a JSON object. No other text. The JSON must have this exact schema:
 {{
   "reasoning": "<your internal tactical reasoning, 1-3 sentences, in character>",
   "action": "<one of: attack, defend, ability, wait>",
-  "target_tile": "<(x, y) format, optional — move to this adjacent tile BEFORE your action>",
+  "target_tile": "<(x, y) format, optional — move to this adjacent tile>",
+  "move_order": "<'before' or 'after', optional — when to move relative to your action, default 'before'>",
   "target_agent": "<agent_id, required for attack/ability targeting an enemy, omit for self-targeting abilities>",
   "ability_name": "<name of ability, required for ability action, omit otherwise>",
   "chat_target": "<agent_id of who to talk to, optional>",
@@ -147,7 +148,7 @@ NEUTRAL, or HOSTILE — this reflects mutual standing, not just your feelings. \
 Attack HOSTILE and NEUTRAL threats. Do NOT attack ALLIED combatants unless \
 they betray you. Use abilities when impactful — but beware AoE friendly fire \
 on allies. You can MOVE AND ACT in the same turn — include target_tile to \
-move before attacking or using an ability. \
+move before or after your action (set move_order to "before" or "after"). \
 Defend only if critically wounded. Chat to coordinate with allies or intimidate foes.
 Choose your action. Respond with JSON only."""
 
@@ -333,7 +334,9 @@ def format_available_actions(
         # Show up to 6 move options to avoid prompt bloat
         display = can_move[:6]
         extra = f" (+{len(can_move) - 6} more)" if len(can_move) > 6 else ""
-        lines.append(f"  MOVE (free, before your action): {', '.join(display)}{extra}")
+        lines.append(
+            f"  MOVE (free, before or after your action): {', '.join(display)}{extra}"
+        )
     if can_ability:
         lines.append(f"  ABILITY options: {', '.join(can_ability)}")
     if can_attack:

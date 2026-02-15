@@ -527,11 +527,15 @@ def run_pre_battle(
 
         # Resolve all compound decisions (primary action + optional free chat)
         for agent, decision in decisions:
-            # 1a. Resolve optional move prefix
-            if decision.move_action:
-                move_result = env.resolve_action(decision.move_action)
-                if move_result.success:
-                    log.info(f"  [{agent.name}] {move_result.description}")
+
+            def _resolve_move():
+                if decision.move_action:
+                    move_result = env.resolve_action(decision.move_action)
+                    if move_result.success:
+                        log.info(f"  [{agent.name}] {move_result.description}")
+
+            if not decision.move_after:
+                _resolve_move()
 
             # 1b. Resolve primary action (MOVE or WAIT)
             primary = decision.primary_action
@@ -543,6 +547,9 @@ def run_pre_battle(
                     f"  [{agent.name}] waits and observes. "
                     f"({primary.reasoning or 'no reason given'})"
                 )
+
+            if decision.move_after:
+                _resolve_move()
 
             # 2. Resolve optional free chat
             chat = decision.chat_action
@@ -715,14 +722,22 @@ def run_battle(
                                 bonus_decision = cognitive_loop.run_bonus_turn(
                                     a, env, round_num - 1
                                 )
-                                # Resolve bonus move prefix
-                                if bonus_decision.move_action:
-                                    bmr = env.resolve_action(bonus_decision.move_action)
-                                    if bmr.success:
-                                        log.info(f"  [BONUS] {bmr.description}")
+
+                                def _resolve_bonus_move():
+                                    if bonus_decision.move_action:
+                                        bmr = env.resolve_action(
+                                            bonus_decision.move_action
+                                        )
+                                        if bmr.success:
+                                            log.info(f"  [BONUS] {bmr.description}")
+
+                                if not bonus_decision.move_after:
+                                    _resolve_bonus_move()
                                 bonus_result = env.resolve_action(
                                     bonus_decision.primary_action
                                 )
+                                if bonus_decision.move_after:
+                                    _resolve_bonus_move()
                                 log.info(f"  [BONUS] {bonus_result.description}")
                                 _broadcast_kills(
                                     bonus_result, a, env, round_num - 1, cognitive_loop
@@ -794,16 +809,23 @@ def run_battle(
                 current, env, round_num, urgency_text=urgency_text
             )
 
-            # Resolve optional move prefix
-            if decision.move_action:
-                move_result = env.resolve_action(decision.move_action)
-                if move_result.success:
-                    log.info(f"  {move_result.description}")
+            # Resolve move (before or after primary, per agent's choice)
+            def _resolve_move():
+                if decision.move_action:
+                    mr = env.resolve_action(decision.move_action)
+                    if mr.success:
+                        log.info(f"  {mr.description}")
+
+            if not decision.move_after:
+                _resolve_move()
 
             # Resolve primary action
             result = env.resolve_action(decision.primary_action)
             log.info(f"  {result.description}")
             _broadcast_kills(result, current, env, round_num, cognitive_loop)
+
+            if decision.move_after:
+                _resolve_move()
 
             # Track damage
             if result.success and (
@@ -911,11 +933,15 @@ async def async_run_pre_battle(
         chatted_pairs: set[frozenset[str]] = set()
 
         for agent, decision in decisions:
-            # Resolve optional move prefix
-            if decision.move_action:
-                move_result = env.resolve_action(decision.move_action)
-                if move_result.success:
-                    log.info(f"  [{agent.name}] {move_result.description}")
+
+            def _resolve_move():
+                if decision.move_action:
+                    move_result = env.resolve_action(decision.move_action)
+                    if move_result.success:
+                        log.info(f"  [{agent.name}] {move_result.description}")
+
+            if not decision.move_after:
+                _resolve_move()
 
             primary = decision.primary_action
             if primary.action_type == ActionType.MOVE:
@@ -926,6 +952,9 @@ async def async_run_pre_battle(
                     f"  [{agent.name}] waits and observes. "
                     f"({primary.reasoning or 'no reason given'})"
                 )
+
+            if decision.move_after:
+                _resolve_move()
 
             chat = decision.chat_action
             if chat and chat.target_agent:
@@ -1063,14 +1092,22 @@ async def async_run_battle(
                                         a, env, round_num - 1
                                     )
                                 )
-                                # Resolve bonus move prefix
-                                if bonus_decision.move_action:
-                                    bmr = env.resolve_action(bonus_decision.move_action)
-                                    if bmr.success:
-                                        log.info(f"  [BONUS] {bmr.description}")
+
+                                def _resolve_bonus_move():
+                                    if bonus_decision.move_action:
+                                        bmr = env.resolve_action(
+                                            bonus_decision.move_action
+                                        )
+                                        if bmr.success:
+                                            log.info(f"  [BONUS] {bmr.description}")
+
+                                if not bonus_decision.move_after:
+                                    _resolve_bonus_move()
                                 bonus_result = env.resolve_action(
                                     bonus_decision.primary_action
                                 )
+                                if bonus_decision.move_after:
+                                    _resolve_bonus_move()
                                 log.info(f"  [BONUS] {bonus_result.description}")
                                 _broadcast_kills(
                                     bonus_result,
@@ -1142,15 +1179,22 @@ async def async_run_battle(
             current, env, round_num, urgency_text=urgency_text
         )
 
-        # Resolve optional move prefix
-        if decision.move_action:
-            move_result = env.resolve_action(decision.move_action)
-            if move_result.success:
-                log.info(f"  {move_result.description}")
+        # Resolve move (before or after primary, per agent's choice)
+        def _resolve_move():
+            if decision.move_action:
+                mr = env.resolve_action(decision.move_action)
+                if mr.success:
+                    log.info(f"  {mr.description}")
+
+        if not decision.move_after:
+            _resolve_move()
 
         result = env.resolve_action(decision.primary_action)
         log.info(f"  {result.description}")
         _broadcast_kills(result, current, env, round_num, cognitive_loop)
+
+        if decision.move_after:
+            _resolve_move()
 
         if result.success and (
             decision.primary_action.action_type == ActionType.ATTACK
@@ -1281,7 +1325,8 @@ def _run_generate(args: argparse.Namespace) -> None:
 
     print(f"\nGenerating character with {model_id}...\n")
 
-    data = generate_character(name, description, adapter)
+    sprite_arg = getattr(args, "sprite", None) or None
+    data = generate_character(name, description, adapter, sprite=sprite_arg)
     yaml_str = to_yaml(data)
 
     print("--- Generated Character YAML ---")
@@ -1333,6 +1378,12 @@ def main() -> None:
         help="Character description (use with --generate to skip interactive prompt)",
     )
     parser.add_argument(
+        "--sprite",
+        type=str,
+        default=None,
+        help="Sprite preset name (use with --generate, e.g. 'Berserker')",
+    )
+    parser.add_argument(
         "--save",
         action="store_true",
         help="Save the generated character to config/characters/ (use with --generate)",
@@ -1351,6 +1402,8 @@ def main() -> None:
         parser.error("--battle requires --generate")
     if (args.name or args.desc) and not args.generate:
         parser.error("--name and --desc require --generate")
+    if args.sprite and not args.generate:
+        parser.error("--sprite requires --generate")
 
     # --generate and --random are mutually exclusive
     if args.generate and args.random:

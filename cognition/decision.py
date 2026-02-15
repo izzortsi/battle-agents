@@ -49,14 +49,16 @@ log = logging.getLogger(__name__)
 class CombatDecision:
     """Compound decision for one combat turn.
 
-    move_action:    Optional MOVE — resolved first, before the primary action.
+    move_action:    Optional free MOVE (before or after the primary action).
     primary_action: ATTACK, DEFEND, ABILITY, or WAIT (always present).
     chat_action:    Optional free CHAT — can combine with any primary action.
+    move_after:     If True, the move is resolved *after* the primary action.
     """
 
     primary_action: CombatAction
     move_action: CombatAction | None = None
     chat_action: CombatAction | None = None
+    move_after: bool = False
 
 
 def _gather_context(
@@ -442,8 +444,15 @@ def _parse_action(
         else:
             log.warning(f"{agent.name}: invalid chat target '{chat_target}'")
 
+    # --- Move ordering ---
+    move_order = raw.get("move_order", "before").lower().strip()
+    move_after = move_order == "after"
+
     return CombatDecision(
-        primary_action=primary, move_action=move_action, chat_action=chat_action
+        primary_action=primary,
+        move_action=move_action,
+        chat_action=chat_action,
+        move_after=move_after,
     )
 
 

@@ -1,0 +1,23 @@
+# Combat class registry — maps class names to sprites.
+# New classes are appended automatically during character generation.
+
+elven ranger:
+  sprite: Archer_Female
+berserker:
+  sprite: Berserker
+technomancer:
+  sprite: Robot
+warrior:
+  sprite: Fighter
+mage:
+  sprite: Wizard_1
+geometric gunslinger:
+  sprite: Gunslinger
+healer:
+  sprite: Cleric
+shadow mage:
+  sprite: Cat_Shadowmage
+rogue:
+  sprite: Ghost
+sand-shaper assassin:
+  sprite: Rogue

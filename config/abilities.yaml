@@ -1,0 +1,416 @@
+# Ability registry — all known abilities across all characters.
+# New abilities are appended automatically during character generation.
+
+- name: Vengeful Volley
+  mana_cost: 5
+  damage: 15
+  range: 4
+  aoe_pattern: single
+  cooldown: 3
+  description: Aeryn fires a rapid succession of arrows at a single target, each imbued
+    with her scorn for injustice.
+  tactical_hint: Use this ability to deal significant damage to a high-priority enemy,
+    especially after they've been marked.
+  effects: []
+- name: Hunter's Mark
+  mana_cost: 4
+  damage: 0
+  range: 3
+  aoe_pattern: single
+  cooldown: 4
+  description: Aeryn marks an enemy, revealing their weaknesses and making them more
+    vulnerable to subsequent attacks.
+  tactical_hint: Apply Hunter's Mark to a dangerous foe to increase the damage they
+    take from all sources for a few turns.
+  effects:
+  - type: marked
+    behavior: boost_outgoing_damage
+    duration: 2
+    magnitude: 0.2
+    target: enemy
+    category: debuff
+    chance: 0.85
+- name: Butcher's Cleave
+  mana_cost: 5
+  damage: 22
+  range: 1
+  aoe_pattern: cone
+  cooldown: 3
+  description: Grimwar swings his massive axe in a wide, gore-spraying arc that tears
+    through flesh and bone.
+  tactical_hint: Use this when multiple enemies are clumped together to maximize damage
+    and apply bleed. WARNING - cone AoE hits allies too, check positions first.
+  effects:
+  - type: hemorrhage
+    behavior: damage_over_time
+    duration: 3
+    magnitude: 0.1
+    target: enemy
+    category: debuff
+    chance: 0.75
+- name: Crimson Feast
+  mana_cost: 8
+  damage: 0
+  range: 1
+  aoe_pattern: single
+  cooldown: 5
+  description: Grimwar enters a trance-like state of bloodlust, ignoring pain and
+    reveling in the carnage.
+  tactical_hint: Activate this when low on health to sustain yourself and increase
+    your damage output for the final push.
+  effects:
+  - type: blood_tithe
+    behavior: passive
+    duration: 2
+    magnitude: 0.2
+    target: self
+    category: heal
+    chance: 1.0
+  - type: enrage
+    behavior: boost_outgoing_damage
+    duration: 2
+    magnitude: 0.3
+    target: self
+    category: buff
+    chance: 1.0
+- name: Buffer Overflow
+  mana_cost: 8
+  damage: 22
+  range: 3
+  aoe_pattern: radius
+  cooldown: 4
+  description: HelloWorld injects a surge of raw, unstructured data into the surrounding
+    environment, causing local reality to stutter and crash.
+  tactical_hint: Use this when enemies are clumped together to deal high area damage
+    and disrupt their next actions. WARNING - AoE hits allies too, verify ally positions.
+  effects:
+  - type: lag
+    behavior: skip_turn
+    duration: 1
+    magnitude: 0.0
+    target: enemy
+    category: debuff
+    chance: 0.65
+- name: Optimization Patch
+  mana_cost: 5
+  damage: 0
+  range: 2
+  aoe_pattern: single
+  cooldown: 3
+  description: The algorithm identifies inefficiencies in a target's combat routines,
+    rewriting subroutines to enhance performance and repair structural integrity.
+    Can be applied to self or transmitted to an ally via data-link.
+  tactical_hint: Use on yourself when low HP, or patch an injured ALLIED combatant
+    to boost their speed and restore health. Keeping allies optimized increases collective
+    combat efficiency by 42.7%.
+  effects:
+  - type: recompile
+    behavior: passive
+    duration: 1
+    magnitude: 0.25
+    target: ally
+    category: heal
+    chance: 1.0
+  - type: overclock
+    behavior: stat_modifier
+    duration: 3
+    magnitude: 0.4
+    target: ally
+    category: buff
+    chance: 1.0
+- name: Berserker Slash
+  mana_cost: 6
+  damage: 22
+  range: 1
+  aoe_pattern: single
+  cooldown: 3
+  description: 'A reckless, devastating melee strike fueled by pure rage. Kael throws
+    all caution aside, dealing massive damage and entering a frenzied state that amplifies
+    his follow-up attacks.
+
+    '
+  tactical_hint: 'Use when you want to burst down an enemy at close range. The self-buff
+    makes your next regular attacks hit harder too.
+
+    '
+  effects:
+  - type: enrage
+    behavior: boost_outgoing_damage
+    duration: 2
+    magnitude: 0.25
+    target: self
+    category: buff
+    chance: 1.0
+- name: Shield Bash
+  mana_cost: 4
+  damage: 10
+  range: 1
+  aoe_pattern: single
+  cooldown: 3
+  description: 'A brutal strike with the flat of his blade that stuns the target,
+    leaving them unable to act for a short time.
+
+    '
+  tactical_hint: 'Use against dangerous enemies to deny them a turn. Great for interrupting
+    a mage about to cast a powerful ability.
+
+    '
+  effects:
+  - type: stun
+    behavior: skip_turn
+    duration: 1
+    magnitude: 0.0
+    target: enemy
+    category: debuff
+    chance: 0.75
+- name: Arcane Barrage
+  mana_cost: 8
+  damage: 18
+  range: 3
+  aoe_pattern: cross
+  cooldown: 3
+  description: 'Lyra conjures a barrage of arcane bolts that strike in a cross pattern,
+    shredding anyone caught in the blast zone with raw magical energy.
+
+    '
+  tactical_hint: 'Aim at clusters of enemies to maximize multi-target damage. The
+    cross pattern can hit up to 5 tiles — devastating when enemies group up. WARNING:
+    AoE hits allies too — avoid when allies are near the target.
+
+    '
+  effects: []
+- name: Frost Nova
+  mana_cost: 6
+  damage: 8
+  range: 3
+  aoe_pattern: radius
+  cooldown: 4
+  description: 'An explosion of freezing energy centred on a target area, dealing
+    moderate damage and rooting all caught enemies in place.
+
+    '
+  tactical_hint: 'Use to lock down melee fighters and kite them. Great when enemies
+    are closing in — freeze them and maintain distance. WARNING: AoE radius pattern
+    hits allies too — position carefully.
+
+    '
+  effects:
+  - type: freeze
+    behavior: prevent_move
+    duration: 2
+    magnitude: 0.0
+    target: enemy
+    category: debuff
+    chance: 0.7
+- name: Ricochet Proof
+  mana_cost: 6
+  damage: 18
+  range: 6
+  aoe_pattern: line
+  cooldown: 3
+  description: Malkaz fires a bullet that bounces off environmental surfaces at impossible
+    angles, striking multiple enemies in a precise trajectory.
+  tactical_hint: Use this to strike through enemy lines and hit protected back-line
+    targets simultaneously.
+  effects: []
+- name: Spatial Analysis
+  mana_cost: 8
+  damage: 0
+  range: 1
+  aoe_pattern: single
+  cooldown: 4
+  description: Malkaz stands still for a moment, calculating every variable of the
+    battlefield to predict enemy movements.
+  tactical_hint: Activate this to gain a massive accuracy and evasion advantage before
+    an aggressive push.
+  effects:
+  - type: calculated_precision
+    behavior: stat_modifier
+    duration: 2
+    magnitude: 0.4
+    target: self
+    category: buff
+    chance: 1.0
+  - type: predictive_evasion
+    behavior: miss_chance
+    duration: 2
+    magnitude: 0.3
+    target: self
+    category: buff
+    chance: 1.0
+- name: Divine Light
+  mana_cost: 7
+  damage: 0
+  range: 2
+  aoe_pattern: single
+  cooldown: 3
+  description: 'Mira channels sacred light to mend wounds, restoring a significant
+    portion of health. Can be cast on herself or on an ally within range.
+
+    '
+  tactical_hint: 'Use on yourself when below 50% HP, or heal an injured ALLIED combatant
+    to keep your alliance strong. A living ally is worth more than a few extra points
+    of damage.
+
+    '
+  effects:
+  - type: heal
+    behavior: passive
+    duration: 1
+    magnitude: 0.3
+    target: ally
+    category: heal
+    chance: 1.0
+- name: Purifying Flame
+  mana_cost: 5
+  damage: 12
+  range: 2
+  aoe_pattern: single
+  cooldown: 2
+  description: 'Mira hurls a bolt of purifying fire at an enemy. The sacred flame
+    burns with righteous fury, dealing damage and leaving a lingering burn.
+
+    '
+  tactical_hint: 'Use against high-priority targets to add damage-over-time pressure.
+    The burn stacks well with regular attacks for sustained damage.
+
+    '
+  effects:
+  - type: burn
+    behavior: damage_over_time
+    duration: 3
+    magnitude: 0.08
+    target: enemy
+    category: debuff
+    chance: 0.8
+- name: Umbral Bolt
+  mana_cost: 4
+  damage: 15
+  range: 3
+  aoe_pattern: single
+  cooldown: 2
+  description: Shadowcat hurls a condensed bolt of pure shadow energy at an enemy,
+    dealing magical damage.
+  tactical_hint: Use this as your primary attack to deal consistent magical damage
+    from a distance.
+  effects: []
+- name: Void Pounce
+  mana_cost: 7
+  damage: 0
+  range: 4
+  aoe_pattern: single
+  cooldown: 4
+  description: Shadowcat briefly dissolves into shadow, reappearing next to an enemy
+    and leaving them disoriented.
+  tactical_hint: Utilize this to quickly reposition, close distance on a priority
+    target, and debuff them to reduce their effectiveness.
+  effects:
+  - type: disorient
+    behavior: miss_chance
+    duration: 2
+    magnitude: 0.3
+    target: enemy
+    category: debuff
+    chance: 0.75
+  - type: shadow_teleport
+    behavior: stat_modifier
+    duration: 1
+    magnitude: 0.0
+    target: self
+    category: movement
+    chance: 1.0
+- name: Shadow Strike
+  mana_cost: 5
+  damage: 20
+  range: 1
+  aoe_pattern: single
+  cooldown: 3
+  description: 'Vorn strikes from the shadows with a poisoned blade, dealing heavy
+    damage and leaving a venom that saps the target''s health over time.
+
+    '
+  tactical_hint: 'Use on wounded enemies to finish them off, or on fresh targets to
+    start the poison clock ticking. The DoT adds up fast.
+
+    '
+  effects:
+  - type: poison
+    behavior: damage_over_time
+    duration: 3
+    magnitude: 0.06
+    target: enemy
+    category: debuff
+    chance: 0.85
+- name: Smoke Bomb
+  mana_cost: 6
+  damage: 0
+  range: 2
+  aoe_pattern: radius
+  cooldown: 4
+  description: 'Vorn throws a smoke bomb that blankets a 3x3 area in thick smoke,
+    blinding all enemies caught within and making their attacks unreliable.
+
+    '
+  tactical_hint: 'Use when facing multiple enemies or when a heavy hitter is about
+    to attack. Blinding them gives you and your allies breathing room. WARNING: AoE
+    hits allies too — check positions before throwing.
+
+    '
+  effects:
+  - type: blind
+    behavior: miss_chance
+    duration: 2
+    magnitude: 0.4
+    target: enemy
+    category: debuff
+    chance: 0.7
+- name: Sandstorm Shroud
+  mana_cost: 6
+  damage: 8
+  range: 2
+  aoe_pattern: radius
+  cooldown: 4
+  description: Zara conjures a swirling vortex of abrasive sand that shreds armor
+    and blinds those caught within the dunes.
+  tactical_hint: Use this when surrounded to reduce incoming damage and lower the
+    enemy's chance to hit you.
+  effects:
+  - type: blind
+    behavior: miss_chance
+    duration: 2
+    magnitude: 0.4
+    target: enemy
+    category: debuff
+    chance: 0.75
+  - type: sand_armor
+    behavior: reduce_incoming_damage
+    duration: 2
+    magnitude: 0.25
+    target: self
+    category: buff
+    chance: 1.0
+- name: Mirage Strike
+  mana_cost: 8
+  damage: 22
+  range: 3
+  aoe_pattern: single
+  cooldown: 3
+  description: Zara dissolves into a cloud of dust, instantly reappearing behind her
+    target to deliver a devastating twin-blade execute.
+  tactical_hint: Ideal for closing the gap on ranged casters or finishing off low-health
+    targets from a distance.
+  effects:
+  - type: dust_step
+    behavior: stat_modifier
+    duration: 1
+    magnitude: 0.3
+    target: self
+    category: movement
+    chance: 1.0
+  - type: hemorrhage
+    behavior: damage_over_time
+    duration: 3
+    magnitude: 0.05
+    target: enemy
+    category: debuff
+    chance: 0.8

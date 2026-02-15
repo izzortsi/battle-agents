@@ -1,8 +1,15 @@
-"""Tests for character_generator — sprite auto-assignment."""
+"""Tests for character_generator — sprite assignment + data-driven registries."""
 
 import pytest
+import yaml
 
-from character_generator import _pick_sprite
+from character_generator import (
+    _pick_sprite,
+    _save_class,
+    _save_abilities,
+    load_class_registry,
+    load_ability_registry,
+)
 
 
 # ---- Keyword matching (exact substring in combat_class) ----
@@ -111,3 +118,139 @@ class TestPickSpriteFallback:
     )
     def test_fallback_to_fighter(self, combat_class):
         assert _pick_sprite(combat_class) == "Fighter"
+
+
+# ====================================================================
+# Registry tests
+# ====================================================================
+
+
+class TestClassRegistry:
+    """load_class_registry / _save_class round-trip."""
+
+    def test_load_returns_dict(self):
+        """Seed file exists and loads as a dict."""
+        reg = load_class_registry()
+        assert isinstance(reg, dict)
+        assert len(reg) >= 1
+
+    def test_load_missing_file(self, tmp_path, monkeypatch):
+        import character_generator as cg
+
+        monkeypatch.setattr(cg, "_CLASSES_PATH", tmp_path / "nope.yaml")
+        assert load_class_registry() == {}
+
+    def test_save_new_class(self, tmp_path, monkeypatch):
+        import character_generator as cg
+
+        path = tmp_path / "classes.yaml"
+        monkeypatch.setattr(cg, "_CLASSES_PATH", path)
+        _save_class("Flame Knight", "Fighter")
+        reg = load_class_registry()
+        assert "flame knight" in reg
+        assert reg["flame knight"]["sprite"] == "Fighter"
+
+    def test_save_duplicate_class_no_overwrite(self, tmp_path, monkeypatch):
+        import character_generator as cg
+
+        path = tmp_path / "classes.yaml"
+        monkeypatch.setattr(cg, "_CLASSES_PATH", path)
+        _save_class("Flame Knight", "Fighter")
+        _save_class("Flame Knight", "Berserker")  # same key, different sprite
+        reg = load_class_registry()
+        assert reg["flame knight"]["sprite"] == "Fighter"  # first write wins
+
+    def test_save_preserves_existing(self, tmp_path, monkeypatch):
+        import character_generator as cg
+
+        path = tmp_path / "classes.yaml"
+        monkeypatch.setattr(cg, "_CLASSES_PATH", path)
+        _save_class("warrior", "Fighter")
+        _save_class("ice mage", "Wizard_2")
+        reg = load_class_registry()
+        assert "warrior" in reg
+        assert "ice mage" in reg
+
+
+class TestAbilityRegistry:
+    """load_ability_registry / _save_abilities round-trip."""
+
+    def test_load_returns_list(self):
+        """Seed file exists and loads as a list."""
+        reg = load_ability_registry()
+        assert isinstance(reg, list)
+        assert len(reg) >= 1
+
+    def test_load_missing_file(self, tmp_path, monkeypatch):
+        import character_generator as cg
+
+        monkeypatch.setattr(cg, "_ABILITIES_PATH", tmp_path / "nope.yaml")
+        assert load_ability_registry() == []
+
+    def test_save_new_abilities(self, tmp_path, monkeypatch):
+        import character_generator as cg
+
+        path = tmp_path / "abilities.yaml"
+        monkeypatch.setattr(cg, "_ABILITIES_PATH", path)
+        _save_abilities(
+            [
+                {"name": "Fireball", "damage": 20, "range": 3, "mana_cost": 8},
+                {"name": "Ice Shard", "damage": 12, "range": 4, "mana_cost": 5},
+            ]
+        )
+        reg = load_ability_registry()
+        names = [a["name"] for a in reg]
+        assert "Fireball" in names
+        assert "Ice Shard" in names
+
+    def test_save_deduplicates_by_name(self, tmp_path, monkeypatch):
+        import character_generator as cg
+
+        path = tmp_path / "abilities.yaml"
+        monkeypatch.setattr(cg, "_ABILITIES_PATH", path)
+        _save_abilities([{"name": "Fireball", "damage": 20}])
+        _save_abilities([{"name": "Fireball", "damage": 99}])  # duplicate
+        reg = load_ability_registry()
+        fireballs = [a for a in reg if a["name"] == "Fireball"]
+        assert len(fireballs) == 1
+        assert fireballs[0]["damage"] == 20  # first write wins
+
+    def test_save_strips_current_cd(self, tmp_path, monkeypatch):
+        import character_generator as cg
+
+        path = tmp_path / "abilities.yaml"
+        monkeypatch.setattr(cg, "_ABILITIES_PATH", path)
+        _save_abilities([{"name": "Slash", "damage": 10, "current_cd": 3}])
+        reg = load_ability_registry()
+        assert "current_cd" not in reg[0]
+
+    def test_save_skips_empty(self, tmp_path, monkeypatch):
+        import character_generator as cg
+
+        path = tmp_path / "abilities.yaml"
+        monkeypatch.setattr(cg, "_ABILITIES_PATH", path)
+        _save_abilities([])
+        assert not path.exists()  # nothing to write
+
+
+class TestBuildLayer1UserSpriteHint:
+    """build_layer1_user includes sprite archetype hint when provided."""
+
+    def test_no_hint(self):
+        from llm.prompts.character_gen import build_layer1_user
+
+        text = build_layer1_user("Test", "A test character")
+        assert "Visual archetype" not in text
+
+    def test_with_hint(self):
+        from llm.prompts.character_gen import build_layer1_user
+
+        text = build_layer1_user("Test", "A test char", sprite_hint="Cat_Shadowmage")
+        assert "Visual archetype: Cat Shadowmage" in text
+        assert "combat class that fits this look" in text
+
+    def test_hint_none_same_as_no_hint(self):
+        from llm.prompts.character_gen import build_layer1_user
+
+        text = build_layer1_user("Test", "A test char", sprite_hint=None)
+        assert "Visual archetype" not in text

@@ -1115,6 +1115,7 @@ class CognitiveLoop:
                 ),
                 move_action=decision.move_action,
                 chat_action=decision.chat_action,
+                move_after=decision.move_after,
             )
 
         return decision
@@ -1172,6 +1173,7 @@ class CognitiveLoop:
                 ),
                 move_action=decision.move_action,
                 chat_action=decision.chat_action,
+                move_after=decision.move_after,
             )
 
         return decision

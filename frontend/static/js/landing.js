@@ -33,13 +33,9 @@ class LandingPage {
             <input type="text" id="create-name" placeholder="Character name...">
             <label>Description</label>
             <textarea id="create-desc" placeholder="Fighting style, personality, backstory..."></textarea>
-            <label>Combat Class</label>
-            <select id="create-class">
-              <option value="warrior">Warrior</option>
-              <option value="mage">Mage</option>
-              <option value="rogue">Rogue</option>
-              <option value="healer">Healer</option>
-              <option value="ranger">Ranger</option>
+            <label>Sprite</label>
+            <select id="create-sprite">
+              <option value="">Auto (from class)</option>
             </select>
             <div class="form-row">
               <input type="checkbox" id="create-save" checked>
@@ -83,11 +79,29 @@ class LandingPage {
         this._selectedIds.add(c.id);
       }
 
-      // If character has a sprite in YAML, set it as default assignment
+      // YAML sprites always win — override any stale localStorage value
       for (const c of this._characters) {
-        if (c.sprite && !this._spriteAssignments[c.id]) {
+        if (c.sprite) {
           this._spriteAssignments[c.id] = c.sprite;
         }
+      }
+
+      // Prune assignments that point to deleted spritesheets
+      const validIds = new Set(this._spritePresets.map(p => p.id));
+      for (const [id, preset] of Object.entries(this._spriteAssignments)) {
+        if (preset && !validIds.has(preset)) {
+          delete this._spriteAssignments[id];
+        }
+      }
+      this._saveSpriteAssignments();
+
+      // Populate the sprite dropdown in the create form
+      const spriteSelect = document.getElementById('create-sprite');
+      for (const preset of this._spritePresets) {
+        const opt = document.createElement('option');
+        opt.value = preset.id;
+        opt.textContent = preset.label;
+        spriteSelect.appendChild(opt);
       }
 
       this._renderRoster();
@@ -239,7 +253,7 @@ class LandingPage {
   async _generateCharacter() {
     const name = document.getElementById('create-name').value.trim();
     const desc = document.getElementById('create-desc').value.trim();
-    const cls = document.getElementById('create-class').value;
+    const sprite = document.getElementById('create-sprite').value;
     const save = document.getElementById('create-save').checked;
     const btn = document.getElementById('btn-generate');
     const status = document.getElementById('generate-status');
@@ -256,7 +270,7 @@ class LandingPage {
       const res = await fetch('/api/characters/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description: desc, combat_class: cls, save }),
+        body: JSON.stringify({ name, description: desc, sprite, save }),
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

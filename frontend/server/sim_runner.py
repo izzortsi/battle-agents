@@ -651,19 +651,24 @@ class SimRunner:
                                             a, self._env, round_num - 1
                                         )
                                     )
-                                    # Resolve bonus move prefix
-                                    if bonus_dec.move_action:
-                                        bmr = self._env.resolve_action(
-                                            bonus_dec.move_action
-                                        )
-                                        if bmr.success:
-                                            bme = serialize_action_event(
-                                                bonus_dec.move_action,
-                                                bmr,
-                                                self._env,
+
+                                    # Resolve bonus move (before or after)
+                                    async def _resolve_bonus_move():
+                                        if bonus_dec.move_action:
+                                            bmr = self._env.resolve_action(
+                                                bonus_dec.move_action
                                             )
-                                            bme["bonus"] = True
-                                            await self._broadcast(bme)
+                                            if bmr.success:
+                                                bme = serialize_action_event(
+                                                    bonus_dec.move_action,
+                                                    bmr,
+                                                    self._env,
+                                                )
+                                                bme["bonus"] = True
+                                                await self._broadcast(bme)
+
+                                    if not bonus_dec.move_after:
+                                        await _resolve_bonus_move()
                                     bonus_result = self._env.resolve_action(
                                         bonus_dec.primary_action
                                     )
@@ -674,6 +679,8 @@ class SimRunner:
                                     )
                                     event["bonus"] = True
                                     await self._broadcast(event)
+                                    if bonus_dec.move_after:
+                                        await _resolve_bonus_move()
 
                                     # Commentary on bonus action
                                     if self._commentator:
@@ -740,14 +747,18 @@ class SimRunner:
                     current, self._env, round_num, urgency_text=urgency_text
                 )
 
-                # Resolve optional move prefix (before primary action)
-                if decision.move_action:
-                    move_result = self._env.resolve_action(decision.move_action)
-                    if move_result.success:
-                        move_event = serialize_action_event(
-                            decision.move_action, move_result, self._env
-                        )
-                        await self._broadcast(move_event)
+                # Resolve optional move (before or after primary)
+                async def _resolve_move():
+                    if decision.move_action:
+                        move_result = self._env.resolve_action(decision.move_action)
+                        if move_result.success:
+                            move_event = serialize_action_event(
+                                decision.move_action, move_result, self._env
+                            )
+                            await self._broadcast(move_event)
+
+                if not decision.move_after:
+                    await _resolve_move()
 
                 # Resolve primary action with retry on invalid actions
                 max_retries = 2
@@ -792,6 +803,9 @@ class SimRunner:
 
                 event = serialize_action_event(action, result, self._env)
                 await self._broadcast(event)
+
+                if decision.move_after:
+                    await _resolve_move()
 
                 # Commentary on action
                 if self._commentator:
