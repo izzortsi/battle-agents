@@ -56,6 +56,8 @@ class Environment:
         self.death_log: list[
             dict
         ] = []  # [{agent_id, name, combat_class, killer, method, round}]
+        self.damage_dealt: dict[str, int] = {}  # agent_id -> total damage dealt
+        self.round_number: int = 0  # current round (set by runner)
 
         # Chat distance limits (set per-phase by the runner)
         self.chat_speak_radius: int = 99  # default: no limit
@@ -105,6 +107,14 @@ class Environment:
             "success": result.success,
             **result.details,
         }
+
+        # Track damage dealt for campaign XP
+        if result.success:
+            dmg = result.details.get("damage", 0)
+            if dmg > 0:
+                self.damage_dealt[action.agent_id] = (
+                    self.damage_dealt.get(action.agent_id, 0) + dmg
+                )
 
         # Post-resolution social model updates
         if result.success:

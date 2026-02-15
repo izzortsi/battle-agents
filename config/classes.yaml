@@ -21,3 +21,5 @@ rogue:
   sprite: Ghost
 sand-shaper assassin:
   sprite: Rogue
+shadow thief:
+  sprite: Rogue

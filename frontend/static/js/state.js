@@ -98,6 +98,12 @@ class GameState {
     this.notify('phase');
   }
 
+  applySocialTick(data) {
+    this.socialTick = data.tick;
+    this.socialTickTotal = data.total;
+    this.notify('social_tick', data);
+  }
+
   applyTurnStart(data) {
     this.activeAgent = data.agent_id;
     this.round = data.round || this.round;
@@ -174,6 +180,9 @@ class GameState {
 
   applyVictory(data) {
     this.phase = 'victory';
+    this.victoryData = data;
+    this.damageStats = null;      // will be filled by damage_stats message
+    this.campaignUpdate = null;   // will be filled by campaign_update message
     this.eventLog.push({
       description: data.winner_name
         ? `VICTORY: ${data.winner_name} wins after ${data.rounds} rounds!`
@@ -184,6 +193,16 @@ class GameState {
       details: data,
     });
     this.notify('victory', data);
+  }
+
+  applyDamageStats(data) {
+    this.damageStats = data.stats || [];
+    this.notify('damage_stats', data);
+  }
+
+  applyCampaignUpdate(data) {
+    this.campaignUpdate = data;
+    this.notify('campaign_update', data);
   }
 
   applySocialUpdate(data) {

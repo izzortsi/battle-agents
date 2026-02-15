@@ -214,6 +214,137 @@ async def generate_character_endpoint(req: GenerateCharacterRequest):
 
 
 # ================================================================
+# Campaign REST endpoints
+# ================================================================
+
+
+def _get_campaign_db():
+    from campaign.persistence import CampaignDB
+
+    return CampaignDB()
+
+
+@app.get("/api/campaigns")
+async def list_campaigns():
+    """List all campaigns."""
+    db = _get_campaign_db()
+    try:
+        campaigns = db.list_campaigns()
+        return [
+            {
+                "id": c.campaign_id,
+                "name": c.name,
+                "created_at": c.created_at,
+                "battle_count": c.battle_count,
+            }
+            for c in campaigns
+        ]
+    finally:
+        db.close()
+
+
+class CreateCampaignRequest(BaseModel):
+    name: str
+    character_ids: list[str] = []
+
+
+@app.post("/api/campaigns")
+async def create_campaign(req: CreateCampaignRequest):
+    """Create a new campaign and seed its roster from selected characters."""
+    from config_loader import load_all_characters
+
+    db = _get_campaign_db()
+    try:
+        meta = db.create_campaign(req.name)
+
+        # Load full agents and filter to selected IDs
+        all_agents = load_all_characters()
+        if req.character_ids:
+            agents = [a for a in all_agents if a.agent_id in set(req.character_ids)]
+        else:
+            agents = all_agents
+
+        from campaign.manager import roster_entry_from_agent
+
+        roster = [roster_entry_from_agent(a) for a in agents]
+        db.save_roster(meta.campaign_id, roster)
+
+        return {
+            "id": meta.campaign_id,
+            "name": meta.name,
+            "roster_size": len(roster),
+        }
+    finally:
+        db.close()
+
+
+@app.get("/api/campaigns/{campaign_id}")
+async def get_campaign(campaign_id: int):
+    """Get campaign details including roster and battle history."""
+    db = _get_campaign_db()
+    try:
+        meta = db.get_campaign(campaign_id)
+        if not meta:
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse({"error": "Campaign not found"}, status_code=404)
+
+        roster = db.load_roster(campaign_id)
+        battles = db.load_battles(campaign_id)
+
+        return {
+            "id": meta.campaign_id,
+            "name": meta.name,
+            "created_at": meta.created_at,
+            "battle_count": meta.battle_count,
+            "roster": [
+                {
+                    "agent_id": r.agent_id,
+                    "name": r.name,
+                    "combat_class": r.combat_class,
+                    "sprite": r.sprite,
+                    "alive": r.alive,
+                    "level": r.level,
+                    "xp": r.xp,
+                    "xp_to_next": r.xp_to_next_level,
+                    "atk": r.atk,
+                    "mgk": r.mgk,
+                    "spd": r.spd,
+                    "con": r.con,
+                    "hit": r.hit,
+                    "attack_range": r.attack_range,
+                    "abilities": r.abilities,
+                }
+                for r in roster
+            ],
+            "battles": [
+                {
+                    "battle_num": b.battle_num,
+                    "winner_ids": b.winner_ids,
+                    "death_ids": b.death_ids,
+                    "rounds": b.rounds,
+                    "xp_awards": b.xp_awards,
+                    "timestamp": b.timestamp,
+                }
+                for b in battles
+            ],
+        }
+    finally:
+        db.close()
+
+
+@app.delete("/api/campaigns/{campaign_id}")
+async def delete_campaign(campaign_id: int):
+    """Delete a campaign and all its data."""
+    db = _get_campaign_db()
+    try:
+        db.delete_campaign(campaign_id)
+        return {"deleted": True}
+    finally:
+        db.close()
+
+
+# ================================================================
 # WebSocket
 # ================================================================
 

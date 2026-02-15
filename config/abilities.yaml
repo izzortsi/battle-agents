@@ -414,3 +414,28 @@
     target: enemy
     category: debuff
     chance: 0.8
+- name: Vanishing Act
+  mana_cost: 7
+  damage: 0
+  range: 1
+  aoe_pattern: single
+  cooldown: 4
+  description: Arth'az completely disappears from sight, becoming untargetable and
+    repositioning to a more advantageous spot.
+  tactical_hint: Employ this ability to escape dangerous situations, reposition for
+    a flank, or set up future attacks.
+  effects:
+  - type: stealth
+    behavior: passive
+    duration: 1
+    magnitude: 0.0
+    target: self
+    category: buff
+    chance: 1.0
+  - type: reposition
+    behavior: stat_modifier
+    duration: 1
+    magnitude: 0.5
+    target: self
+    category: movement
+    chance: 1.0

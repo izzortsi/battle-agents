@@ -65,14 +65,18 @@ YOUR COMBAT PROFILE:
 - Enemies may counter-attack if you miss or they are skilled (scales with their HIT)
 
 COMBAT RULES:
-- You are on a 2D tile grid. Coordinates are (x, y).
+- You are on a 2D tile grid. Coordinates are (x, y). Some tiles are impassable \
+(pillars, walls, furniture) — you cannot move through them.
 - Each turn you choose a PRIMARY action: attack, defend, ability, or wait.
 - You may also MOVE before OR after your primary action by including "target_tile". \
 Movement is FREE — you choose whether to move first then act, or act first then \
-reposition. Set "move_order" to "before" (default) or "after".
+reposition. Set "move_order" to "before" (default) or "after". \
+You MUST pick a tile from the MOVE options listed under AVAILABLE ACTIONS — \
+those are the passable, unoccupied tiles within your move range.
 - ATTACK is your basic attack. You can only attack targets within your attack \
 range ({attack_range} tiles, Manhattan distance). Attacks can MISS, CRIT, or be COUNTERED. \
-If the target is out of range, move toward them AND attack in the same turn.
+You can ONLY attack targets listed under "ATTACK targets" — those are in range. \
+If no targets are in range, MOVE closer this turn and WAIT, CHAT, or DEFEND; attack next turn.
 - ABILITY uses a special ability (costs mana, has cooldown). Abilities can deal \
 damage, apply status effects, heal, or buff. Include "ability_name" and \
 "target_agent" (omit target_agent for self-targeting abilities like \
@@ -98,15 +102,17 @@ Use DEFEND only when badly wounded and enemies are far away.
 alliance offers, coordination, or warnings. Use it when relationships matter — \
 but don't waste turns talking when you should be fighting.
 
-PRIORITY ORDER: Ability (if impactful, move to reposition first) > Attack \
-threats/enemies (move toward them first) > Defend (if hurt) > Chat (if socially useful). \
-Avoid attacking allies unless they betray you.
+PRIORITY ORDER: Ability (if in range, move to reposition first) > Attack \
+threats/enemies (if in range) > Move toward enemies + Wait/Chat/Defend (if out of range) > \
+Defend (if hurt) > Chat (if socially useful). \
+Avoid attacking allies unless they betray you. NEVER attack or use abilities on \
+targets not listed under ATTACK targets or ABILITY options — they are out of range.
 
 Respond with a JSON object. No other text. The JSON must have this exact schema:
 {{
   "reasoning": "<your internal tactical reasoning, 1-3 sentences, in character>",
   "action": "<one of: attack, defend, ability, wait>",
-  "target_tile": "<(x, y) format, optional — move to this adjacent tile>",
+  "target_tile": "<(x, y) format, optional — MUST be one of the listed MOVE tiles>",
   "move_order": "<'before' or 'after', optional — when to move relative to your action, default 'before'>",
   "target_agent": "<agent_id, required for attack/ability targeting an enemy, omit for self-targeting abilities>",
   "ability_name": "<name of ability, required for ability action, omit otherwise>",
@@ -145,10 +151,13 @@ AVAILABLE ACTIONS:
 
 REMEMBER: Engage threats aggressively. Each combatant is labelled ALLIED, \
 NEUTRAL, or HOSTILE — this reflects mutual standing, not just your feelings. \
-Attack HOSTILE and NEUTRAL threats. Do NOT attack ALLIED combatants unless \
+Attack HOSTILE and NEUTRAL threats, but ONLY if they appear under ATTACK targets \
+or ABILITY options (meaning they are in range). If no enemies are in range, \
+MOVE toward them (pick a tile from the MOVE list) and WAIT, CHAT, or DEFEND — do NOT attempt \
+to attack out-of-range targets. Do NOT attack ALLIED combatants unless \
 they betray you. Use abilities when impactful — but beware AoE friendly fire \
-on allies. You can MOVE AND ACT in the same turn — include target_tile to \
-move before or after your action (set move_order to "before" or "after"). \
+on allies. Include target_tile to move before or after your action \
+(set move_order to "before" or "after"). \
 Defend only if critically wounded. Chat to coordinate with allies or intimidate foes.
 Choose your action. Respond with JSON only."""
 
@@ -270,10 +279,17 @@ def format_visible_enemies(
     lines = []
     for e in enemies:
         hp_pct = int(100 * e["hp"] / e["max_hp"]) if e["max_hp"] > 0 else 0
-        in_range = "IN RANGE" if e.get("in_attack_range") else ""
         dmg_type = e.get("damage_type", "physical")
         phys_def = e.get("phys_def", "?")
         mag_def = e.get("mag_def", "?")
+
+        # Skill-oriented range tags
+        reachable = e.get("reachable_by", [])
+        if reachable:
+            range_str = f"reachable by: {', '.join(reachable)}"
+        else:
+            range_str = "OUT OF RANGE (move closer)"
+
         disp_str = ""
         if alliance_statuses and e["agent_id"] in alliance_statuses:
             status = alliance_statuses[e["agent_id"]]
@@ -301,7 +317,7 @@ def format_visible_enemies(
             f"  - {e['name']} ({e['agent_id']}) at ({e['x']}, {e['y']}), "
             f"distance {e['distance']}, HP {e['hp']}/{e['max_hp']} ({hp_pct}%), "
             f"deals {dmg_type} dmg, pDef {phys_def} / mDef {mag_def} "
-            f"{in_range}{disp_str}"
+            f"| {range_str}{disp_str}"
         )
     return "\n".join(lines)
 
@@ -331,11 +347,9 @@ def format_available_actions(
     """Format the set of available actions for the prompt."""
     lines = []
     if can_move:
-        # Show up to 6 move options to avoid prompt bloat
-        display = can_move[:6]
-        extra = f" (+{len(can_move) - 6} more)" if len(can_move) > 6 else ""
+        # Show all move options so the LLM picks only valid tiles
         lines.append(
-            f"  MOVE (free, before or after your action): {', '.join(display)}{extra}"
+            f"  MOVE (free, before or after your action): {', '.join(can_move)}"
         )
     if can_ability:
         lines.append(f"  ABILITY options: {', '.join(can_ability)}")

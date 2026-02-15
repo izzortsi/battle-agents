@@ -92,6 +92,16 @@ def _gather_context(
         ox, oy = BattleGrid.parse_tile(other_pos)
         dist = BattleGrid.manhattan(ax, ay, ox, oy)
         in_range = dist <= agent.attributes.attack_range
+
+        # Compute which skills can reach this target
+        reachable_by: list[str] = []
+        if in_range:
+            reachable_by.append("attack")
+        for ab in agent.attributes.get_ready_abilities():
+            ab_range = ab.get("range", 1)
+            if dist <= ab_range:
+                reachable_by.append(ab["name"])
+
         visible_enemies.append(
             {
                 "name": other.identity.name,
@@ -105,6 +115,7 @@ def _gather_context(
                 "phys_def": other.attributes.phys_def,
                 "mag_def": other.attributes.mag_def,
                 "in_attack_range": in_range,
+                "reachable_by": reachable_by,
             }
         )
         # Social disposition lookup
@@ -120,9 +131,12 @@ def _gather_context(
     # Alliance statuses (formal mutual labels from the resolver)
     alliance_statuses = env.get_all_alliance_statuses(agent.agent_id)
 
-    # Available move tiles (adjacent, passable, unoccupied)
+    # Available move tiles (within move range, passable, unoccupied)
+    move_range = agent.attributes.move_range
     can_move: list[str] = []
-    for tx, ty in env.grid.adjacent_tiles(ax, ay):
+    for tx, ty in env.grid.tiles_in_range(ax, ay, move_range):
+        if tx == ax and ty == ay:
+            continue  # skip current position
         tile_key = BattleGrid.tile_key(tx, ty)
         occupants = env.world_state.agents_at(tile_key)
         living_occ = [
@@ -244,11 +258,25 @@ def _resolve_chat_target(target: str, agent: Agent, env: Environment) -> str | N
 
 def _parse_move(raw: dict, agent: Agent) -> CombatAction | None:
     """Extract an optional move action from target_tile.  Returns None if absent."""
-    tile_str = raw.get("target_tile", "")
-    if not tile_str:
+    tile_val = raw.get("target_tile", "")
+    if not tile_val:
         return None
-    # Normalise: accept "3_5", "(3, 5)", "3,5", etc.
-    tile_str = tile_str.strip().strip("()")
+    # LLMs sometimes put an agent id or "null"/"none" in target_tile
+    if isinstance(tile_val, str) and tile_val.strip().lower() in ("null", "none", ""):
+        return None
+    # LLMs sometimes return a list like [3, 5] instead of "3,5"
+    if isinstance(tile_val, (list, tuple)):
+        if len(tile_val) == 2:
+            try:
+                tx, ty = int(tile_val[0]), int(tile_val[1])
+                tile_key = BattleGrid.tile_key(tx, ty)
+                return make_move(agent.agent_id, tile_key, raw.get("reasoning", ""))
+            except (ValueError, TypeError):
+                pass
+        log.warning(f"{agent.name}: invalid move tile '{tile_val}', skipping move")
+        return None
+    # Normalise strings: accept "3_5", "(3, 5)", "3,5", etc.
+    tile_str = str(tile_val).strip().strip("()")
     parts = [p.strip() for p in tile_str.replace("_", ",").split(",")]
     if len(parts) == 2:
         try:
@@ -436,6 +464,12 @@ def _parse_action(
     chat_action: CombatAction | None = None
     chat_target = raw.get("chat_target", "")
     chat_message = raw.get("chat_message", "")
+
+    # LLMs sometimes emit JSON null / the string "null" / "none"
+    if isinstance(chat_target, str) and chat_target.lower() in ("null", "none", ""):
+        chat_target = ""
+    if isinstance(chat_message, str) and chat_message.lower() in ("null", "none"):
+        chat_message = ""
 
     if chat_target and chat_message:
         resolved = _resolve_chat_target(chat_target, agent, env)

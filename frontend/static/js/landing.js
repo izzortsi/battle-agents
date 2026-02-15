@@ -13,6 +13,10 @@ class LandingPage {
     this._spritePresets = [];  // available sprite presets from /api/sprites
     this._spriteAssignments = this._loadSpriteAssignments(); // char_id -> preset_id
 
+    // Campaign state
+    this._campaigns = [];
+    this._activeCampaignId = null;  // null = standalone mode
+
     this.el = document.getElementById('landing-page');
     this._initDOM();
     this._fetchData();
@@ -46,6 +50,16 @@ class LandingPage {
           </div>
         </div>
       </div>
+      <div class="campaign-section" id="campaign-section">
+        <h3>Campaign Mode</h3>
+        <div class="campaign-controls">
+          <input type="text" id="campaign-name" placeholder="New campaign name...">
+          <button class="btn-campaign-create" id="btn-campaign-create">Create</button>
+          <button class="btn-campaign-exit" id="btn-campaign-exit" style="display:none">Exit Campaign</button>
+        </div>
+        <div class="campaign-list" id="campaign-list"></div>
+        <div class="campaign-roster" id="campaign-roster" style="display:none"></div>
+      </div>
       <div class="lore-section">
         <h3>World Lore (optional)</h3>
         <textarea id="lore-prompt" placeholder="Describe the world or setting for this battle..."></textarea>
@@ -61,18 +75,22 @@ class LandingPage {
 
     document.getElementById('btn-generate').addEventListener('click', () => this._generateCharacter());
     document.getElementById('btn-begin').addEventListener('click', () => this._beginBattle());
+    document.getElementById('btn-campaign-create').addEventListener('click', () => this._createCampaign());
+    document.getElementById('btn-campaign-exit').addEventListener('click', () => this._exitCampaign());
   }
 
   async _fetchData() {
     try {
-      const [charsRes, modelsRes, spritesRes] = await Promise.all([
+      const [charsRes, modelsRes, spritesRes, campaignsRes] = await Promise.all([
         fetch('/api/characters'),
         fetch('/api/models'),
         fetch('/api/sprites'),
+        fetch('/api/campaigns'),
       ]);
       this._characters = await charsRes.json();
       this._models = await modelsRes.json();
       this._spritePresets = await spritesRes.json();
+      this._campaigns = await campaignsRes.json();
 
       // Select all characters by default
       for (const c of this._characters) {
@@ -106,6 +124,7 @@ class LandingPage {
 
       this._renderRoster();
       this._renderModels();
+      this._renderCampaigns();
     } catch (e) {
       console.error('Failed to fetch landing data:', e);
       document.getElementById('char-roster').innerHTML =
@@ -297,7 +316,251 @@ class LandingPage {
     }
   }
 
+  // ===== Campaign methods =====
+
+  _renderCampaigns() {
+    const list = document.getElementById('campaign-list');
+    list.innerHTML = '';
+
+    if (this._campaigns.length === 0) {
+      list.innerHTML = '<div class="campaign-empty">No campaigns yet. Create one above.</div>';
+      return;
+    }
+
+    for (const c of this._campaigns) {
+      const item = document.createElement('div');
+      item.className = 'campaign-item' + (this._activeCampaignId === c.id ? ' active' : '');
+      item.innerHTML = `
+        <div class="campaign-item-info">
+          <span class="campaign-item-name">${this._esc(c.name)}</span>
+          <span class="campaign-item-meta">Battles: ${c.battle_count}</span>
+        </div>
+        <button class="campaign-item-delete" title="Delete campaign">&times;</button>
+      `;
+
+      item.querySelector('.campaign-item-info').addEventListener('click', () => {
+        this._selectCampaign(c.id);
+      });
+
+      item.querySelector('.campaign-item-delete').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm(`Delete campaign "${c.name}"? This cannot be undone.`)) return;
+        try {
+          await fetch(`/api/campaigns/${c.id}`, { method: 'DELETE' });
+          if (this._activeCampaignId === c.id) this._exitCampaign();
+          this._campaigns = this._campaigns.filter(x => x.id !== c.id);
+          this._renderCampaigns();
+        } catch (err) {
+          console.error('Failed to delete campaign:', err);
+        }
+      });
+
+      list.appendChild(item);
+    }
+  }
+
+  async _selectCampaign(campaignId) {
+    this._activeCampaignId = campaignId;
+
+    // Fetch full campaign data
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      this._activeCampaignData = await res.json();
+    } catch (err) {
+      console.error('Failed to fetch campaign:', err);
+      this._activeCampaignId = null;
+      return;
+    }
+
+    // Update UI state
+    document.getElementById('landing-chars').style.display = 'none';
+    document.getElementById('btn-campaign-exit').style.display = '';
+    this._renderCampaigns();
+    this._renderCampaignRoster();
+    this._updateBeginButton();
+  }
+
+  _exitCampaign() {
+    this._activeCampaignId = null;
+    this._activeCampaignData = null;
+    document.getElementById('landing-chars').style.display = '';
+    document.getElementById('btn-campaign-exit').style.display = 'none';
+    document.getElementById('campaign-roster').style.display = 'none';
+    this._renderCampaigns();
+    this._updateBeginButton();
+  }
+
+  _renderCampaignRoster() {
+    const container = document.getElementById('campaign-roster');
+    if (!this._activeCampaignData) {
+      container.style.display = 'none';
+      return;
+    }
+
+    container.style.display = '';
+    container.innerHTML = '';
+
+    const data = this._activeCampaignData;
+
+    // Campaign header
+    const header = document.createElement('div');
+    header.className = 'campaign-roster-header';
+    const alive = data.roster.filter(r => r.alive).length;
+    header.innerHTML = `
+      <div class="campaign-roster-title">${this._esc(data.name)}</div>
+      <div class="campaign-roster-meta">
+        Battle #${data.battle_count + 1} | Roster: ${alive}/${data.roster.length} alive
+      </div>
+    `;
+    container.appendChild(header);
+
+    // Roster entries
+    for (const r of data.roster) {
+      const entry = document.createElement('div');
+      entry.className = 'campaign-roster-entry' + (r.alive ? '' : ' dead');
+
+      // Sprite preview
+      const spriteHtml = r.sprite
+        ? `<div class="char-sprite-preview" style="background-image:url(/static/assets/spritesheets/${this._esc(r.sprite)}.png)"></div>`
+        : '';
+
+      // XP bar
+      const xpPct = r.xp_to_next > 0 ? Math.min(100, (r.xp / r.xp_to_next) * 100) : 100;
+
+      entry.innerHTML = `
+        ${spriteHtml}
+        <div class="campaign-roster-info">
+          <div class="campaign-roster-name">
+            ${this._esc(r.name)}
+            <span class="campaign-roster-level">Lv.${r.level}</span>
+            ${!r.alive ? '<span class="campaign-roster-dead-tag">DEAD</span>' : ''}
+          </div>
+          <div class="campaign-roster-class">${this._esc(r.combat_class)}</div>
+          <div class="campaign-roster-xp">
+            <div class="xp-bar"><div class="xp-bar-fill" style="width:${xpPct}%"></div></div>
+            <span class="xp-label">${r.xp}/${r.xp_to_next} XP</span>
+          </div>
+          <div class="campaign-roster-stats">
+            ATK:${r.atk} MGK:${r.mgk} SPD:${r.spd} CON:${r.con} HIT:${r.hit}
+          </div>
+        </div>
+      `;
+
+      container.appendChild(entry);
+    }
+
+    // Battle history summary
+    if (data.battles && data.battles.length > 0) {
+      const historySection = document.createElement('div');
+      historySection.className = 'campaign-history';
+      historySection.innerHTML = '<div class="campaign-history-title">Battle History</div>';
+
+      for (const b of data.battles.slice(-5).reverse()) {
+        const bDiv = document.createElement('div');
+        bDiv.className = 'campaign-history-entry';
+        const winners = b.winner_ids || [];
+        const deaths = b.death_ids || [];
+        bDiv.innerHTML = `
+          <span class="campaign-history-num">#${b.battle_num}</span>
+          <span class="campaign-history-detail">
+            ${b.rounds} rounds | ${winners.length} winner${winners.length !== 1 ? 's' : ''} | ${deaths.length} death${deaths.length !== 1 ? 's' : ''}
+          </span>
+        `;
+        historySection.appendChild(bDiv);
+      }
+
+      container.appendChild(historySection);
+    }
+  }
+
+  _updateBeginButton() {
+    const btn = document.getElementById('btn-begin');
+    if (this._activeCampaignId && this._activeCampaignData) {
+      const alive = this._activeCampaignData.roster.filter(r => r.alive).length;
+      if (alive < 2) {
+        btn.textContent = 'Campaign Over (< 2 alive)';
+        btn.disabled = true;
+      } else {
+        btn.textContent = `Begin Campaign Battle #${this._activeCampaignData.battle_count + 1}`;
+        btn.disabled = false;
+      }
+    } else {
+      btn.textContent = 'Begin Battle';
+      btn.disabled = false;
+    }
+  }
+
+  async _createCampaign() {
+    const nameInput = document.getElementById('campaign-name');
+    const name = nameInput.value.trim();
+    if (!name) {
+      alert('Enter a campaign name.');
+      return;
+    }
+
+    const selectedChars = Array.from(this._selectedIds);
+    if (selectedChars.length < 2) {
+      alert('Select at least 2 characters for the campaign roster.');
+      return;
+    }
+
+    const createBtn = document.getElementById('btn-campaign-create');
+    createBtn.disabled = true;
+    createBtn.textContent = 'Creating...';
+
+    try {
+      const res = await fetch('/api/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, character_ids: selectedChars }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      nameInput.value = '';
+
+      // Refresh campaigns list and select the new one
+      const listRes = await fetch('/api/campaigns');
+      this._campaigns = await listRes.json();
+      await this._selectCampaign(data.id);
+    } catch (err) {
+      console.error('Failed to create campaign:', err);
+      alert('Failed to create campaign.');
+    } finally {
+      createBtn.disabled = false;
+      createBtn.textContent = 'Create';
+    }
+  }
+
   _beginBattle() {
+    // Campaign mode
+    if (this._activeCampaignId && this._activeCampaignData) {
+      const alive = this._activeCampaignData.roster.filter(r => r.alive).length;
+      if (alive < 2) {
+        alert('Not enough alive characters to battle.');
+        return;
+      }
+
+      const btn = document.getElementById('btn-begin');
+      btn.disabled = true;
+      btn.textContent = 'Starting...';
+
+      const lorePrompt = document.getElementById('lore-prompt').value.trim();
+
+      const config = {
+        type: 'configure',
+        campaign_id: this._activeCampaignId,
+        lore_prompt: lorePrompt,
+        models: Object.keys(this._modelOverrides).length > 0 ? this._modelOverrides : null,
+      };
+
+      this._onBeginBattle(config);
+      return;
+    }
+
+    // Standalone mode
     const selectedChars = Array.from(this._selectedIds);
     if (selectedChars.length < 2) {
       alert('Select at least 2 characters.');
