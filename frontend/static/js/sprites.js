@@ -636,7 +636,22 @@ function createGridDecorations(layerHighlights, gridW, gridH, tiles, svgRoot) {
     }
   }
 
-  // --- Large rune glyphs scattered across the arena ---
+  // --- Large rune glyphs (arena only — skip for tavern/social maps) ---
+  // Detect arena by checking for pillar or rune tiles
+  let isArena = false;
+  if (tiles) {
+    for (let y = 0; y < gridH && !isArena; y++) {
+      for (let x = 0; x < gridW && !isArena; x++) {
+        const t = tiles[y] && tiles[y][x];
+        if (t === 'pillar' || t === 'rune' || t === 'cracked') isArena = true;
+      }
+    }
+  }
+
+  if (!isArena) {
+    // Skip rune decorations for non-arena maps (tavern, etc.)
+    // Still apply vignette below.
+  } else {
   // 4 corner runes (large, each a different glyph design)
   const cornerInset = CELL_SIZE * 1.0;
   const cornerSize = CELL_SIZE * 1.5;
@@ -668,6 +683,7 @@ function createGridDecorations(layerHighlights, gridW, gridH, tiles, svgRoot) {
       _drawLargeRune(layerHighlights, cx, cy, midRuneSize, gIdx, '#8878ee', 0.28);
     }
   }
+  } // end isArena rune block
 
   // --- Edge vignette: radial gradient mask for depth ---
   const defsEl = svgRoot.querySelector('#svg-defs');

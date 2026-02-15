@@ -494,18 +494,8 @@ class SimRunner:
                 cog["reasoning"] = decision.primary_action.reasoning
                 await self._broadcast(cog)
 
-                # Resolve optional move prefix
-                if decision.move_action:
-                    move_result = self._env.resolve_action(decision.move_action)
-                    if move_result.success:
-                        move_event = serialize_action_event(
-                            decision.move_action, move_result, self._env
-                        )
-                        await self._broadcast(move_event)
-
                 primary = decision.primary_action
                 if primary.action_type == ActionType.MOVE:
-                    # Legacy: LLM said "move" as primary — already handled above
                     result = self._env.resolve_action(primary)
                     event = serialize_action_event(primary, result, self._env)
                     await self._broadcast(event)
