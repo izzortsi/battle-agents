@@ -1,0 +1,60 @@
+name: Marduk
+combat_class: Infernal Witch
+sprite: Witch
+backstory: Marduk was once a respected alchemist, but a catastrophic experiment with
+  volatile reagents fused infernal energy to her very being, twisting her mind and
+  body. Now, she sees the world as kindling, eager to unleash the purifying (in her
+  eyes) embrace of fire upon all who oppose her. She enters the arena not for glory,
+  but to sate the burning chaos within, seeking ever-larger conflagrations.
+personality_traits:
+- Manic
+- Destructive
+- Cackling
+- Unpredictable
+- Obsessed with fire
+attributes:
+  atk: 5
+  mgk: 18
+  spd: 10
+  con: 12
+  hit: 14
+  attack_range: 3
+abilities:
+- name: Inferno Burst
+  mana_cost: 8
+  damage: 15
+  range: 3
+  aoe_pattern: radius
+  cooldown: 4
+  current_cd: 0
+  description: Marduk unleashes a swirling vortex of arcane flames, incinerating all
+    within a small area.
+  tactical_hint: Use this ability to heavily damage multiple clustered enemies, especially
+    after they've been debuffed by other fire effects.
+  effects:
+  - type: burn
+    behavior: damage_over_time
+    duration: 2
+    magnitude: 0.08
+    target: enemy
+    category: debuff
+    chance: 0.75
+- name: Cackling Immolation
+  mana_cost: 5
+  damage: 8
+  range: 2
+  aoe_pattern: line
+  cooldown: 3
+  current_cd: 0
+  description: Marduk cackles maniacally as she projects a searing line of fire, leaving
+    enemies disoriented.
+  tactical_hint: Cast this to hit multiple enemies in a row and apply a debilitating
+    debuff, setting them up for further damage.
+  effects:
+  - type: blind
+    behavior: miss_chance
+    duration: 1
+    magnitude: 0.3
+    target: enemy
+    category: debuff
+    chance: 0.8

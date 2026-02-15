@@ -89,12 +89,29 @@ def load_character_summaries(directory: str | Path | None = None) -> list[dict]:
     summaries = []
     for p in sorted(d.glob("*.yaml")):
         data = load_yaml(p)
-        summaries.append({
-            "id": data["name"].lower().replace(" ", "_"),
-            "name": data["name"],
-            "combat_class": data.get("combat_class", "warrior"),
-            "backstory": data.get("backstory", ""),
-            "personality_traits": data.get("personality_traits", []),
-            "sprite": data.get("sprite", ""),
-        })
+        summaries.append(
+            {
+                "id": data["name"].lower().replace(" ", "_"),
+                "name": data["name"],
+                "combat_class": data.get("combat_class", "warrior"),
+                "backstory": data.get("backstory", ""),
+                "personality_traits": data.get("personality_traits", []),
+                "sprite": data.get("sprite", ""),
+            }
+        )
     return summaries
+
+
+def delete_character(character_id: str, directory: str | Path | None = None) -> bool:
+    """Delete a character YAML by its derived id.
+
+    Returns True if deleted, False if not found.
+    """
+    d = Path(directory) if directory else CONFIG_DIR / "characters"
+    for p in d.glob("*.yaml"):
+        data = load_yaml(p)
+        cid = data["name"].lower().replace(" ", "_")
+        if cid == character_id:
+            p.unlink()
+            return True
+    return False

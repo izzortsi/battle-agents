@@ -81,8 +81,12 @@ def _gather_context(
     # Visible enemies with distance and in-range info
     visible_enemies: list[dict] = []
     can_attack: list[str] = []
+    can_attack_after_move: list[str] = []
     can_chat: list[str] = []
     social_dispositions: dict[str, float] = {}
+
+    move_range = agent.attributes.move_range
+    atk_range = agent.attributes.attack_range
 
     for other in env.alive_agents():
         if other.agent_id == agent.agent_id:
@@ -92,17 +96,25 @@ def _gather_context(
             continue
         ox, oy = BattleGrid.parse_tile(other_pos)
         dist = BattleGrid.manhattan(ax, ay, ox, oy)
-        in_range = dist <= agent.attributes.attack_range
+        in_range = dist <= atk_range
 
-        # Compute which skills can reach this target
+        # Compute which skills can reach this target NOW vs AFTER moving
         reachable_by: list[str] = []
+        reachable_after_move: list[str] = []
+
         if in_range:
             reachable_by.append("attack")
+        elif dist <= atk_range + move_range:
+            reachable_after_move.append("attack")
+
         for ab in agent.attributes.get_ready_abilities():
             ab_range = ab.get("range", 1)
             if dist <= ab_range:
                 reachable_by.append(ab["name"])
+            elif dist <= ab_range + move_range:
+                reachable_after_move.append(ab["name"])
 
+        label = f"{other.identity.name} ({other.agent_id})"
         visible_enemies.append(
             {
                 "name": other.identity.name,
@@ -117,6 +129,7 @@ def _gather_context(
                 "mag_def": other.attributes.mag_def,
                 "in_attack_range": in_range,
                 "reachable_by": reachable_by,
+                "reachable_after_move": reachable_after_move,
             }
         )
         # Social disposition lookup
@@ -124,10 +137,12 @@ def _gather_context(
             other.agent_id
         )
         if in_range:
-            can_attack.append(f"{other.identity.name} ({other.agent_id})")
+            can_attack.append(label)
+        elif dist <= atk_range + move_range:
+            can_attack_after_move.append(label)
         # Can chat within speak radius (yelling distance in combat)
         if dist <= env.chat_speak_radius:
-            can_chat.append(f"{other.identity.name} ({other.agent_id})")
+            can_chat.append(label)
 
     # Alliance statuses (formal mutual labels from the resolver)
     alliance_statuses = env.get_all_alliance_statuses(agent.agent_id)
@@ -162,14 +177,20 @@ def _gather_context(
         alliance_statuses=alliance_statuses,
     )
 
+    can_ability, can_ability_after_move = _compute_can_ability(
+        agent, env, ax, ay, move_range
+    )
+
     return {
         "ax": ax,
         "ay": ay,
         "visible_enemies": visible_enemies,
         "can_attack": can_attack,
+        "can_attack_after_move": can_attack_after_move,
         "can_move": can_move,
         "can_chat": can_chat,
-        "can_ability": _compute_can_ability(agent, env, ax, ay),
+        "can_ability": can_ability,
+        "can_ability_after_move": can_ability_after_move,
         "social_dispositions": social_dispositions,
         "alliance_statuses": alliance_statuses,
         "eliminated": eliminated,
@@ -182,19 +203,23 @@ def _compute_can_ability(
     env: Environment,
     ax: int,
     ay: int,
-) -> list[str]:
+    move_range: int = 0,
+) -> tuple[list[str], list[str]]:
     """Compute which abilities the agent can use and against whom.
 
-    Returns a list of display strings like:
+    Returns (in_range_now, reachable_after_move) — each a list of display
+    strings like:
       "Berserker Slash -> Kael (kael), Lyra (lyra)"
       "Divine Light -> self"
       "Mending Touch -> [ALLY] Kael (kael)"
     """
     ready = agent.attributes.get_ready_abilities()
     if not ready:
-        return []
+        return [], []
 
     result: list[str] = []
+    result_after_move: list[str] = []
+
     for ability in ready:
         ab_range = ability.get("range", 1)
         effects = ability.get("effects", [])
@@ -235,8 +260,9 @@ def _compute_can_ability(
             if allies_in_range:
                 result.append(f"{ability['name']} -> {', '.join(allies_in_range)}")
         else:
-            # Find valid targets in range
-            targets_in_range: list[str] = []
+            # Find valid targets in range now vs after moving
+            targets_now: list[str] = []
+            targets_after: list[str] = []
             for other in env.alive_agents():
                 if other.agent_id == agent.agent_id:
                     continue
@@ -246,12 +272,17 @@ def _compute_can_ability(
                 ox, oy = BattleGrid.parse_tile(other_pos)
                 dist = BattleGrid.manhattan(ax, ay, ox, oy)
                 if dist <= ab_range:
-                    targets_in_range.append(f"{other.identity.name} ({other.agent_id})")
-            if targets_in_range:
-                result.append(f"{ability['name']} -> {', '.join(targets_in_range)}")
-            # If no targets in range, don't list this ability
+                    targets_now.append(f"{other.identity.name} ({other.agent_id})")
+                elif dist <= ab_range + move_range:
+                    targets_after.append(f"{other.identity.name} ({other.agent_id})")
+            if targets_now:
+                result.append(f"{ability['name']} -> {', '.join(targets_now)}")
+            if targets_after:
+                result_after_move.append(
+                    f"{ability['name']} -> {', '.join(targets_after)}"
+                )
 
-    return result
+    return result, result_after_move
 
 
 def _resolve_chat_target(target: str, agent: Agent, env: Environment) -> str | None:
@@ -560,6 +591,8 @@ def decide(
         alliance_statuses=ctx.get("alliance_statuses"),
         eliminated=ctx.get("eliminated"),
         perception_map=ctx.get("perception_map", ""),
+        can_attack_after_move=ctx.get("can_attack_after_move"),
+        can_ability_after_move=ctx.get("can_ability_after_move"),
     )
 
     # Call LLM
@@ -649,6 +682,8 @@ async def async_decide(
         alliance_statuses=ctx.get("alliance_statuses"),
         eliminated=ctx.get("eliminated"),
         perception_map=ctx.get("perception_map", ""),
+        can_attack_after_move=ctx.get("can_attack_after_move"),
+        can_ability_after_move=ctx.get("can_ability_after_move"),
     )
 
     try:

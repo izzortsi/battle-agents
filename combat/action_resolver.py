@@ -65,6 +65,43 @@ def resolve(action: CombatAction, env: "Environment") -> "ActionResult":
             )
 
 
+def _find_nearest_unoccupied(
+    cx: int, cy: int, tx: int, ty: int, agent, env: "Environment"
+) -> tuple[int, int] | None:
+    """Find the nearest passable, unoccupied tile to (tx, ty) within move range of (cx, cy).
+
+    Used as a fallback when the intended target tile is occupied.
+    Picks the candidate closest to the intended destination so the agent
+    still moves in the right direction.
+    """
+    move_range = agent.attributes.move_range
+    candidates: list[tuple[int, int, int]] = []  # (dist_to_target, nx, ny)
+    for dx in range(-move_range, move_range + 1):
+        for dy in range(-move_range, move_range + 1):
+            if abs(dx) + abs(dy) > move_range:
+                continue
+            nx, ny = cx + dx, cy + dy
+            if nx == cx and ny == cy:
+                continue  # skip current position
+            if not env.grid.is_passable(nx, ny):
+                continue
+            tile_key = BattleGrid.tile_key(nx, ny)
+            occupants = env.world_state.agents_at(tile_key)
+            living = [
+                o
+                for o in occupants
+                if o != agent.agent_id and env.agents.get(o) and env.agents[o].is_alive
+            ]
+            if living:
+                continue
+            dist_to_target = BattleGrid.manhattan(nx, ny, tx, ty)
+            candidates.append((dist_to_target, nx, ny))
+    if not candidates:
+        return None
+    candidates.sort()  # closest to intended destination first
+    return candidates[0][1], candidates[0][2]
+
+
 def _resolve_move(action: CombatAction, env: "Environment") -> "ActionResult":
     from world.environment import ActionResult
 
@@ -119,10 +156,28 @@ def _resolve_move(action: CombatAction, env: "Environment") -> "ActionResult":
         and env.agents[oid].is_alive
     ]
     if living_occupants:
+        # Fallback: find nearest unoccupied tile toward the intended destination
+        fallback = _find_nearest_unoccupied(cx, cy, tx, ty, agent, env)
+        if fallback:
+            fx, fy = fallback
+            fallback_key = BattleGrid.tile_key(fx, fy)
+            env.world_state.set_position(agent.agent_id, fallback_key)
+            return ActionResult(
+                agent.agent_id,
+                True,
+                (
+                    f"{agent.name} moved from ({cx},{cy}) to ({fx},{fy}) "
+                    f"(({tx},{ty}) occupied by {living_occupants[0]})."
+                ),
+                details={"from": current, "to": fallback_key},
+            )
         return ActionResult(
             agent.agent_id,
             False,
-            f"{agent.name} tried to move to ({tx},{ty}) but it's occupied by {living_occupants[0]}.",
+            (
+                f"{agent.name} tried to move to ({tx},{ty}) but it's occupied "
+                f"by {living_occupants[0]} and no nearby tile was available."
+            ),
         )
 
     env.world_state.set_position(agent.agent_id, action.target_tile)

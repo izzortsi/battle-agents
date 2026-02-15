@@ -79,6 +79,34 @@
   accent-color: var(--accent-green);
 }
 
+.char-delete-btn {
+  width: 22px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.char-roster-item:hover .char-delete-btn {
+  opacity: 1;
+}
+
+.char-delete-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .char-roster-info {
   flex: 1;
   min-width: 0;

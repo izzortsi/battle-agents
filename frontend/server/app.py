@@ -144,6 +144,18 @@ async def list_characters():
     return load_character_summaries()
 
 
+@app.delete("/api/characters/{character_id}")
+async def delete_character(character_id: str):
+    """Delete a character YAML file by id."""
+    from config_loader import delete_character as _delete
+
+    if _delete(character_id):
+        return {"ok": True}
+    from fastapi import HTTPException
+
+    raise HTTPException(status_code=404, detail="Character not found")
+
+
 @app.get("/api/models")
 async def list_models():
     """Return available model adapters and current routing config."""

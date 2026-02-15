@@ -157,7 +157,26 @@ class LandingPage {
           <div class="char-roster-class">${this._esc(c.combat_class)}</div>
           <div class="char-roster-backstory">${this._esc(c.backstory)}</div>
         </div>
+        <button class="char-delete-btn" title="Delete character">&times;</button>
       `;
+
+      div.querySelector('.char-delete-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm(`Delete "${c.name}"? This cannot be undone.`)) return;
+        try {
+          const res = await fetch(`/api/characters/${encodeURIComponent(c.id)}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          this._selectedIds.delete(c.id);
+          this._characters = this._characters.filter(x => x.id !== c.id);
+          this._generated = this._generated.filter(x => x.id !== c.id);
+          delete this._spriteAssignments[c.id];
+          this._saveSpriteAssignments();
+          this._renderRoster();
+        } catch (err) {
+          console.error('Failed to delete character:', err);
+          alert('Failed to delete character.');
+        }
+      });
 
       // Sprite selector dropdown (only if presets available)
       // Characters with a sprite from YAML/generation get a locked display.
@@ -206,7 +225,7 @@ class LandingPage {
 
       const checkbox = div.querySelector('input[type="checkbox"]');
       div.addEventListener('click', (e) => {
-        if (e.target.tagName === 'SELECT' || e.target.tagName === 'OPTION') return;
+        if (e.target.tagName === 'SELECT' || e.target.tagName === 'OPTION' || e.target.tagName === 'BUTTON') return;
         if (e.target !== checkbox) {
           checkbox.checked = !checkbox.checked;
         }

@@ -75,8 +75,10 @@ You MUST pick a tile from the MOVE options listed under AVAILABLE ACTIONS — \
 those are the passable, unoccupied tiles within your move range.
 - ATTACK is your basic attack. You can only attack targets within your attack \
 range ({attack_range} tiles, Manhattan distance). Attacks can MISS, CRIT, or be COUNTERED. \
-You can ONLY attack targets listed under "ATTACK targets" — those are in range. \
-If no targets are in range, MOVE closer this turn and WAIT, CHAT, or DEFEND; attack next turn.
+Targets listed under "ATTACK (in range now)" can be attacked without moving. \
+Targets under "ATTACK (move first)" require you to MOVE toward them first — \
+include target_tile and set move_order to "before". \
+If a target is "OUT OF RANGE even after moving", just MOVE closer and WAIT, CHAT, or DEFEND.
 - ABILITY uses a special ability (costs mana, has cooldown). Abilities can deal \
 damage, apply status effects, heal, or buff. Include "ability_name" and \
 "target_agent" (omit target_agent for self-targeting abilities like \
@@ -102,11 +104,14 @@ Use DEFEND only when badly wounded and enemies are far away.
 alliance offers, coordination, or warnings. Use it when relationships matter — \
 but don't waste turns talking when you should be fighting.
 
-PRIORITY ORDER: Ability (if in range, move to reposition first) > Attack \
-threats/enemies (if in range) > Move toward enemies + Wait/Chat/Defend (if out of range) > \
-Defend (if hurt) > Chat (if socially useful). \
-Avoid attacking allies unless they betray you. NEVER attack or use abilities on \
-targets not listed under ATTACK targets or ABILITY options — they are out of range.
+PRIORITY ORDER: Ability (move first if needed) > Attack threats/enemies \
+(move first if needed) > Defend (if critically wounded and no targets reachable) > \
+Move toward unreachable enemies + WAIT (ONLY if ALL targets are "OUT OF RANGE \
+even after moving") > Chat (if socially useful). \
+If ANY target is listed under "(in range now)" or "(move first)", you MUST \
+attack or use an ability — do NOT WAIT or DEFEND. \
+Avoid attacking allies unless they betray you. ONLY target combatants listed \
+under ATTACK or ABILITY sections — "(in range now)" or "(move first)".
 
 Respond with a JSON object. No other text. The JSON must have this exact schema:
 {{
@@ -154,14 +159,14 @@ AVAILABLE ACTIONS:
 
 REMEMBER: Engage threats aggressively. Each combatant is labelled ALLIED, \
 NEUTRAL, or HOSTILE — this reflects mutual standing, not just your feelings. \
-Attack HOSTILE and NEUTRAL threats, but ONLY if they appear under ATTACK targets \
-or ABILITY options (meaning they are in range). If no enemies are in range, \
-MOVE toward them (pick a tile from the MOVE list) and WAIT, CHAT, or DEFEND — do NOT attempt \
-to attack out-of-range targets. Do NOT attack ALLIED combatants unless \
+Attack HOSTILE and NEUTRAL threats. For "(move first)" targets, include \
+target_tile to move toward them first (move_order: "before"), then attack/ability. \
+If ANY target is "(in range now)" or "(move first)", you MUST attack or use \
+an ability on them — do NOT WAIT or DEFEND when you have reachable targets. \
+ONLY when ALL targets are "OUT OF RANGE even after moving" should you MOVE \
+closer and WAIT, CHAT, or DEFEND. Do NOT attack ALLIED combatants unless \
 they betray you. Use abilities when impactful — but beware AoE friendly fire \
-on allies. Include target_tile to move before or after your action \
-(set move_order to "before" or "after"). \
-Defend only if critically wounded. Chat to coordinate with allies or intimidate foes.
+on allies. Chat to coordinate or intimidate.
 Choose your action. Respond with JSON only."""
 
 
@@ -353,10 +358,15 @@ def format_visible_enemies(
 
         # Skill-oriented range tags
         reachable = e.get("reachable_by", [])
+        after_move = e.get("reachable_after_move", [])
         if reachable:
-            range_str = f"reachable by: {', '.join(reachable)}"
+            range_str = f"in range: {', '.join(reachable)}"
+            if after_move:
+                range_str += f"; after move: {', '.join(after_move)}"
+        elif after_move:
+            range_str = f"after move: {', '.join(after_move)}"
         else:
-            range_str = "OUT OF RANGE (move closer)"
+            range_str = "OUT OF RANGE even after moving"
 
         disp_str = ""
         if alliance_statuses and e["agent_id"] in alliance_statuses:
@@ -411,6 +421,8 @@ def format_available_actions(
     can_attack: list[str],
     can_chat: list[str],
     can_ability: list[str] | None = None,
+    can_attack_after_move: list[str] | None = None,
+    can_ability_after_move: list[str] | None = None,
 ) -> str:
     """Format the set of available actions for the prompt."""
     lines = []
@@ -420,9 +432,13 @@ def format_available_actions(
             f"  MOVE (free, before or after your action): {', '.join(can_move)}"
         )
     if can_ability:
-        lines.append(f"  ABILITY options: {', '.join(can_ability)}")
+        lines.append(f"  ABILITY (in range now): {', '.join(can_ability)}")
+    if can_ability_after_move:
+        lines.append(f"  ABILITY (move first): {', '.join(can_ability_after_move)}")
     if can_attack:
-        lines.append(f"  ATTACK targets: {', '.join(can_attack)}")
+        lines.append(f"  ATTACK (in range now): {', '.join(can_attack)}")
+    if can_attack_after_move:
+        lines.append(f"  ATTACK (move first): {', '.join(can_attack_after_move)}")
     lines.append("  DEFEND (raise defense this turn)")
     lines.append("  WAIT (do nothing)")
     if can_chat:
@@ -448,6 +464,8 @@ def build_user_prompt(
     alliance_statuses: dict[str, AllianceStatus] | None = None,
     eliminated: list[dict] | None = None,
     perception_map: str = "",
+    can_attack_after_move: list[str] | None = None,
+    can_ability_after_move: list[str] | None = None,
 ) -> str:
     """Build the user prompt with full situational context."""
     status_effects = agent.attributes.status_effects
@@ -501,6 +519,11 @@ def build_user_prompt(
         eliminated_section=format_eliminated(eliminated),
         perception_map=perception_map,
         available_actions=format_available_actions(
-            can_move, can_attack, can_chat, can_ability
+            can_move,
+            can_attack,
+            can_chat,
+            can_ability,
+            can_attack_after_move,
+            can_ability_after_move,
         ),
     )

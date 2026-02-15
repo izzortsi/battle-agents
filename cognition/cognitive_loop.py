@@ -999,9 +999,11 @@ class CognitiveLoop:
         combined_urgency = (
             f"YOUR PREVIOUS ACTION WAS INVALID: {error_feedback} "
             f"Choose a DIFFERENT, valid action. ONLY pick targets listed "
-            f"under ATTACK targets or ABILITY options — those are within "
-            f"range. If no targets are listed, MOVE closer with target_tile "
-            f"and WAIT, CHAT, or DEFEND."
+            f"under ATTACK or ABILITY sections — '(in range now)' or "
+            f"'(move first)'. For '(move first)' targets, include "
+            f"target_tile to move closer first. You MUST attack or use "
+            f"an ability if ANY target is reachable. Only WAIT/DEFEND "
+            f"if ALL targets are 'OUT OF RANGE even after moving'."
         )
         if urgency_text:
             combined_urgency = f"{combined_urgency} {urgency_text}"
@@ -1066,9 +1068,11 @@ class CognitiveLoop:
         combined_urgency = (
             f"YOUR PREVIOUS ACTION WAS INVALID: {error_feedback} "
             f"Choose a DIFFERENT, valid action. ONLY pick targets listed "
-            f"under ATTACK targets or ABILITY options — those are within "
-            f"range. If no targets are listed, MOVE closer with target_tile "
-            f"and WAIT, CHAT, or DEFEND."
+            f"under ATTACK or ABILITY sections — '(in range now)' or "
+            f"'(move first)'. For '(move first)' targets, include "
+            f"target_tile to move closer first. You MUST attack or use "
+            f"an ability if ANY target is reachable. Only WAIT/DEFEND "
+            f"if ALL targets are 'OUT OF RANGE even after moving'."
         )
         if urgency_text:
             combined_urgency = f"{combined_urgency} {urgency_text}"

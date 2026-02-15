@@ -840,6 +840,16 @@ def run_battle(
                     error_feedback=result.description,
                     urgency_text=urgency_text,
                 )
+                # Resolve the retry's move (before primary) so the agent
+                # can reposition before re-attempting the primary action.
+                if decision.move_action and not decision.move_after:
+                    mr = env.resolve_action(decision.move_action)
+                    if mr.success:
+                        log.info(f"  {mr.description}")
+                    else:
+                        log.warning(
+                            f"  {current.name}: retry move failed — {mr.description}"
+                        )
                 action = decision.primary_action
                 result = env.resolve_action(action)
 
@@ -1237,6 +1247,16 @@ async def async_run_battle(
                 error_feedback=result.description,
                 urgency_text=urgency_text,
             )
+            # Resolve the retry's move (before primary) so the agent
+            # can reposition before re-attempting the primary action.
+            if decision.move_action and not decision.move_after:
+                mr = env.resolve_action(decision.move_action)
+                if mr.success:
+                    log.info(f"  {mr.description}")
+                else:
+                    log.warning(
+                        f"  {current.name}: retry move failed — {mr.description}"
+                    )
             action = decision.primary_action
             result = env.resolve_action(action)
 
