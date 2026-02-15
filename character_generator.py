@@ -36,6 +36,38 @@ _VALID_AOE_PATTERNS = {"single", "line", "cross", "radius", "cone"}
 
 _STAT_KEYS = ("atk", "mgk", "spd", "con", "hit")
 
+# Sprite selection — maps keyword fragments found in combat_class to sprite
+# preset IDs.  Checked in order; first match wins.  Fallback is "Fighter".
+_SPRITE_KEYWORDS: list[tuple[str, str]] = [
+    ("archer", "Archer_Female"),
+    ("ranger", "Archer_Male"),
+    ("berserker", "Berserker"),
+    ("cleric", "Cleric"),
+    ("healer", "Cleric"),
+    ("priest", "Cleric"),
+    ("gunslinger", "Gunslinger"),
+    ("shadow", "Shadow_Mage"),
+    ("assassin", "Shadow_Mage"),
+    ("cat", "Cat_Shadowmage"),
+    ("witch", "Witch"),
+    ("wizard", "Wizard_1"),
+    ("mage", "Spirit_Mage"),
+    ("sorcerer", "Wizard_2"),
+    ("necromancer", "Ghost"),
+    ("ghost", "Ghost"),
+    ("spirit", "Spirit_Mage"),
+    ("rogue", "Ghost"),
+    ("thief", "Ghost"),
+    ("robot", "Robot"),
+    ("techno", "Robot"),
+    ("mecha", "Mecha"),
+    ("machine", "Mecha_Warrior"),
+    ("fighter", "Fighter"),
+    ("warrior", "Fighter"),
+    ("knight", "Fighter"),
+    ("paladin", "Fighter"),
+]
+
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -97,7 +129,12 @@ def generate_character(name: str, description: str, llm: LLMAdapter) -> dict:
     }
 
     data = _validate_and_fix(data)
-    log.info("Character '%s' generated and validated.", name)
+
+    # --- Sprite selection ---
+    data["sprite"] = _pick_sprite(combat_class)
+    log.info(
+        "Character '%s' generated and validated (sprite=%s).", name, data["sprite"]
+    )
     return data
 
 
@@ -108,6 +145,7 @@ def to_yaml(data: dict) -> str:
     for key in (
         "name",
         "combat_class",
+        "sprite",
         "backstory",
         "personality_traits",
         "attributes",
@@ -141,6 +179,19 @@ def save_character(data: dict, directory: str | Path = "config/characters") -> P
 # ---------------------------------------------------------------------------
 # Validation / fix-up
 # ---------------------------------------------------------------------------
+
+
+def _pick_sprite(combat_class: str) -> str:
+    """Select a sprite preset ID based on the combat class name.
+
+    Uses keyword matching against ``_SPRITE_KEYWORDS``.  Falls back to
+    ``"Fighter"`` if no keyword matches.
+    """
+    slug = combat_class.lower()
+    for keyword, sprite_id in _SPRITE_KEYWORDS:
+        if keyword in slug:
+            return sprite_id
+    return "Fighter"
 
 
 def _clamp(value: int | float, lo: int | float, hi: int | float) -> int | float:

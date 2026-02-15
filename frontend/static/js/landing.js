@@ -127,36 +127,48 @@ class LandingPage {
       `;
 
       // Sprite selector dropdown (only if presets available)
+      // Characters with a sprite from YAML/generation get a locked display.
+      const hasBuiltInSprite = !!c.sprite;
       if (this._spritePresets.length > 0) {
-        const spriteSelect = document.createElement('select');
-        spriteSelect.className = 'char-sprite-select';
-        spriteSelect.title = 'Sprite preset';
+        if (hasBuiltInSprite) {
+          // Locked — show the assigned sprite name as a read-only label
+          const lockedLabel = document.createElement('span');
+          lockedLabel.className = 'char-sprite-locked';
+          const preset = this._spritePresets.find(p => p.id === c.sprite);
+          lockedLabel.textContent = preset ? preset.label : c.sprite.replace(/_/g, ' ');
+          lockedLabel.title = 'Sprite assigned during creation';
+          div.appendChild(lockedLabel);
+        } else {
+          const spriteSelect = document.createElement('select');
+          spriteSelect.className = 'char-sprite-select';
+          spriteSelect.title = 'Sprite preset';
 
-        const noneOpt = document.createElement('option');
-        noneOpt.value = '';
-        noneOpt.textContent = 'No sprite';
-        spriteSelect.appendChild(noneOpt);
+          const noneOpt = document.createElement('option');
+          noneOpt.value = '';
+          noneOpt.textContent = 'No sprite';
+          spriteSelect.appendChild(noneOpt);
 
-        for (const preset of this._spritePresets) {
-          const opt = document.createElement('option');
-          opt.value = preset.id;
-          opt.textContent = preset.label;
-          if (assignedSprite === preset.id) opt.selected = true;
-          spriteSelect.appendChild(opt);
-        }
-
-        spriteSelect.addEventListener('click', (e) => e.stopPropagation());
-        spriteSelect.addEventListener('change', () => {
-          if (spriteSelect.value) {
-            this._spriteAssignments[c.id] = spriteSelect.value;
-          } else {
-            delete this._spriteAssignments[c.id];
+          for (const preset of this._spritePresets) {
+            const opt = document.createElement('option');
+            opt.value = preset.id;
+            opt.textContent = preset.label;
+            if (assignedSprite === preset.id) opt.selected = true;
+            spriteSelect.appendChild(opt);
           }
-          this._saveSpriteAssignments();
-          this._renderRoster(); // re-render to update preview
-        });
 
-        div.appendChild(spriteSelect);
+          spriteSelect.addEventListener('click', (e) => e.stopPropagation());
+          spriteSelect.addEventListener('change', () => {
+            if (spriteSelect.value) {
+              this._spriteAssignments[c.id] = spriteSelect.value;
+            } else {
+              delete this._spriteAssignments[c.id];
+            }
+            this._saveSpriteAssignments();
+            this._renderRoster(); // re-render to update preview
+          });
+
+          div.appendChild(spriteSelect);
+        }
       }
 
       const checkbox = div.querySelector('input[type="checkbox"]');
@@ -252,6 +264,12 @@ class LandingPage {
       const data = await res.json();
       this._generated.push(data);
       this._selectedIds.add(data.id);
+
+      // Auto-assign the generated sprite
+      if (data.sprite) {
+        this._spriteAssignments[data.id] = data.sprite;
+      }
+
       this._renderRoster();
 
       status.textContent = `Generated ${data.name}!`;

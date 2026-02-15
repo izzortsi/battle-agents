@@ -207,6 +207,7 @@ async def generate_character_endpoint(req: GenerateCharacterRequest):
         "combat_class": data.get("combat_class", req.combat_class),
         "backstory": data.get("backstory", ""),
         "personality_traits": data.get("personality_traits", []),
+        "sprite": data.get("sprite", ""),
         "full": data,
     }
 
