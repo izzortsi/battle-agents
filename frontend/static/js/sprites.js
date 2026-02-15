@@ -27,24 +27,55 @@ function injectDefs(svgRoot) {
 
 /**
  * Create tile grid rects.
+ * @param {SVGGElement} layerTiles - The SVG <g> to append tile elements to.
+ * @param {number} gridW - Grid width in cells.
+ * @param {number} gridH - Grid height in cells.
+ * @param {string[][]|null} tiles - Row-major tile type array (tiles[y][x]).
+ *        Each value is "floor"|"wall"|"furniture"|"door".
+ *        Falls back to all-floor if null/undefined.
  */
-function createGridTiles(layerTiles, gridW, gridH) {
+function createGridTiles(layerTiles, gridW, gridH, tiles) {
   layerTiles.innerHTML = '';
   for (let y = 0; y < gridH; y++) {
     for (let x = 0; x < gridW; x++) {
-      const rect = svgEl('rect', {
+      const tileType = (tiles && tiles[y] && tiles[y][x]) || 'floor';
+      const style = TILE_COLORS[tileType] || TILE_COLORS.floor;
+      const isEven = (x + y) % 2 === 0;
+
+      const attrs = {
         x: x * CELL_SIZE + 1,
         y: y * CELL_SIZE + 1,
         width: CELL_SIZE - 2,
         height: CELL_SIZE - 2,
         rx: 2,
-        fill: (x + y) % 2 === 0 ? '#1e1e3a' : '#222244',
-        stroke: '#2a2a4a',
-        'stroke-width': 0.5,
-      });
+        fill: isEven ? style.even : style.odd,
+        stroke: style.stroke,
+        'stroke-width': style.strokeWidth || 0.5,
+      };
+      if (style.dashArray) {
+        attrs['stroke-dasharray'] = style.dashArray;
+      }
+
+      const rect = svgEl('rect', attrs);
       rect.dataset.tileX = x;
       rect.dataset.tileY = y;
       layerTiles.appendChild(rect);
+
+      // Furniture: draw an inner detail rect (tabletop surface)
+      if (tileType === 'furniture' && style.detail) {
+        const inset = 10;
+        const detail = svgEl('rect', {
+          x: x * CELL_SIZE + inset,
+          y: y * CELL_SIZE + inset,
+          width: CELL_SIZE - inset * 2,
+          height: CELL_SIZE - inset * 2,
+          rx: 4,
+          fill: style.detail,
+          opacity: 0.6,
+          'pointer-events': 'none',
+        });
+        layerTiles.appendChild(detail);
+      }
     }
   }
 }

@@ -63,10 +63,12 @@
         <h2>Character Sheet</h2>
         <div id="character-content"></div>
       </div>
+      <div class="info-resize" data-above="character-panel" data-below="social-panel"></div>
       <div id="social-panel">
         <h2>Social</h2>
         <div id="social-content"></div>
       </div>
+      <div class="info-resize" data-above="social-panel" data-below="cognitive-panel"></div>
       <div id="cognitive-panel">
         <h2>Mind View</h2>
         <div id="cognitive-content"></div>
@@ -84,6 +86,12 @@
       <h2>Dialogue</h2>
       <div id="dialogue-content"></div>
     </section>
+
+    <!-- Resize handles -->
+    <div id="resize-right" class="resize-handle resize-handle-v"
+         style="grid-column:3; grid-row:1/-1"></div>
+    <div id="resize-bottom" class="resize-handle resize-handle-h"
+         style="grid-column:1/-1; grid-row:2"></div>
   </main>
 
   <script src="/static/js/constants.js"></script>
@@ -91,6 +99,7 @@
   <script src="/static/js/sprites.js"></script>
   <script src="/static/js/panels.js"></script>
   <script src="/static/js/renderer.js"></script>
+  <script src="/static/js/resizer.js"></script>
   <script src="/static/js/landing.js"></script>
   <script src="/static/js/main.js"></script>
 </body>

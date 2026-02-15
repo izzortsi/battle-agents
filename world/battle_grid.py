@@ -104,6 +104,19 @@ class BattleGrid:
     def get_tile(self, x: int, y: int) -> TileType:
         return self._tiles.get((x, y), TileType.FLOOR)
 
+    # -- Serialisation ----------------------------------------------------------
+
+    def serialize_tiles(self) -> list[list[str]]:
+        """Return a row-major 2D array of tile type strings for the frontend.
+
+        Result is ``tiles[y][x]`` where each value is one of
+        ``"floor"``, ``"wall"``, ``"furniture"``, ``"door"``.
+        """
+        return [
+            [self._tiles.get((x, y), TileType.FLOOR).value for x in range(self.width)]
+            for y in range(self.height)
+        ]
+
     # -- Map display character ---------------------------------------------------
 
     def tile_char(self, x: int, y: int) -> str:

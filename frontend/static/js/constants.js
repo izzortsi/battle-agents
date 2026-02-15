@@ -42,6 +42,21 @@ const STATUS_VISUALS = {
 const STATUS_DEFAULT = { icon: '\u2B24', color: '#888', animation: '' };
 
 /**
+ * Tile type visual styles.
+ * Each tile type has two fill colors (even/odd checkerboard), a stroke, and
+ * optional stroke-width override.  Furniture tiles also get an inner detail
+ * rect rendered on top.
+ */
+const TILE_COLORS = {
+  floor:     { even: '#1e1e3a', odd: '#222244', stroke: '#2a2a4a', strokeWidth: 0.5 },
+  wall:      { even: '#3a2a1a', odd: '#44321e', stroke: '#5a4530', strokeWidth: 1.0 },
+  furniture: { even: '#3a2818', odd: '#44301c', stroke: '#5a4020', strokeWidth: 0.5,
+               detail: '#6b5030' },
+  door:      { even: '#2a2a3a', odd: '#303044', stroke: '#4a4a6a', strokeWidth: 0.5,
+               dashArray: '3 2' },
+};
+
+/**
  * SVG symbol definitions — class silhouettes.
  * Each symbol is a 36x42 viewBox.
  */

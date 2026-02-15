@@ -266,6 +266,12 @@ class SimRunner:
                 agents = list(self._tavern_env.agents.values())
                 place_agents(agents, self._combat_env)
                 self._env = self._combat_env
+                self._tavern_env = None  # allow GC of tavern environment
+
+                # Broadcast transition snapshot so the frontend rebuilds the grid
+                await self._broadcast(
+                    serialize_snapshot(self._env, "combat", self._cognitive_loop)
+                )
 
             await self._run_combat()
 

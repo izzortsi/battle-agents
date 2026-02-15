@@ -85,8 +85,15 @@ class Renderer {
   }
 
   _createGrid() {
-    if (this._gridCreated) return;
-    const { width, height } = this.state.grid;
+    const { width, height, tiles } = this.state.grid;
+
+    // Skip rebuild if dimensions and tile data haven't changed
+    if (this._gridCreated
+        && this._gridW === width
+        && this._gridH === height
+        && this._gridTiles === tiles) {
+      return;
+    }
 
     // Size SVG — use viewBox for coordinate space, CSS for responsive fill
     const svgW = width * CELL_SIZE;
@@ -98,9 +105,12 @@ class Renderer {
     // Inject defs
     injectDefs(this.svg);
 
-    // Create tiles
-    createGridTiles(this.layerTiles, width, height);
+    // Create tiles (pass tile type data for per-tile styling)
+    createGridTiles(this.layerTiles, width, height, tiles || null);
 
+    this._gridW = width;
+    this._gridH = height;
+    this._gridTiles = tiles;
     this._gridCreated = true;
   }
 

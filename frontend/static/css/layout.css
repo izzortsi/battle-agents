@@ -128,7 +128,7 @@ html, body {
 
 #main {
   display: grid;
-  grid-template-columns: var(--col-left, 200px) 5px 1fr 5px var(--col-right, 720px);
+  grid-template-columns: 200px 1fr 5px var(--col-right, 720px);
   grid-template-rows: 1fr 5px var(--row-bottom, 200px);
   gap: 0;
   height: calc(100vh - var(--header-height));
@@ -177,8 +177,8 @@ html, body {
 
 /* Left panel: agents */
 #panel-agents {
-  grid-row: 1 / 2;
-  grid-column: 1 / 2;
+  grid-row: 1;
+  grid-column: 1;
 }
 
 #agent-cards {
@@ -189,8 +189,8 @@ html, body {
 
 /* Center: grid */
 #panel-grid {
-  grid-row: 1 / 2;
-  grid-column: 2 / 3;
+  grid-row: 1;
+  grid-column: 2;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -206,8 +206,8 @@ html, body {
 
 /* Right panel: info */
 #panel-info {
-  grid-row: 1 / 2;
-  grid-column: 3 / 4;
+  grid-row: 1;
+  grid-column: 4;
 }
 
 #lore-panel,
@@ -240,6 +240,19 @@ html, body {
   flex: 0.5;
 }
 
+/* Intra-pane resize handles (inside #panel-info) */
+.info-resize {
+  flex: 0 0 4px;
+  background: var(--border);
+  cursor: row-resize;
+  transition: background 0.15s;
+}
+
+.info-resize:hover,
+.info-resize.dragging {
+  background: var(--accent-blue);
+}
+
 #lore-content,
 #character-content,
 #social-content,
@@ -253,7 +266,7 @@ html, body {
 
 /* Bottom panels */
 #panel-log {
-  grid-row: 2 / 3;
+  grid-row: 3;
   grid-column: 1 / 3;
 }
 
@@ -266,8 +279,8 @@ html, body {
 }
 
 #panel-dialogue {
-  grid-row: 2 / 3;
-  grid-column: 3 / 4;
+  grid-row: 3;
+  grid-column: 4;
 }
 
 #dialogue-content {

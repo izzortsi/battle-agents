@@ -1,0 +1,52 @@
+name: Aeryn
+combat_class: Elven Ranger
+backstory: Stripped of her title and exiled from the Sunstone Kingdom after uncovering
+  a vast conspiracy within the royal court, Aeryn now roams the wildlands. She honed
+  her skills as a tracker and archer, fueled by a burning desire to expose the corruption
+  that cost her everything. Her arrows whisper the names of those who wronged her,
+  each one a promise of retribution against the gilded cages of nobility.
+personality_traits:
+- Vengeful
+- Resourceful
+- Fiercely independent
+- Stoic
+- Determined
+attributes:
+  atk: 12
+  mgk: 5
+  spd: 18
+  con: 10
+  hit: 15
+  attack_range: 3
+abilities:
+- name: Vengeful Volley
+  mana_cost: 5
+  damage: 15
+  range: 4
+  aoe_pattern: single
+  cooldown: 3
+  current_cd: 0
+  description: Aeryn fires a rapid succession of arrows at a single target, each imbued
+    with her scorn for injustice.
+  tactical_hint: Use this ability to deal significant damage to a high-priority enemy,
+    especially after they've been marked.
+  effects: []
+- name: Hunter's Mark
+  mana_cost: 4
+  damage: 0
+  range: 3
+  aoe_pattern: single
+  cooldown: 4
+  current_cd: 0
+  description: Aeryn marks an enemy, revealing their weaknesses and making them more
+    vulnerable to subsequent attacks.
+  tactical_hint: Apply Hunter's Mark to a dangerous foe to increase the damage they
+    take from all sources for a few turns.
+  effects:
+  - type: marked
+    behavior: boost_outgoing_damage
+    duration: 2
+    magnitude: 0.2
+    target: enemy
+    category: debuff
+    chance: 0.85

@@ -42,7 +42,11 @@ def serialize_agent(agent: Agent, env: Environment) -> dict:
         "mag_def": a.mag_def,
         "is_alive": a.is_alive,
         "status_effects": [
-            {"type": e["type"], "duration": e["duration"], "magnitude": e.get("magnitude", 0)}
+            {
+                "type": e["type"],
+                "duration": e["duration"],
+                "magnitude": e.get("magnitude", 0),
+            }
             for e in a.status_effects
         ],
         "abilities": [
@@ -103,12 +107,18 @@ def serialize_snapshot(
         agents[agent.agent_id] = serialize_agent(agent, env)
         social[agent.agent_id] = serialize_social(agent)
 
-    turn_order = list(env.turn_manager.turn_order) if env.turn_manager.turn_order else []
+    turn_order = (
+        list(env.turn_manager.turn_order) if env.turn_manager.turn_order else []
+    )
     current = env.turn_manager.current_agent_id
 
     return {
         "type": "snapshot",
-        "grid": {"width": env.grid.width, "height": env.grid.height},
+        "grid": {
+            "width": env.grid.width,
+            "height": env.grid.height,
+            "tiles": env.grid.serialize_tiles(),
+        },
         "agents": agents,
         "social": social,
         "phase": phase,
