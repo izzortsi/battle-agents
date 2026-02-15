@@ -309,7 +309,7 @@ function renderCharacterSheet(state) {
     effects.innerHTML = `
       <div class="cs-label">Status Effects</div>
       <div class="cs-effects">${agent.status_effects.map(e =>
-        `<span class="cs-effect" title="Duration: ${e.duration} turns">${escHtml(e.type)} (${e.duration}t)</span>`
+        `<span class="cs-effect" title="Duration: ${e.duration} turns">${prettyStatus(e.type)} (${e.duration}t)</span>`
       ).join('')}</div>
     `;
     container.appendChild(effects);
@@ -333,7 +333,7 @@ function renderCharacterSheet(state) {
         effectsHtml = `<div class="cs-ability-effects">${ab.effects.map(eff => {
           const chanceStr = eff.chance < 1 ? ` (${Math.round(eff.chance * 100)}%)` : '';
           const magStr = eff.magnitude > 0 ? ` ${Math.round(eff.magnitude * 100)}%` : '';
-          return `<span class="cs-ability-effect ${escHtml(eff.category)}">${escHtml(eff.type)}${magStr} ${eff.duration}t${chanceStr}</span>`;
+          return `<span class="cs-ability-effect ${escHtml(eff.category)}">${prettyStatus(eff.type)}${magStr} ${eff.duration}t${chanceStr}</span>`;
         }).join('')}</div>`;
       }
 
@@ -416,6 +416,12 @@ function renderCommentaryEntry(state) {
 function escHtml(str) {
   if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/** Convert snake_case status type to Title Case (e.g. "damage_over_time" → "Damage Over Time"). */
+function prettyStatus(type) {
+  if (!type) return '';
+  return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 function truncate(str, max) {
