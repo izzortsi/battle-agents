@@ -14,6 +14,8 @@ from typing import Iterator
 class TileType(str, Enum):
     FLOOR = "floor"
     WALL = "wall"
+    FURNITURE = "furniture"  # impassable décor (tables, bar counters)
+    DOOR = "door"  # passable entry/exit point
 
 
 @dataclass
@@ -44,7 +46,8 @@ class BattleGrid:
         return 0 <= x < self.width and 0 <= y < self.height
 
     def is_passable(self, x: int, y: int) -> bool:
-        return self.in_bounds(x, y) and self._tiles.get((x, y)) != TileType.WALL
+        t = self._tiles.get((x, y))
+        return self.in_bounds(x, y) and t not in (TileType.WALL, TileType.FURNITURE)
 
     def set_wall(self, x: int, y: int) -> None:
         if self.in_bounds(x, y):
@@ -95,5 +98,72 @@ class BattleGrid:
 
     def all_passable(self) -> Iterator[tuple[int, int]]:
         for (x, y), t in self._tiles.items():
-            if t != TileType.WALL:
+            if t not in (TileType.WALL, TileType.FURNITURE):
                 yield x, y
+
+    def get_tile(self, x: int, y: int) -> TileType:
+        return self._tiles.get((x, y), TileType.FLOOR)
+
+    # -- Map display character ---------------------------------------------------
+
+    def tile_char(self, x: int, y: int) -> str:
+        """Return a single display character for the tile at (x, y)."""
+        t = self.get_tile(x, y)
+        if t == TileType.WALL:
+            return "#"
+        if t == TileType.FURNITURE:
+            return "T"
+        if t == TileType.DOOR:
+            return "D"
+        return "."
+
+    # -- Factory methods for named maps ------------------------------------------
+
+    @classmethod
+    def create_arena(cls, width: int = 12, height: int = 10) -> BattleGrid:
+        """Standard open arena — flat rectangle, no obstacles."""
+        return cls(width=width, height=height)
+
+    @classmethod
+    def create_tavern(cls) -> BattleGrid:
+        r"""8×8 tavern interior with walls, tables, and a bar counter.
+
+        Layout::
+
+              0 1 2 3 4 5 6 7
+           0  # # # # # # # #
+           1  # . . . . . . #
+           2  # . T . . T . #
+           3  # . . . . . . #
+           4  # B B B . . . #
+           5  # . . . . T . #
+           6  # . . . . . . #
+           7  # # # D D # # #
+
+        Legend: # wall, T table, B bar counter, D door, . floor
+        """
+        grid = cls(width=8, height=8)
+
+        # Perimeter walls
+        for x in range(8):
+            grid._tiles[(x, 0)] = TileType.WALL
+            grid._tiles[(x, 7)] = TileType.WALL
+        for y in range(8):
+            grid._tiles[(0, y)] = TileType.WALL
+            grid._tiles[(7, y)] = TileType.WALL
+
+        # Doors in south wall (passable entry points)
+        grid._tiles[(3, 7)] = TileType.DOOR
+        grid._tiles[(4, 7)] = TileType.DOOR
+
+        # Tables (impassable furniture)
+        grid._tiles[(2, 2)] = TileType.FURNITURE
+        grid._tiles[(5, 2)] = TileType.FURNITURE
+        grid._tiles[(5, 5)] = TileType.FURNITURE
+
+        # Bar counter (impassable furniture along west side)
+        grid._tiles[(1, 4)] = TileType.FURNITURE
+        grid._tiles[(2, 4)] = TileType.FURNITURE
+        grid._tiles[(3, 4)] = TileType.FURNITURE
+
+        return grid

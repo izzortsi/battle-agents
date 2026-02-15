@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 from typing import List, Optional
 
 import httpx
@@ -28,7 +29,11 @@ ANTHROPIC_VERSION = "2023-06-01"
 
 
 class AnthropicOAuthAdapter(LLMAdapter):
-    """Adapter for Anthropic Claude models via OAuth (Pro/Max subscription)."""
+    """Adapter for Anthropic Claude models via OAuth (Pro/Max subscription).
+
+    Thread-safe: a lock serialises all HTTP calls through the shared
+    ``OAuthTransport``, which is not safe for concurrent access.
+    """
 
     def __init__(
         self,
@@ -40,33 +45,43 @@ class AnthropicOAuthAdapter(LLMAdapter):
         self._token_path = token_path
         self._timeout = timeout
         self._transport: httpx.BaseTransport | None = None
-        self._async_transport: httpx.AsyncBaseTransport | None = None
+        self._client: httpx.Client | None = None
+        self._lock = threading.Lock()  # serialise access to transport/client
 
-    def _get_transport(self) -> httpx.BaseTransport:
-        """Lazy-init the OAuth transport (avoids import at module load)."""
-        if self._transport is None:
-            try:
-                from anthropic_oauth import OAuthManager, OAuthTransport, RequestTransformer
-            except ImportError:
-                raise ImportError(
-                    "anthropic-oauth is required for the Anthropic OAuth adapter. "
-                    "Install it from: /home/istrozzi/Documents/GitHub/anthropic-oauth"
-                )
+    def _get_client(self) -> httpx.Client:
+        """Lazy-init the OAuth transport and a persistent httpx.Client.
 
-            kwargs = {}
-            if self._token_path:
-                kwargs["token_path"] = self._token_path
-            manager = OAuthManager(**kwargs)
+        Must be called while holding ``self._lock``.
+        """
+        if self._client is not None:
+            return self._client
 
-            if not manager.has_valid_tokens():
-                raise RuntimeError(
-                    "No valid Anthropic OAuth tokens found. "
-                    "Run `python -m anthropic_oauth` to authenticate."
-                )
+        try:
+            from anthropic_oauth import OAuthManager, OAuthTransport, RequestTransformer
+        except ImportError:
+            raise ImportError(
+                "anthropic-oauth is required for the Anthropic OAuth adapter. "
+                "Install it from: /home/istrozzi/Documents/GitHub/anthropic-oauth"
+            )
 
-            transformer = RequestTransformer(app_names=["Battle-Agents"])
-            self._transport = OAuthTransport(manager, transformer=transformer)
-        return self._transport
+        kwargs = {}
+        if self._token_path:
+            kwargs["token_path"] = self._token_path
+        manager = OAuthManager(**kwargs)
+
+        if not manager.has_valid_tokens():
+            raise RuntimeError(
+                "No valid Anthropic OAuth tokens found. "
+                "Run `python -m anthropic_oauth` to authenticate."
+            )
+
+        transformer = RequestTransformer(app_names=["Battle-Agents"])
+        self._transport = OAuthTransport(manager, transformer=transformer)
+        self._client = httpx.Client(
+            transport=self._transport,
+            timeout=self._timeout,
+        )
+        return self._client
 
     @property
     def name(self) -> str:
@@ -84,8 +99,6 @@ class AnthropicOAuthAdapter(LLMAdapter):
         temperature: float = 0.7,
         response_format: Optional[str] = None,
     ) -> str:
-        transport = self._get_transport()
-
         payload: dict = {
             "model": self._model,
             "max_tokens": max_tokens,
@@ -104,17 +117,18 @@ class AnthropicOAuthAdapter(LLMAdapter):
         log.debug(f"Anthropic OAuth request: model={self._model}, tokens={max_tokens}")
 
         try:
-            with httpx.Client(transport=transport, timeout=self._timeout) as client:
+            with self._lock:
+                client = self._get_client()
                 resp = client.post(url, headers=headers, json=payload)
-                resp.raise_for_status()
-                data = resp.json()
-                # Anthropic Messages API returns content as array of blocks
-                content = ""
-                for block in data.get("content", []):
-                    if block.get("type") == "text":
-                        content += block["text"]
-                log.debug(f"Anthropic OAuth response ({len(content)} chars)")
-                return content
+            resp.raise_for_status()
+            data = resp.json()
+            # Anthropic Messages API returns content as array of blocks
+            content = ""
+            for block in data.get("content", []):
+                if block.get("type") == "text":
+                    content += block["text"]
+            log.debug(f"Anthropic OAuth response ({len(content)} chars)")
+            return content
         except httpx.HTTPStatusError as e:
             log.error(
                 f"Anthropic HTTP error: {e.response.status_code} — {e.response.text[:200]}"
@@ -138,7 +152,11 @@ class AnthropicOAuthAdapter(LLMAdapter):
         temperature: float = 0.7,
         response_format: Optional[str] = None,
     ) -> str:
-        """Async completion — delegates to thread since OAuthTransport is sync."""
+        """Async completion — delegates to thread since OAuthTransport is sync.
+
+        The lock inside ``complete()`` ensures only one thread uses the
+        transport at a time, preventing file-descriptor corruption.
+        """
         import asyncio
 
         return await asyncio.to_thread(

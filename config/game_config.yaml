@@ -10,6 +10,7 @@ pre_battle:
   tick_mode: simultaneous
   chat_max_rounds: 2
   perception_radius: 12
+  map: "tavern"        # "tavern" (8x8 walled interior) or "arena" (use combat grid)
 
 combat:
   chat_max_rounds: 2          # 2 rounds = up to 4 messages per dialogue during combat

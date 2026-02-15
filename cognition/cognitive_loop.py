@@ -578,9 +578,16 @@ class CognitiveLoop:
                 round_number=tick_number,
                 current_turn=current_turn,
                 trigger_context=(
-                    "A social gathering is about to begin before the battle. "
+                    "You are in a tavern before the battle. "
                     "Plan who you want to talk to, what alliances to form, "
                     "and what information to gather."
+                ),
+                location_context=(
+                    "You are in a tavern before the battle begins. "
+                    "Warriors, mages, and mercenaries mingle around tables and "
+                    "the bar counter. This is a social phase — no fighting yet. "
+                    "Use this time to form alliances, assess threats, and plan "
+                    "your strategy for the coming arena combat."
                 ),
             )
         return ""
@@ -878,9 +885,16 @@ class CognitiveLoop:
                 round_number=tick_number,
                 current_turn=current_turn,
                 trigger_context=(
-                    "A social gathering is about to begin before the battle. "
+                    "You are in a tavern before the battle. "
                     "Plan who you want to talk to, what alliances to form, "
                     "and what information to gather."
+                ),
+                location_context=(
+                    "You are in a tavern before the battle begins. "
+                    "Warriors, mages, and mercenaries mingle around tables and "
+                    "the bar counter. This is a social phase — no fighting yet. "
+                    "Use this time to form alliances, assess threats, and plan "
+                    "your strategy for the coming arena combat."
                 ),
             )
         return ""

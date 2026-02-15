@@ -112,6 +112,7 @@ class Planner:
         round_number: int,
         current_turn: int,
         trigger_context: str = "",
+        location_context: str = "",
     ) -> str:
         """Generate a new high-level plan for the agent.
 
@@ -174,6 +175,7 @@ class Planner:
             relationships_text=relationships_text,
             memories=relevant,
             trigger_context=trigger_context,
+            location_context=location_context,
         )
 
         plan_text = ""
@@ -255,6 +257,7 @@ class Planner:
         round_number: int,
         current_turn: int,
         trigger_context: str = "",
+        location_context: str = "",
     ) -> str:
         """Async version of generate_plan(). Calls llm.async_complete()."""
         from world.battle_grid import BattleGrid
@@ -311,6 +314,7 @@ class Planner:
             relationships_text=relationships_text,
             memories=relevant,
             trigger_context=trigger_context,
+            location_context=location_context,
         )
 
         plan_text = ""

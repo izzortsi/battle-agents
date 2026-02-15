@@ -14,32 +14,36 @@ if TYPE_CHECKING:
 
 # -- High-level plan generation ----------------------------------------------
 
+_DEFAULT_LOCATION_CONTEXT = (
+    "You are in a dangerous combat arena. "
+    "Survival requires both martial skill and social cunning. "
+    "Alliances can form and break. Trust is earned, betrayal is punished."
+)
+
 PLAN_SYSTEM = """\
-You are {name}, a {combat_class} in a dangerous combat arena. Survival \
-requires both martial skill and social cunning. Alliances can form and \
-break. Trust is earned, betrayal is punished.
+You are {name}, a {combat_class}. {location_context}
 
 PERSONALITY: {personality}
 BACKSTORY: {backstory}
 
-Generate a high-level battle plan based on your current situation, \
+Generate a high-level plan based on your current situation, \
 memories, relationships, and personality. The plan MUST address:
 - WHO are your primary threats and why
 - WHO might be a potential ally (based on disposition and past interactions)
-- HOW you will engage enemies while protecting alliances
+- HOW you will approach them (socially or aggressively)
 - WHEN you will use defensive or social tactics
 
-Your plan should be action-oriented — you must actively fight threats. \
-But smart fighters choose their enemies carefully and leverage alliances. \
+Your plan should be action-oriented and reflect the current phase. \
+Smart fighters choose their enemies carefully and leverage alliances. \
 Pure passivity will get you killed.
 
 Respond with a JSON object:
 {{
-  "plan": "<your battle plan, 2-4 sentences, in character>",
+  "plan": "<your plan, 2-4 sentences, in character>",
   "priorities": ["<priority 1>", "<priority 2>", "<priority 3>"]
 }}
 
-Your plan should reflect your personality, relationships, and combat needs.\
+Your plan should reflect your personality, relationships, and the current situation.\
 """
 
 
@@ -117,6 +121,7 @@ def build_plan_prompts(
     relationships_text: str,
     memories: list[MemoryNode],
     trigger_context: str = "",
+    location_context: str = "",
 ) -> tuple[str, str]:
     """Build system + user prompts for high-level plan generation."""
     system = PLAN_SYSTEM.format(
@@ -124,6 +129,7 @@ def build_plan_prompts(
         combat_class=combat_class,
         personality=personality,
         backstory=backstory,
+        location_context=location_context or _DEFAULT_LOCATION_CONTEXT,
     )
 
     mem_text = _format_plan_memories(memories)

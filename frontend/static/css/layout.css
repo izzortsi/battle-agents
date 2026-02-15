@@ -128,11 +128,32 @@ html, body {
 
 #main {
   display: grid;
-  grid-template-columns: 200px 1fr 720px;
-  grid-template-rows: 1fr 200px;
-  gap: 1px;
+  grid-template-columns: var(--col-left, 200px) 5px 1fr 5px var(--col-right, 720px);
+  grid-template-rows: 1fr 5px var(--row-bottom, 200px);
+  gap: 0;
   height: calc(100vh - var(--header-height));
   background: var(--border);
+}
+
+/* ===== Resize handles ===== */
+
+.resize-handle {
+  background: var(--border);
+  z-index: 10;
+  transition: background 0.15s;
+}
+
+.resize-handle:hover,
+.resize-handle.dragging {
+  background: var(--accent-blue);
+}
+
+.resize-handle-v {
+  cursor: col-resize;
+}
+
+.resize-handle-h {
+  cursor: row-resize;
 }
 
 /* ===== Panels ===== */

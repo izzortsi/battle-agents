@@ -261,6 +261,12 @@ class SimRunner:
             if pre_battle_enabled:
                 await self._run_pre_battle(pre_battle_cfg)
 
+            # Transition from tavern to combat arena if needed
+            if self._tavern_env is not None:
+                agents = list(self._tavern_env.agents.values())
+                place_agents(agents, self._combat_env)
+                self._env = self._combat_env
+
             await self._run_combat()
 
         except Exception:
@@ -273,17 +279,39 @@ class SimRunner:
         grid_cfg = game_cfg.get("grid", {})
         combat_cfg = game_cfg.get("combat", {})
 
-        grid = BattleGrid(
+        pre_battle_cfg = game_cfg.get("pre_battle", {})
+        pre_battle_map = pre_battle_cfg.get("map", "arena")
+        victory_cfg = game_cfg.get("victory", {})
+        victory_mode = victory_cfg.get("mode", "last_standing")
+
+        # Combat grid (always created)
+        combat_grid = BattleGrid.create_arena(
             width=grid_cfg.get("width", 12),
             height=grid_cfg.get("height", 10),
         )
-        victory_cfg = game_cfg.get("victory", {})
-        victory_mode = victory_cfg.get("mode", "last_standing")
-        self._env = Environment(
-            grid=grid,
+        self._combat_env = Environment(
+            grid=combat_grid,
             perception_radius=combat_cfg.get("perception_radius", 8),
             victory_mode=victory_mode,
         )
+
+        # Tavern grid for pre-battle (if configured)
+        use_tavern = (
+            pre_battle_cfg.get("enabled", False)
+            and not self._no_social
+            and pre_battle_map == "tavern"
+        )
+        if use_tavern:
+            tavern_grid = BattleGrid.create_tavern()
+            self._env = Environment(
+                grid=tavern_grid,
+                perception_radius=pre_battle_cfg.get("perception_radius", 12),
+                victory_mode=victory_mode,
+            )
+            self._tavern_env = self._env
+        else:
+            self._env = self._combat_env
+            self._tavern_env = None
 
         # Load characters — filter by landing page selection if configured
         agents = load_all_characters()
@@ -303,7 +331,10 @@ class SimRunner:
                         f"  Sprite override: {agent.name} -> {sprite_map[agent.agent_id]}"
                     )
 
-        place_agents(agents, self._env)
+        if use_tavern:
+            place_agents(agents, self._env, min_dist=2)
+        else:
+            place_agents(agents, self._env)
 
         if not self._use_random:
             self._cognitive_loop, self._model_id = setup_cognitive_loop(game_cfg)

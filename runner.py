@@ -205,9 +205,8 @@ def _broadcast_kills(
 # ==========================================================================
 
 
-def place_agents(agents: list[Agent], env: Environment) -> None:
+def place_agents(agents: list[Agent], env: Environment, min_dist: int = 3) -> None:
     """Place agents on random passable tiles with minimum separation."""
-    min_dist = 3
     placed: list[tuple[int, int]] = []
     passable = list(env.grid.all_passable())
     random.shuffle(passable)
@@ -240,10 +239,8 @@ def print_grid(env: Environment) -> None:
         for x in range(grid.width):
             if (x, y) in occupied:
                 row += f" {occupied[(x, y)]}"
-            elif grid._tiles.get((x, y)) == BattleGrid.__class__:
-                row += " #"
             else:
-                row += " ."
+                row += f" {grid.tile_char(x, y)}"
         lines.append(row)
     log.info("\n".join(lines))
 
@@ -378,7 +375,7 @@ def _create_single_adapter(provider_key: str, model_cfg: dict, provider_cfg: dic
 def create_model_registry(llm_cfg: dict):
     """Create all configured adapters and register them in a ModelRegistry.
 
-    Returns (registry, default_adapter, default_model_id).
+    Returns (registry, default_adapter).
     """
     from llm.adapter import ModelRegistry
 
@@ -396,7 +393,7 @@ def create_model_registry(llm_cfg: dict):
             except Exception as e:
                 log.warning(f"  Skipped adapter {key}: {e}")
 
-    default_key = llm_cfg.get("default_adapter", "openrouter/gemini-3-flash")
+    default_key = llm_cfg.get("default_adapter", "openrouter/gemini-2.5-flash-free")
     if default_key in registry:
         registry.set_default(default_key)
     elif len(registry) > 0:
@@ -498,8 +495,12 @@ def run_pre_battle(
     original_radius = env.perception_engine.perception_radius
     env.perception_engine.perception_radius = pre_battle_radius
 
+    map_name = pre_battle_cfg.get("map", "arena")
+    location = "The Tavern" if map_name == "tavern" else "Arena"
+
     log.info(f"\n{'=' * 60}")
     log.info(f"PRE-BATTLE SOCIAL PHASE  —  {duration} ticks")
+    log.info(f"  Location: {location} ({env.grid.width}x{env.grid.height})")
     log.info(f"  Perception radius: {pre_battle_radius}")
     log.info(f"  Chat max rounds: {pre_battle_cfg.get('chat_max_rounds', 4)}")
     log.info(f"{'=' * 60}")
@@ -859,8 +860,12 @@ async def async_run_pre_battle(
     original_radius = env.perception_engine.perception_radius
     env.perception_engine.perception_radius = pre_battle_radius
 
+    map_name = pre_battle_cfg.get("map", "arena")
+    location = "The Tavern" if map_name == "tavern" else "Arena"
+
     log.info(f"\n{'=' * 60}")
     log.info(f"PRE-BATTLE SOCIAL PHASE (async)  —  {duration} ticks")
+    log.info(f"  Location: {location} ({env.grid.width}x{env.grid.height})")
     log.info(f"  Perception radius: {pre_battle_radius}")
     log.info(f"  Chat max rounds: {pre_battle_cfg.get('chat_max_rounds', 4)}")
     log.info(f"{'=' * 60}")
@@ -1151,21 +1156,34 @@ async def async_run_battle(
 
 async def _async_main(
     game_cfg: dict,
-    env: Environment,
+    combat_env: Environment,
+    tavern_env: Environment | None,
     agents: list[Agent],
     pre_battle_enabled: bool,
     pre_battle_cfg: dict,
 ) -> None:
     """Async main — runs pre-battle and combat with async concurrency."""
+    # Determine which env to register agents on initially
+    initial_env = tavern_env if tavern_env is not None else combat_env
+
     cognitive_loop, model_id = setup_cognitive_loop(game_cfg)
-    for agent in env.agents.values():
+    for agent in initial_env.agents.values():
         cognitive_loop.register(agent)
     log.info(f"\nCognitive loop initialised (model: {model_id})")
 
     if pre_battle_enabled:
-        await async_run_pre_battle(env, cognitive_loop, pre_battle_cfg)
+        await async_run_pre_battle(initial_env, cognitive_loop, pre_battle_cfg)
 
-    await async_run_battle(env, cognitive_loop, model_id)
+    # If we used a tavern, transition agents to the combat arena
+    if tavern_env is not None:
+        log.info("\n" + "=" * 60)
+        log.info("Agents leave the tavern and enter the combat arena...")
+        log.info("=" * 60)
+        log.info("\nPlacing agents on combat grid:")
+        place_agents(agents, combat_env)
+        print_grid(combat_env)
+
+    await async_run_battle(combat_env, cognitive_loop, model_id)
 
 
 # ==========================================================================
@@ -1330,17 +1348,15 @@ def main() -> None:
     pre_battle_cfg = game_cfg.get("pre_battle", {})
     pre_battle_enabled = pre_battle_cfg.get("enabled", False) and not skip_social
 
-    # Build grid
-    grid = BattleGrid(
+    # Build combat grid + environment
+    victory_cfg = game_cfg.get("victory", {})
+    victory_mode = victory_cfg.get("mode", "last_standing")
+    combat_grid = BattleGrid.create_arena(
         width=grid_cfg.get("width", 12),
         height=grid_cfg.get("height", 10),
     )
-
-    # Build environment (start with combat perception radius)
-    victory_cfg = game_cfg.get("victory", {})
-    victory_mode = victory_cfg.get("mode", "last_standing")
-    env = Environment(
-        grid=grid,
+    combat_env = Environment(
+        grid=combat_grid,
         perception_radius=combat_cfg.get("perception_radius", 8),
         victory_mode=victory_mode,
     )
@@ -1353,16 +1369,35 @@ def main() -> None:
     for a in agents:
         log.info(f"  {a.status_summary()}")
 
-    # Place agents
-    log.info("\nPlacing agents on grid:")
-    place_agents(agents, env)
+    # Determine pre-battle map
+    pre_battle_map = pre_battle_cfg.get("map", "arena")
+    use_tavern = pre_battle_enabled and pre_battle_map == "tavern"
+
+    if use_tavern:
+        # Tavern map for pre-battle social phase
+        tavern_grid = BattleGrid.create_tavern()
+        tavern_env = Environment(
+            grid=tavern_grid,
+            perception_radius=pre_battle_cfg.get("perception_radius", 12),
+            victory_mode=victory_mode,
+        )
+        log.info("\nPlacing agents in the tavern:")
+        place_agents(agents, tavern_env, min_dist=2)
+    else:
+        tavern_env = None
+
+    if not use_tavern:
+        # Place agents directly on the combat grid
+        log.info("\nPlacing agents on grid:")
+        place_agents(agents, combat_env)
 
     if use_llm:
         # Async path — all LLM calls use asyncio concurrency
         asyncio.run(
             _async_main(
                 game_cfg=game_cfg,
-                env=env,
+                combat_env=combat_env,
+                tavern_env=tavern_env,
                 agents=agents,
                 pre_battle_enabled=pre_battle_enabled,
                 pre_battle_cfg=pre_battle_cfg,
@@ -1370,8 +1405,13 @@ def main() -> None:
         )
     else:
         # Random mode — fully sync, no LLM needed
-        log.info("\nSkipping pre-battle phase (random mode)")
-        run_battle(env, use_llm=False)
+        if not use_tavern:
+            log.info("\nSkipping pre-battle phase (random mode)")
+        else:
+            # Even in random mode, place on combat grid
+            log.info("\nPlacing agents on combat grid:")
+            place_agents(agents, combat_env)
+        run_battle(combat_env, use_llm=False)
 
 
 if __name__ == "__main__":
