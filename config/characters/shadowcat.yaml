@@ -1,0 +1,59 @@
+name: Shadowcat
+combat_class: Shadow Mage
+backstory: Once a pampered housecat, Shadowcat stumbled into a rift between realms
+  and was imbued with the essence of pure shadow. Now, she stalks the arena, a silent
+  hunter seeking to master her newfound dark powers. Her ultimate goal is to unravel
+  the mysteries of the void that transformed her, hoping to one day control its chaotic
+  energies.
+personality_traits:
+- Stealthy
+- Mysterious
+- Independent
+- Calculated
+- Fickle
+attributes:
+  atk: 5
+  mgk: 18
+  spd: 16
+  con: 10
+  hit: 12
+  attack_range: 3
+abilities:
+- name: Umbral Bolt
+  mana_cost: 4
+  damage: 15
+  range: 3
+  aoe_pattern: single
+  cooldown: 2
+  current_cd: 0
+  description: Shadowcat hurls a condensed bolt of pure shadow energy at an enemy,
+    dealing magical damage.
+  tactical_hint: Use this as your primary attack to deal consistent magical damage
+    from a distance.
+  effects: []
+- name: Void Pounce
+  mana_cost: 7
+  damage: 0
+  range: 4
+  aoe_pattern: single
+  cooldown: 4
+  current_cd: 0
+  description: Shadowcat briefly dissolves into shadow, reappearing next to an enemy
+    and leaving them disoriented.
+  tactical_hint: Utilize this to quickly reposition, close distance on a priority
+    target, and debuff them to reduce their effectiveness.
+  effects:
+  - type: disorient
+    behavior: miss_chance
+    duration: 2
+    magnitude: 0.3
+    target: enemy
+    category: debuff
+    chance: 0.75
+  - type: shadow_teleport
+    behavior: stat_modifier
+    duration: 1
+    magnitude: 0.0
+    target: self
+    category: movement
+    chance: 1.0
