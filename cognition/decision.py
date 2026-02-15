@@ -111,8 +111,9 @@ def _gather_context(
         )
         if in_range:
             can_attack.append(f"{other.identity.name} ({other.agent_id})")
-        # Can chat with any visible agent (free action, not range-limited)
-        can_chat.append(f"{other.identity.name} ({other.agent_id})")
+        # Can chat within speak radius (yelling distance in combat)
+        if dist <= env.chat_speak_radius:
+            can_chat.append(f"{other.identity.name} ({other.agent_id})")
 
     # Alliance statuses (formal mutual labels from the resolver)
     alliance_statuses = env.get_all_alliance_statuses(agent.agent_id)

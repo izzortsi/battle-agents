@@ -10,6 +10,8 @@ pre_battle:
   tick_mode: simultaneous
   chat_max_rounds: 2
   perception_radius: 12
+  chat_speak_radius: 4        # must be within 4 tiles to initiate a conversation
+  chat_listen_radius: 12      # overhear conversations within perception_radius
   map: "tavern"        # "tavern" (8x8 walled interior) or "arena" (use combat grid)
 
 combat:
@@ -17,6 +19,8 @@ combat:
   chat_cooldown: 2            # rounds between free chats per agent
   max_no_damage_rounds: 4     # stagnation: inject urgency after this many rounds with 0 damage
   perception_radius: 8
+  chat_speak_radius: 8        # yelling distance to initiate chat in combat
+  chat_listen_radius: 12      # overhear yelling from further away
   reflection_threshold: 75
   retrieval_top_k: 7
   retrieval_decay: 0.85

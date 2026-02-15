@@ -93,8 +93,9 @@ def _gather_pre_battle_context(
         social_dispositions[other.agent_id] = agent.social.get_disposition(
             other.agent_id
         )
-        # In pre-battle, can chat with anyone visible (no range restriction)
-        can_chat.append(f"{other.identity.name} ({other.agent_id})")
+        # In pre-battle, can only chat within speak radius (intimate tavern distance)
+        if dist <= env.chat_speak_radius:
+            can_chat.append(f"{other.identity.name} ({other.agent_id})")
 
     # Available move tiles
     can_move: list[str] = []

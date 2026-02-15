@@ -491,9 +491,11 @@ def run_pre_battle(
     duration = pre_battle_cfg.get("duration_ticks", 6)
     pre_battle_radius = pre_battle_cfg.get("perception_radius", 12)
 
-    # Switch to pre-battle perception radius
+    # Switch to pre-battle perception radius and chat radii
     original_radius = env.perception_engine.perception_radius
     env.perception_engine.perception_radius = pre_battle_radius
+    env.chat_speak_radius = pre_battle_cfg.get("chat_speak_radius", 4)
+    env.chat_listen_radius = pre_battle_cfg.get("chat_listen_radius", 12)
 
     map_name = pre_battle_cfg.get("map", "arena")
     location = "The Tavern" if map_name == "tavern" else "Arena"
@@ -616,6 +618,9 @@ def run_battle(
     game_cfg = load_game_config()
     combat_cfg = game_cfg.get("combat", {})
     max_no_damage_rounds = combat_cfg.get("max_no_damage_rounds", 4)
+    # Set combat chat radii (yelling distance)
+    env.chat_speak_radius = combat_cfg.get("chat_speak_radius", 8)
+    env.chat_listen_radius = combat_cfg.get("chat_listen_radius", 12)
     rounds_without_damage = 0
     last_damage_round = 0
     damage_this_round = False
@@ -876,6 +881,8 @@ async def async_run_pre_battle(
 
     original_radius = env.perception_engine.perception_radius
     env.perception_engine.perception_radius = pre_battle_radius
+    env.chat_speak_radius = pre_battle_cfg.get("chat_speak_radius", 4)
+    env.chat_listen_radius = pre_battle_cfg.get("chat_listen_radius", 12)
 
     map_name = pre_battle_cfg.get("map", "arena")
     location = "The Tavern" if map_name == "tavern" else "Arena"
@@ -965,6 +972,9 @@ async def async_run_battle(
     game_cfg = load_game_config()
     combat_cfg = game_cfg.get("combat", {})
     max_no_damage_rounds = combat_cfg.get("max_no_damage_rounds", 4)
+    # Set combat chat radii (yelling distance)
+    env.chat_speak_radius = combat_cfg.get("chat_speak_radius", 8)
+    env.chat_listen_radius = combat_cfg.get("chat_listen_radius", 12)
     rounds_without_damage = 0
     damage_this_round = False
 

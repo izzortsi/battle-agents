@@ -372,7 +372,7 @@ class CognitiveLoop:
                 continue
 
             dist = BattleGrid.tile_distance(init_pos, other_pos)
-            if dist <= env.perception_engine.perception_radius:
+            if dist <= env.chat_listen_radius:
                 state = self._states.get(other.agent_id)
                 if state:
                     overheard_desc = (

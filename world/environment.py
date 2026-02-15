@@ -57,6 +57,10 @@ class Environment:
             dict
         ] = []  # [{agent_id, name, combat_class, killer, method, round}]
 
+        # Chat distance limits (set per-phase by the runner)
+        self.chat_speak_radius: int = 99  # default: no limit
+        self.chat_listen_radius: int = 99
+
     # -- Setup -----------------------------------------------------------------
 
     def register_agent(self, agent: Agent, x: int, y: int) -> None:

@@ -434,7 +434,7 @@ def _emit_dialogue_memories(
             other_pos = env.world_state.get_position(other.agent_id)
             if other_pos:
                 dist = BattleGrid.tile_distance(init_pos, other_pos)
-                if dist <= env.perception_engine.perception_radius:
+                if dist <= env.chat_listen_radius:
                     # This agent overheard the conversation (but not content)
                     overheard = (
                         f"{initiator.name} and {responder.name} were seen "

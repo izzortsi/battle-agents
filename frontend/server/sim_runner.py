@@ -291,6 +291,7 @@ class SimRunner:
     async def _setup(self) -> None:
         """Initialize the simulation (mirrors runner.py main)."""
         game_cfg = load_game_config()
+        self._game_cfg = game_cfg
         load_balance_config(game_cfg)
         grid_cfg = game_cfg.get("grid", {})
         combat_cfg = game_cfg.get("combat", {})
@@ -476,6 +477,10 @@ class SimRunner:
         original_radius = self._env.perception_engine.perception_radius
         self._env.perception_engine.perception_radius = pre_battle_radius
 
+        # Chat distance limits for pre-battle (intimate tavern conversations)
+        self._env.chat_speak_radius = pre_battle_cfg.get("chat_speak_radius", 4)
+        self._env.chat_listen_radius = pre_battle_cfg.get("chat_listen_radius", 12)
+
         agents = self._env.alive_agents()
 
         for tick in range(1, duration + 1):
@@ -555,6 +560,10 @@ class SimRunner:
 
     async def _run_combat(self) -> None:
         self._phase = "combat"
+        # Set combat chat radii (yelling distance)
+        combat_cfg = self._game_cfg.get("combat", {})
+        self._env.chat_speak_radius = combat_cfg.get("chat_speak_radius", 8)
+        self._env.chat_listen_radius = combat_cfg.get("chat_listen_radius", 12)
         order = self._env.start_combat()
         await self._broadcast(
             {
