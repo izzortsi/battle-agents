@@ -46,6 +46,7 @@ def serialize_agent(agent: Agent, env: Environment) -> dict:
                 "type": e["type"],
                 "duration": e["duration"],
                 "magnitude": e.get("magnitude", 0),
+                "behavior": e.get("behavior", ""),
             }
             for e in a.status_effects
         ],

@@ -610,6 +610,43 @@ html, body {
   font-size: 10px;
   background: rgba(233, 69, 96, 0.15);
   color: var(--accent);
+  cursor: help;
+  position: relative;
+}
+
+/* Styled tooltip for status badges and ability effects */
+.cs-effect[data-tooltip]:hover::after,
+.cs-ability-effect[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: pre;
+  font-size: 10px;
+  line-height: 1.5;
+  color: #ddd;
+  background: #1a1a2e;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 8px;
+  z-index: 100;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Arrow below the tooltip */
+.cs-effect[data-tooltip]:hover::before,
+.cs-ability-effect[data-tooltip]:hover::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: var(--border);
+  z-index: 100;
+  pointer-events: none;
 }
 
 .cs-ability {
@@ -682,6 +719,8 @@ html, body {
   padding: 1px 5px;
   border-radius: 3px;
   font-size: 10px;
+  cursor: help;
+  position: relative;
 }
 
 .cs-ability-effect.buff {
