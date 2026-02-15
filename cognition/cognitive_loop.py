@@ -453,7 +453,7 @@ class CognitiveLoop:
                 )
             self._embed_nodes(state.memory, new_ids)
 
-            # 3. REFLECT — if importance accumulator >= threshold
+            # 3. REFLECT (with tavern-aware context)
             reflect_ids = reflect(
                 agent_name=agent.name,
                 combat_class=agent.identity.combat_class,
@@ -461,6 +461,16 @@ class CognitiveLoop:
                 llm=self._get_llm("reflection"),
                 current_turn=current_turn,
                 threshold=self._reflection_threshold,
+                phase_context=(" socialising in a tavern before combat"),
+                question_focus=(
+                    "Generate exactly 3 questions. Focus on:\n"
+                    "- Social dynamics (who seems approachable? "
+                    "who is keeping to themselves?)\n"
+                    "- Potential alliances (who might be a good ally? "
+                    "who shares common ground?)\n"
+                    "- Information gathering (what have you learned "
+                    "about other warriors' intentions?)"
+                ),
             )
             self._embed_nodes(state.memory, reflect_ids)
 
@@ -586,9 +596,28 @@ class CognitiveLoop:
                     "You are in a tavern before the battle begins. "
                     "Warriors, mages, and mercenaries mingle around tables and "
                     "the bar counter. This is a social phase — no fighting yet. "
-                    "Use this time to form alliances, assess threats, and plan "
-                    "your strategy for the coming arena combat."
+                    "Use this time to form alliances, gather information, and "
+                    "read the room before the arena."
                 ),
+                plan_directives=(
+                    "Generate a social plan for the tavern phase. "
+                    "The plan MUST address:\n"
+                    "- WHO do you want to talk to and why "
+                    "(based on personality, class, backstory, and any existing relationships)\n"
+                    "- WHO might be a useful ally for the coming battle\n"
+                    "- HOW will you approach them (friendly, cautious, probing, intimidating)\n"
+                    "- WHAT information do you want to gather before the arena\n\n"
+                    "There is NO combat in this phase. Focus on conversations, "
+                    "alliances, and reading people. Be social, not tactical."
+                ),
+                closing_instruction=(
+                    "Generate your social plan for the tavern. "
+                    "Focus on who to talk to, alliances to form, and "
+                    "information to gather."
+                ),
+                show_combat_stats=False,
+                retrieval_query=f"{agent.name} social alliances conversations personality",
+                fallback_plan="Observe the other warriors and look for conversation opportunities.",
             )
         return ""
 
@@ -816,7 +845,7 @@ class CognitiveLoop:
             )
         await self._async_embed_nodes(state.memory, new_ids)
 
-        # 3. REFLECT
+        # 3. REFLECT (with tavern-aware context)
         reflect_ids = await async_reflect(
             agent_name=agent.name,
             combat_class=agent.identity.combat_class,
@@ -824,6 +853,16 @@ class CognitiveLoop:
             llm=self._get_llm("reflection"),
             current_turn=current_turn,
             threshold=self._reflection_threshold,
+            phase_context=(" socialising in a tavern before combat"),
+            question_focus=(
+                "Generate exactly 3 questions. Focus on:\n"
+                "- Social dynamics (who seems approachable? "
+                "who is keeping to themselves?)\n"
+                "- Potential alliances (who might be a good ally? "
+                "who shares common ground?)\n"
+                "- Information gathering (what have you learned "
+                "about other warriors' intentions?)"
+            ),
         )
         await self._async_embed_nodes(state.memory, reflect_ids)
 
@@ -893,9 +932,28 @@ class CognitiveLoop:
                     "You are in a tavern before the battle begins. "
                     "Warriors, mages, and mercenaries mingle around tables and "
                     "the bar counter. This is a social phase — no fighting yet. "
-                    "Use this time to form alliances, assess threats, and plan "
-                    "your strategy for the coming arena combat."
+                    "Use this time to form alliances, gather information, and "
+                    "read the room before the arena."
                 ),
+                plan_directives=(
+                    "Generate a social plan for the tavern phase. "
+                    "The plan MUST address:\n"
+                    "- WHO do you want to talk to and why "
+                    "(based on personality, class, backstory, and any existing relationships)\n"
+                    "- WHO might be a useful ally for the coming battle\n"
+                    "- HOW will you approach them (friendly, cautious, probing, intimidating)\n"
+                    "- WHAT information do you want to gather before the arena\n\n"
+                    "There is NO combat in this phase. Focus on conversations, "
+                    "alliances, and reading people. Be social, not tactical."
+                ),
+                closing_instruction=(
+                    "Generate your social plan for the tavern. "
+                    "Focus on who to talk to, alliances to form, and "
+                    "information to gather."
+                ),
+                show_combat_stats=False,
+                retrieval_query=f"{agent.name} social alliances conversations personality",
+                fallback_plan="Observe the other warriors and look for conversation opportunities.",
             )
         return ""
 

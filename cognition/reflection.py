@@ -36,6 +36,8 @@ def reflect(
     llm: LLMAdapter,
     current_turn: int,
     threshold: float = 50.0,
+    phase_context: str = "",
+    question_focus: str = "",
 ) -> list[int]:
     """Run the reflection process if importance threshold is met.
 
@@ -57,7 +59,14 @@ def reflect(
         return []
 
     # 2. Generate 3 high-level questions
-    questions = _generate_questions(agent_name, combat_class, recent, llm)
+    questions = _generate_questions(
+        agent_name,
+        combat_class,
+        recent,
+        llm,
+        phase_context=phase_context,
+        question_focus=question_focus,
+    )
     if not questions:
         log.warning(f"  [{agent_name}] Question generation failed")
         return []
@@ -80,7 +89,12 @@ def reflect(
 
         # Generate insight
         insight, evidence_ids = _generate_insight(
-            agent_name, combat_class, question, relevant, llm
+            agent_name,
+            combat_class,
+            question,
+            relevant,
+            llm,
+            phase_context=phase_context,
         )
         if not insight:
             continue
@@ -112,9 +126,17 @@ def _generate_questions(
     combat_class: str,
     recent_memories: list,
     llm: LLMAdapter,
+    phase_context: str = "",
+    question_focus: str = "",
 ) -> list[str]:
     """Stage 1: Generate 3 high-level questions from recent memories."""
-    system, user = build_question_prompts(agent_name, combat_class, recent_memories)
+    system, user = build_question_prompts(
+        agent_name,
+        combat_class,
+        recent_memories,
+        phase_context=phase_context,
+        question_focus=question_focus,
+    )
 
     try:
         raw = llm.complete(
@@ -141,13 +163,18 @@ def _generate_insight(
     question: str,
     relevant_memories: list,
     llm: LLMAdapter,
+    phase_context: str = "",
 ) -> tuple[str, list[int]]:
     """Stage 2: Generate an insight for a question, citing evidence.
 
     Returns (insight_text, list_of_evidence_node_ids).
     """
     system, user = build_insight_prompts(
-        agent_name, combat_class, question, relevant_memories
+        agent_name,
+        combat_class,
+        question,
+        relevant_memories,
+        phase_context=phase_context,
     )
 
     try:
@@ -190,6 +217,8 @@ async def async_reflect(
     llm: LLMAdapter,
     current_turn: int,
     threshold: float = 50.0,
+    phase_context: str = "",
+    question_focus: str = "",
 ) -> list[int]:
     """Async version of reflect(). Calls llm.async_complete()."""
     if memory.importance_accumulator < threshold:
@@ -205,7 +234,14 @@ async def async_reflect(
         log.debug(f"  [{agent_name}] Too few memories to reflect ({len(recent)})")
         return []
 
-    questions = await _async_generate_questions(agent_name, combat_class, recent, llm)
+    questions = await _async_generate_questions(
+        agent_name,
+        combat_class,
+        recent,
+        llm,
+        phase_context=phase_context,
+        question_focus=question_focus,
+    )
     if not questions:
         log.warning(f"  [{agent_name}] Question generation failed")
         return []
@@ -224,7 +260,12 @@ async def async_reflect(
             continue
 
         insight, evidence_ids = await _async_generate_insight(
-            agent_name, combat_class, question, relevant, llm
+            agent_name,
+            combat_class,
+            question,
+            relevant,
+            llm,
+            phase_context=phase_context,
         )
         if not insight:
             continue
@@ -253,9 +294,17 @@ async def _async_generate_questions(
     combat_class: str,
     recent_memories: list,
     llm: LLMAdapter,
+    phase_context: str = "",
+    question_focus: str = "",
 ) -> list[str]:
     """Async version of _generate_questions()."""
-    system, user = build_question_prompts(agent_name, combat_class, recent_memories)
+    system, user = build_question_prompts(
+        agent_name,
+        combat_class,
+        recent_memories,
+        phase_context=phase_context,
+        question_focus=question_focus,
+    )
 
     try:
         raw = await llm.async_complete(
@@ -282,10 +331,15 @@ async def _async_generate_insight(
     question: str,
     relevant_memories: list,
     llm: LLMAdapter,
+    phase_context: str = "",
 ) -> tuple[str, list[int]]:
     """Async version of _generate_insight()."""
     system, user = build_insight_prompts(
-        agent_name, combat_class, question, relevant_memories
+        agent_name,
+        combat_class,
+        question,
+        relevant_memories,
+        phase_context=phase_context,
     )
 
     try:

@@ -103,6 +103,8 @@ class Planner:
 
         return False, ""
 
+    _DEFAULT_FALLBACK_PLAN = "Fight cautiously and look for opportunities."
+
     def generate_plan(
         self,
         agent: Agent,
@@ -113,6 +115,11 @@ class Planner:
         current_turn: int,
         trigger_context: str = "",
         location_context: str = "",
+        plan_directives: str = "",
+        closing_instruction: str = "",
+        show_combat_stats: bool = True,
+        retrieval_query: str = "",
+        fallback_plan: str = "",
     ) -> str:
         """Generate a new high-level plan for the agent.
 
@@ -148,7 +155,7 @@ class Planner:
         relationships_text = format_relationships_for_plan(relationships)
 
         # Retrieve memories for planning context
-        query = f"{agent.name} strategy plan combat"
+        query = retrieval_query or f"{agent.name} strategy plan combat"
         relevant = retrieve(memory, query, current_turn, top_k=10)
 
         personality = ", ".join(agent.identity.personality_traits) or "unknown"
@@ -176,8 +183,12 @@ class Planner:
             memories=relevant,
             trigger_context=trigger_context,
             location_context=location_context,
+            plan_directives=plan_directives,
+            closing_instruction=closing_instruction,
+            show_combat_stats=show_combat_stats,
         )
 
+        _fallback = fallback_plan or self._DEFAULT_FALLBACK_PLAN
         plan_text = ""
         try:
             raw = llm.complete(
@@ -192,10 +203,10 @@ class Planner:
                 plan_text = str(parsed["plan"])
         except Exception as e:
             log.warning(f"  [{agent.name}] Plan generation failed: {e}")
-            plan_text = "Fight cautiously and look for opportunities."
+            plan_text = _fallback
 
         if not plan_text:
-            plan_text = "Fight cautiously and look for opportunities."
+            plan_text = _fallback
 
         # Store as a plan memory
         memory.add(
@@ -258,6 +269,11 @@ class Planner:
         current_turn: int,
         trigger_context: str = "",
         location_context: str = "",
+        plan_directives: str = "",
+        closing_instruction: str = "",
+        show_combat_stats: bool = True,
+        retrieval_query: str = "",
+        fallback_plan: str = "",
     ) -> str:
         """Async version of generate_plan(). Calls llm.async_complete()."""
         from world.battle_grid import BattleGrid
@@ -287,7 +303,7 @@ class Planner:
 
         relationships_text = format_relationships_for_plan(relationships)
 
-        query = f"{agent.name} strategy plan combat"
+        query = retrieval_query or f"{agent.name} strategy plan combat"
         relevant = retrieve(memory, query, current_turn, top_k=10)
 
         personality = ", ".join(agent.identity.personality_traits) or "unknown"
@@ -315,8 +331,12 @@ class Planner:
             memories=relevant,
             trigger_context=trigger_context,
             location_context=location_context,
+            plan_directives=plan_directives,
+            closing_instruction=closing_instruction,
+            show_combat_stats=show_combat_stats,
         )
 
+        _fallback = fallback_plan or self._DEFAULT_FALLBACK_PLAN
         plan_text = ""
         try:
             raw = await llm.async_complete(
@@ -331,10 +351,10 @@ class Planner:
                 plan_text = str(parsed["plan"])
         except Exception as e:
             log.warning(f"  [{agent.name}] Plan generation failed: {e}")
-            plan_text = "Fight cautiously and look for opportunities."
+            plan_text = _fallback
 
         if not plan_text:
-            plan_text = "Fight cautiously and look for opportunities."
+            plan_text = _fallback
 
         memory.add(
             turn=current_turn,
