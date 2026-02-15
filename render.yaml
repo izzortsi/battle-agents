@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: battle-agents
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn frontend.server.app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: SPECTATOR_MODE
+        value: "true"
+      - key: PYTHON_VERSION
+        value: "3.11.11"

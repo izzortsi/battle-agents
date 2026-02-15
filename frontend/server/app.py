@@ -5,6 +5,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import random
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -16,7 +19,22 @@ log = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
-app = FastAPI(title="Battle-Agents")
+# Spectator mode — auto-start, auto-play, auto-restart battles
+SPECTATOR_MODE = os.environ.get("SPECTATOR_MODE", "").lower() in ("1", "true")
+
+
+@asynccontextmanager
+async def lifespan(app_instance):
+    if SPECTATOR_MODE:
+        global _sim_options
+        _sim_options = {"use_random": False, "no_social": False, "max_chars": None}
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        log.info("Battle-Agents spectator mode — auto-starting battle")
+        asyncio.create_task(_start_spectator_battle())
+    yield
+
+
+app = FastAPI(title="Battle-Agents", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # CLI options — populated by main(), read by _get_or_create_runner()
@@ -68,6 +86,44 @@ async def _get_or_create_runner():
 
             _runner = SimRunner(manager, **_sim_options)
         return _runner
+
+
+# ================================================================
+# Spectator mode — auto-start / auto-restart
+# ================================================================
+
+
+async def _start_spectator_battle():
+    """Create a new SimRunner with random 4-6 characters and auto-play."""
+    global _runner
+    num_chars = random.randint(4, 6)
+    async with _runner_lock:
+        from frontend.server.sim_runner import SimRunner
+
+        _runner = SimRunner(
+            manager,
+            auto_play=True,
+            on_victory=_on_battle_complete,
+            max_chars=num_chars,
+        )
+    log.info(f"Spectator: starting battle with {num_chars} characters")
+    await _runner.start()
+
+
+def _on_battle_complete():
+    """Called by SimRunner after victory or crash. Schedules restart."""
+    asyncio.create_task(_restart_after_delay())
+
+
+async def _restart_after_delay():
+    """Wait 30s, then start a fresh battle."""
+    global _runner
+    await manager.broadcast({"type": "phase", "phase": "restarting"})
+    log.info("Battle complete — next battle in 30s")
+    await asyncio.sleep(30)
+    async with _runner_lock:
+        _runner = None
+    await _start_spectator_battle()
 
 
 # ================================================================
@@ -179,9 +235,11 @@ async def websocket_endpoint(ws: WebSocket):
 
             cmd = msg.get("type", "")
             if cmd == "configure":
-                runner.apply_configure(msg)
+                if not SPECTATOR_MODE:
+                    runner.apply_configure(msg)
             elif cmd == "start":
-                await runner.start()
+                if not SPECTATOR_MODE:
+                    await runner.start()
             elif cmd in ("step", "play", "pause", "speed"):
                 if cmd == "speed":
                     msg["delay"] = msg.get("delay", 500) / 1000.0

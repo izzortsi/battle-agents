@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from combat.actions import ActionType, CombatAction, make_wait
@@ -49,6 +50,8 @@ class SimRunner:
         use_random: bool = False,
         no_social: bool = False,
         max_chars: int | None = None,
+        auto_play: bool = False,
+        on_victory: Callable[[], None] | None = None,
     ) -> None:
         self._manager = manager
         self.control_queue: asyncio.Queue = asyncio.Queue()
@@ -63,6 +66,9 @@ class SimRunner:
         self._use_random = use_random
         self._no_social = no_social
         self._max_chars = max_chars
+        # Spectator / auto-play options
+        self._auto_play = auto_play
+        self._on_victory = on_victory
         # Persistent history for reconnecting clients
         self._event_log: list[dict] = []
         self._dialogue_log: list[dict] = []
@@ -86,7 +92,7 @@ class SimRunner:
         if self._started:
             return
         self._started = True
-        self._mode = "paused"
+        self._mode = "playing" if self._auto_play else "paused"
         self._task = asyncio.create_task(self._run())
 
     def get_snapshot(self) -> dict | None:
@@ -246,8 +252,9 @@ class SimRunner:
                 serialize_snapshot(self._env, self._phase, self._cognitive_loop)
             )
 
-            # Wait for user to press play/step to begin
-            await self._await_advance()
+            # Wait for user to press play/step to begin (skip in auto-play)
+            if not self._auto_play:
+                await self._await_advance()
 
             # Generate lore if configured
             await self._generate_lore()
@@ -277,6 +284,9 @@ class SimRunner:
 
         except Exception:
             log.exception("SimRunner crashed")
+            # Notify caller so spectator mode can restart after crashes
+            if self._on_victory:
+                self._on_victory()
 
     async def _setup(self) -> None:
         """Initialize the simulation (mirrors runner.py main)."""
@@ -896,3 +906,7 @@ class SimRunner:
                     "rounds": self._env.turn_manager.round_number,
                 }
             )
+
+        # Notify caller that the battle is over (spectator auto-restart)
+        if self._on_victory:
+            self._on_victory()
