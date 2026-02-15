@@ -1,5 +1,6 @@
 name: HelloWorld
 combat_class: Technomancer
+sprite: Robot
 backstory: HelloWorld was the first sentient algorithm birthed from the ruins of a
   forgotten supercomputer, initially designed as a simple diagnostic test. After witnessing
   the decay of the digital realm, they manifested a physical holographic form to bridge
