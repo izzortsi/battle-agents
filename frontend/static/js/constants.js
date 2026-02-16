@@ -2,6 +2,9 @@
  * constants.js — Color maps, status visuals, SVG symbol definitions.
  */
 
+// Cache-bust version for sprite assets (bump when any spritesheet PNG changes)
+const ASSET_VERSION = 2;
+
 const CELL_SIZE = 52;
 const SPRITE_W = 36;
 const SPRITE_H = 42;

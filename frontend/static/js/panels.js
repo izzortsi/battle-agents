@@ -189,7 +189,7 @@ function renderLog(state) {
   }
 }
 
-// ===== Dialogue (bottom panel — compact summaries) =====
+// ===== Dialogue (bottom panel — grouped sessions) =====
 
 function renderDialogue(state) {
   const container = document.getElementById('dialogue-content');
@@ -199,19 +199,33 @@ function renderDialogue(state) {
 
   container.innerHTML = '';
 
-  for (let i = 0; i < state.dialogueLog.length; i++) {
-    const entry = state.dialogueLog[i];
+  for (let i = 0; i < state.dialogueSessions.length; i++) {
+    const session = state.dialogueSessions[i];
     const div = document.createElement('div');
-    div.className = 'dialogue-summary';
+    div.className = 'dialogue-session-row';
+
+    // Compute net disposition shift from all exchanges
+    let netShift = 0;
+    for (const ex of session.exchanges) {
+      netShift += ex.dispositionShift || 0;
+    }
 
     let shiftBadge = '';
-    if (entry.dispositionShift > 0) shiftBadge = `<span class="dialogue-shift positive">+${entry.dispositionShift.toFixed(2)}</span>`;
-    else if (entry.dispositionShift < 0) shiftBadge = `<span class="dialogue-shift negative">${entry.dispositionShift.toFixed(2)}</span>`;
+    if (netShift > 0) shiftBadge = `<span class="dialogue-shift positive">+${netShift.toFixed(2)}</span>`;
+    else if (netShift < 0) shiftBadge = `<span class="dialogue-shift negative">${netShift.toFixed(2)}</span>`;
 
-    const preview = truncate(entry.message, 60);
+    // Summary preview — use first participant's summary or first exchange message
+    const summaryKeys = Object.keys(session.summaries || {});
+    let preview = '';
+    if (summaryKeys.length > 0) {
+      preview = truncate(session.summaries[summaryKeys[0]], 50);
+    } else if (session.exchanges.length > 0) {
+      preview = truncate(session.exchanges[0].message, 50);
+    }
 
     div.innerHTML = `
-      <span class="dialogue-speaker">${escHtml(entry.speakerName)}</span>
+      <span class="dialogue-session-participants">${escHtml(session.initiatorName)} & ${escHtml(session.responderName)}</span>
+      <span class="dialogue-session-count">${session.exchangeCount || session.exchanges.length}</span>
       <span class="dialogue-preview">${escHtml(preview)}</span>
       ${shiftBadge}
     `;
@@ -228,25 +242,64 @@ function renderDialogue(state) {
 // ===== Dialogue Detail Popup =====
 
 function openDialogueDetail(state, index) {
-  const entry = state.dialogueLog[index];
-  if (!entry) return;
+  const session = state.dialogueSessions[index];
+  if (!session) return;
 
   const container = document.getElementById('popup-dialogue-detail');
   if (!container) return;
 
-  let shiftHtml = '';
-  if (entry.dispositionShift > 0) shiftHtml = `<div class="dialogue-detail-shift"><span style="color:#3cb371">+${entry.dispositionShift.toFixed(2)}</span> disposition toward ${escHtml(entry.speakerName)}</div>`;
-  else if (entry.dispositionShift < 0) shiftHtml = `<div class="dialogue-detail-shift"><span style="color:#e94560">${entry.dispositionShift.toFixed(2)}</span> disposition toward ${escHtml(entry.speakerName)}</div>`;
-
-  container.innerHTML = `
+  // Header: participants + exchange count
+  let html = `
     <div class="dialogue-detail-header">
-      <span class="dialogue-detail-speaker">${escHtml(entry.speakerName)}</span>
-      ${entry.target ? `<span class="dialogue-detail-arrow">to</span> <span class="dialogue-detail-target">${escHtml(entry.target)}</span>` : ''}
+      <span class="dialogue-detail-speaker">${escHtml(session.initiatorName)}</span>
+      <span class="dialogue-detail-arrow">&amp;</span>
+      <span class="dialogue-detail-target">${escHtml(session.responderName)}</span>
+      <span class="dialogue-session-badge">${session.exchangeCount || session.exchanges.length} exchanges</span>
     </div>
-    <div class="dialogue-detail-message">"${escHtml(entry.message)}"</div>
-    ${shiftHtml}
   `;
 
+  // Thread: all messages as chat bubbles
+  html += '<div class="dialogue-thread">';
+  for (const ex of session.exchanges) {
+    const isInitiator = ex.speaker === session.initiator;
+    const alignClass = isInitiator ? 'initiator' : 'responder';
+
+    let shiftTag = '';
+    if (ex.dispositionShift > 0) shiftTag = `<span class="dialogue-shift positive">+${ex.dispositionShift.toFixed(2)}</span>`;
+    else if (ex.dispositionShift < 0) shiftTag = `<span class="dialogue-shift negative">${ex.dispositionShift.toFixed(2)}</span>`;
+
+    html += `
+      <div class="dialogue-thread-msg ${alignClass}">
+        <div class="dialogue-thread-speaker">${escHtml(ex.speakerName)} ${shiftTag}</div>
+        <div class="dialogue-thread-text">"${escHtml(ex.message)}"</div>
+      </div>
+    `;
+  }
+  html += '</div>';
+
+  // Per-participant summaries
+  const summaryEntries = Object.entries(session.summaries || {});
+  if (summaryEntries.length > 0) {
+    html += '<div class="dialogue-summaries-section">';
+    html += '<div class="dialogue-summaries-title">Participant Summaries</div>';
+    for (const [agentId, summary] of summaryEntries) {
+      // Try to resolve agent name
+      const agentName = (agentId === session.initiator)
+        ? session.initiatorName
+        : (agentId === session.responder)
+          ? session.responderName
+          : agentId;
+      html += `
+        <div class="dialogue-summary-box">
+          <div class="dialogue-summary-box-name">${escHtml(agentName)}</div>
+          <div class="dialogue-summary-box-text">${escHtml(summary)}</div>
+        </div>
+      `;
+    }
+    html += '</div>';
+  }
+
+  container.innerHTML = html;
   document.getElementById('dialogue-popup').classList.remove('hidden');
 }
 

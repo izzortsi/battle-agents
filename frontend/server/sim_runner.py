@@ -72,6 +72,7 @@ class SimRunner:
         # Persistent history for reconnecting clients
         self._event_log: list[dict] = []
         self._dialogue_log: list[dict] = []
+        self._dialogue_sessions: list[dict] = []
         self._cognitive_states: dict[str, dict] = {}  # agent_id -> last cognitive
         # Landing page configuration (set via apply_configure before start)
         self._configure_data: dict | None = None
@@ -113,6 +114,7 @@ class SimRunner:
             "snapshot": snapshot,
             "event_log": self._event_log[-200:],
             "dialogue_log": self._dialogue_log[-100:],
+            "dialogue_sessions": self._dialogue_sessions[-50:],
             "cognitive": self._cognitive_states,
         }
         if self._lore:
@@ -186,6 +188,8 @@ class SimRunner:
                 "reflection": data.get("reflection", ""),
                 "reasoning": data.get("reasoning", ""),
             }
+        elif msg_type == "dialogue_session":
+            self._dialogue_sessions.append(data)
         elif msg_type == "commentary":
             text = data.get("text", "")
             self._commentary_log.append(text)
@@ -200,6 +204,29 @@ class SimRunner:
                     "details": {},
                 }
             )
+
+    @staticmethod
+    def _serialize_dialogue_session(session, initiator, responder) -> dict:
+        """Serialize a DialogueSession into a WebSocket event."""
+        return {
+            "type": "dialogue_session",
+            "initiator": session.initiator,
+            "initiator_name": initiator.name if initiator else session.initiator,
+            "responder": session.responder,
+            "responder_name": responder.name if responder else session.responder,
+            "exchanges": [
+                {
+                    "speaker": ex.speaker,
+                    "speaker_name": ex.speaker_name,
+                    "message": ex.message,
+                    "disposition_shift": ex.disposition_shift,
+                }
+                for ex in session.exchanges
+            ],
+            "summaries": session.summaries or {},
+            "status": session.status,
+            "exchange_count": len(session.exchanges),
+        }
 
     async def _broadcast(self, data: dict) -> None:
         self._record(data)
@@ -564,6 +591,13 @@ class SimRunner:
                                         "disposition_shift": ex.disposition_shift,
                                     }
                                 )
+                            # Broadcast the complete session envelope
+                            resp_agent = self._env.agents.get(chat.target_agent)
+                            await self._broadcast(
+                                self._serialize_dialogue_session(
+                                    session, agent, resp_agent
+                                )
+                            )
 
                 await self._await_advance()
 
@@ -919,6 +953,15 @@ class SimRunner:
                                         "disposition_shift": ex.disposition_shift,
                                     }
                                 )
+                            # Broadcast the complete session envelope
+                            resp_agent = self._env.agents.get(
+                                decision.chat_action.target_agent
+                            )
+                            await self._broadcast(
+                                self._serialize_dialogue_session(
+                                    session, current, resp_agent
+                                )
+                            )
             else:
                 # Random mode: pick a random action
                 action = pick_random_action(current, self._env)

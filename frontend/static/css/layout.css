@@ -380,27 +380,37 @@ html, body {
 .log-entry.wait { color: var(--text-dim); }
 .log-entry.death { color: var(--accent); font-weight: 600; }
 
-/* ===== Dialogue summaries (compact) ===== */
+/* ===== Dialogue session rows (bottom panel) ===== */
 
-.dialogue-summary {
+.dialogue-session-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 6px;
+  padding: 4px 6px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   cursor: pointer;
   transition: background 0.1s;
   font-size: 11px;
 }
 
-.dialogue-summary:hover {
+.dialogue-session-row:hover {
   background: rgba(255, 255, 255, 0.06);
 }
 
-.dialogue-speaker {
+.dialogue-session-participants {
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.dialogue-session-count {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  background: rgba(65, 105, 225, 0.15);
+  padding: 1px 5px;
+  border-radius: 8px;
   flex-shrink: 0;
 }
 
@@ -439,6 +449,7 @@ html, body {
   align-items: center;
   gap: 6px;
   margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .dialogue-detail-speaker {
@@ -457,21 +468,94 @@ html, body {
   font-size: 13px;
 }
 
-.dialogue-detail-message {
-  font-size: 13px;
-  font-style: italic;
-  line-height: 1.6;
-  color: #ddd;
-  padding: 10px 12px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.04);
-  border-left: 3px solid var(--accent-gold);
-  margin-bottom: 10px;
+.dialogue-session-badge {
+  font-size: 10px;
+  color: var(--accent-blue);
+  background: rgba(65, 105, 225, 0.12);
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: auto;
 }
 
-.dialogue-detail-shift {
+/* Thread: message list inside popup */
+
+.dialogue-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.dialogue-thread-msg {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.dialogue-thread-msg.initiator {
+  border-left: 3px solid var(--accent-gold);
+}
+
+.dialogue-thread-msg.responder {
+  border-left: 3px solid var(--accent-blue);
+}
+
+.dialogue-thread-speaker {
+  font-weight: 600;
   font-size: 11px;
   color: var(--text-dim);
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dialogue-thread-text {
+  color: #ddd;
+  font-style: italic;
+}
+
+/* Per-participant summaries at bottom of popup */
+
+.dialogue-summaries-section {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.dialogue-summaries-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.dialogue-summary-box {
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+
+.dialogue-summary-box-name {
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--accent-gold);
+  margin-bottom: 3px;
+}
+
+.dialogue-summary-box-text {
+  font-size: 11px;
+  color: #ccc;
+  line-height: 1.5;
+}
+
+/* Wider dialogue popup to fit thread comfortably */
+.dialogue-popup-panel {
+  width: 560px;
 }
 
 /* ===== Social relationships ===== */

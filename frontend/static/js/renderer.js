@@ -40,6 +40,10 @@ class Renderer {
         refreshPopupIfOpen(this.state);
         break;
       case 'dialogue':
+        // Individual exchanges are still broadcast for live streaming;
+        // the dialogue pane now renders from grouped sessions, so no-op here.
+        break;
+      case 'dialogue_session':
         renderDialogue(this.state);
         break;
       case 'cognitive':

@@ -254,7 +254,7 @@ function resolveSilhouette(slug) {
  * Build the spritesheet URL from a preset name.
  */
 function spritesheetUrl(presetName) {
-  return `/static/assets/spritesheets/${presetName}.png`;
+  return `/static/assets/spritesheets/${presetName}.png?v=${ASSET_VERSION}`;
 }
 
 /**

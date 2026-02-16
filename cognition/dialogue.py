@@ -60,6 +60,7 @@ class DialogueSession:
     status: Literal[
         "active", "ended_by_initiator", "ended_by_responder", "max_rounds"
     ] = "active"
+    summaries: dict[str, str] = field(default_factory=dict)  # agent_id -> summary
 
     @property
     def exchange_count(self) -> int:
@@ -218,7 +219,7 @@ def run_dialogue_session(
         session.status = "max_rounds"
 
     # Post-dialogue: emit memory summaries for both participants
-    _emit_dialogue_memories(
+    session.summaries = _emit_dialogue_memories(
         session,
         initiator,
         responder,
@@ -378,11 +379,13 @@ def _emit_dialogue_memories(
     responder_memory: MemoryStream,
     current_turn: int,
     use_llm_summary: bool = True,
-) -> None:
+) -> dict[str, str]:
     """After dialogue closes, create summary memories for each participant.
 
     If use_llm_summary is False (or the dialogue is very short),
     uses a template-based summary instead of an LLM call to save tokens.
+
+    Returns a dict of ``{agent_id: summary_text}`` for both participants.
     """
     # Build exchange text for summary
     exchange_lines = []
@@ -425,6 +428,11 @@ def _emit_dialogue_memories(
     log.info(f"    [Dialogue summary for {initiator.name}]: {init_summary}")
     log.info(f"    [Dialogue summary for {responder.name}]: {resp_summary}")
 
+    summaries = {
+        initiator.agent_id: init_summary,
+        responder.agent_id: resp_summary,
+    }
+
     # Emit "overheard" observations for nearby agents
     init_pos = env.world_state.get_position(initiator.agent_id)
     if init_pos:
@@ -441,6 +449,8 @@ def _emit_dialogue_memories(
                         f"talking intensely nearby."
                     )
                     log.debug(f"  {other.name} overheard dialogue")
+
+    return summaries
 
 
 def _template_summary(

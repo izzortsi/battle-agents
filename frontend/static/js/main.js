@@ -76,6 +76,9 @@
       case 'dialogue':
         state.applyDialogue(msg);
         break;
+      case 'dialogue_session':
+        state.applyDialogueSession(msg);
+        break;
       case 'cognitive':
         state.applyCognitive(msg);
         break;
@@ -248,6 +251,7 @@
     state.damageStats = null;
     state.campaignUpdate = null;
     state.lore = null;
+    state.dialogueSessions = [];
 
     // Reset lore popup content + hide button
     const loreContent = document.getElementById('popup-lore');

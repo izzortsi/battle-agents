@@ -146,7 +146,7 @@ class LandingPage {
       // Sprite preview (small thumbnail if assigned)
       const assignedSprite = this._spriteAssignments[c.id] || '';
       const previewHtml = assignedSprite
-        ? `<div class="char-sprite-preview" style="background-image:url(/static/assets/spritesheets/${this._esc(assignedSprite)}.png)"></div>`
+        ? `<div class="char-sprite-preview" style="background-image:url(/static/assets/spritesheets/${this._esc(assignedSprite)}.png?v=${ASSET_VERSION})"></div>`
         : '';
 
       const alignLabel = (c.moral_alignment || 'true_neutral').replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
@@ -445,7 +445,7 @@ class LandingPage {
 
       // Sprite preview
       const spriteHtml = r.sprite
-        ? `<div class="char-sprite-preview" style="background-image:url(/static/assets/spritesheets/${this._esc(r.sprite)}.png)"></div>`
+        ? `<div class="char-sprite-preview" style="background-image:url(/static/assets/spritesheets/${this._esc(r.sprite)}.png?v=${ASSET_VERSION})"></div>`
         : '';
 
       // XP bar
