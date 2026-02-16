@@ -79,6 +79,34 @@
   accent-color: var(--accent-green);
 }
 
+.char-delete-btn {
+  width: 22px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.char-roster-item:hover .char-delete-btn {
+  opacity: 1;
+}
+
+.char-delete-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .char-roster-info {
   flex: 1;
   min-width: 0;
@@ -376,6 +404,467 @@
 
 .lore-panel-body.collapsed {
   display: none;
+}
+
+/* ===== Campaign Section ===== */
+
+.campaign-section {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.campaign-section h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+.campaign-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+.campaign-controls input[type="text"] {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.btn-campaign-create,
+.btn-campaign-exit {
+  padding: 6px 14px;
+  border: 1px solid var(--accent-blue);
+  border-radius: 4px;
+  background: rgba(65, 105, 225, 0.15);
+  color: var(--accent-blue);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.btn-campaign-create:hover:not(:disabled),
+.btn-campaign-exit:hover {
+  background: rgba(65, 105, 225, 0.3);
+}
+
+.btn-campaign-create:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.btn-campaign-exit {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(233, 69, 96, 0.1);
+}
+
+.btn-campaign-exit:hover {
+  background: rgba(233, 69, 96, 0.25);
+}
+
+/* Campaign list */
+
+.campaign-empty {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 4px 0;
+}
+
+.campaign-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.campaign-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.02);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.campaign-item:hover {
+  border-color: var(--accent-blue);
+  background: rgba(65, 105, 225, 0.05);
+}
+
+.campaign-item.active {
+  border-color: var(--accent-gold);
+  background: rgba(218, 165, 32, 0.08);
+}
+
+.campaign-item-info {
+  flex: 1;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.campaign-item-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.campaign-item-meta {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.campaign-item-delete {
+  width: 24px;
+  height: 24px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.campaign-item-delete:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Campaign roster */
+
+.campaign-roster {
+  margin-top: 12px;
+}
+
+.campaign-roster-header {
+  margin-bottom: 10px;
+}
+
+.campaign-roster-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--accent-gold);
+}
+
+.campaign-roster-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.campaign-roster-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.02);
+  margin-bottom: 6px;
+}
+
+.campaign-roster-entry.dead {
+  opacity: 0.45;
+  border-color: rgba(233, 69, 96, 0.3);
+}
+
+.campaign-roster-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.campaign-roster-name {
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.campaign-roster-level {
+  font-size: 10px;
+  color: var(--accent-gold);
+  font-weight: 700;
+  background: rgba(218, 165, 32, 0.15);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.campaign-roster-dead-tag {
+  font-size: 9px;
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 1px;
+  background: rgba(233, 69, 96, 0.15);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.campaign-roster-class {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.campaign-roster-xp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.xp-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.xp-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-blue), #7b68ee);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.xp-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.campaign-roster-stats {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 3px;
+  letter-spacing: 0.3px;
+}
+
+/* Campaign battle history */
+
+.campaign-history {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.campaign-history-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.campaign-history-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11px;
+}
+
+.campaign-history-num {
+  color: var(--accent-gold);
+  font-weight: 600;
+  min-width: 24px;
+}
+
+.campaign-history-detail {
+  color: var(--text-dim);
+}
+
+/* ===== Victory Overlay ===== */
+
+.victory-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.victory-panel {
+  background: var(--bg-panel);
+  border: 2px solid var(--accent-gold);
+  border-radius: 10px;
+  padding: 24px 32px;
+  max-width: 520px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 40px rgba(218, 165, 32, 0.15);
+}
+
+.victory-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent-gold);
+  text-align: center;
+  margin-bottom: 16px;
+  letter-spacing: 2px;
+}
+
+.victory-subtitle {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+/* Damage stats table */
+.victory-dmg-table {
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.victory-dmg-header {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.victory-dmg-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.victory-dmg-name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.victory-dmg-bar-bg {
+  flex: 2;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.victory-dmg-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #e97d46);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.victory-dmg-value {
+  min-width: 40px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* Campaign update section in overlay */
+.victory-campaign {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+.victory-campaign-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent-gold);
+  margin-bottom: 8px;
+}
+
+.victory-xp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.victory-xp-name {
+  flex: 1;
+}
+
+.victory-xp-amount {
+  color: var(--accent-blue);
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.victory-levelup {
+  color: var(--accent-gold);
+  font-weight: 700;
+  font-size: 10px;
+  background: rgba(218, 165, 32, 0.15);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.victory-death-tag {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
+
+/* Continue button */
+.victory-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 18px;
+  gap: 12px;
+}
+
+.btn-victory-continue {
+  padding: 10px 28px;
+  border: 2px solid var(--accent-gold);
+  border-radius: 6px;
+  background: rgba(218, 165, 32, 0.15);
+  color: var(--accent-gold);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  transition: background 0.2s;
+}
+
+.btn-victory-continue:hover {
+  background: rgba(218, 165, 32, 0.3);
 }
 
 /* Commentary in battle log */

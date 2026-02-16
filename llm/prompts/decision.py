@@ -65,14 +65,20 @@ YOUR COMBAT PROFILE:
 - Enemies may counter-attack if you miss or they are skilled (scales with their HIT)
 
 COMBAT RULES:
-- You are on a 2D tile grid. Coordinates are (x, y).
+- You are on a 2D tile grid. Coordinates are (x, y). Some tiles are impassable \
+(pillars, walls, furniture) — you cannot move through them.
 - Each turn you choose a PRIMARY action: attack, defend, ability, or wait.
 - You may also MOVE before OR after your primary action by including "target_tile". \
 Movement is FREE — you choose whether to move first then act, or act first then \
-reposition. Set "move_order" to "before" (default) or "after".
+reposition. Set "move_order" to "before" (default) or "after". \
+You MUST pick a tile from the MOVE options listed under AVAILABLE ACTIONS — \
+those are the passable, unoccupied tiles within your move range.
 - ATTACK is your basic attack. You can only attack targets within your attack \
 range ({attack_range} tiles, Manhattan distance). Attacks can MISS, CRIT, or be COUNTERED. \
-If the target is out of range, move toward them AND attack in the same turn.
+Targets listed under "ATTACK (in range now)" can be attacked without moving. \
+Targets under "ATTACK (move first)" require you to MOVE toward them first — \
+include target_tile and set move_order to "before". \
+If a target is "OUT OF RANGE even after moving", just MOVE closer and WAIT, CHAT, or DEFEND.
 - ABILITY uses a special ability (costs mana, has cooldown). Abilities can deal \
 damage, apply status effects, heal, or buff. Include "ability_name" and \
 "target_agent" (omit target_agent for self-targeting abilities like \
@@ -98,15 +104,20 @@ Use DEFEND only when badly wounded and enemies are far away.
 alliance offers, coordination, or warnings. Use it when relationships matter — \
 but don't waste turns talking when you should be fighting.
 
-PRIORITY ORDER: Ability (if impactful, move to reposition first) > Attack \
-threats/enemies (move toward them first) > Defend (if hurt) > Chat (if socially useful). \
-Avoid attacking allies unless they betray you.
+PRIORITY ORDER: Ability (move first if needed) > Attack threats/enemies \
+(move first if needed) > Defend (if critically wounded and no targets reachable) > \
+Move toward unreachable enemies + WAIT (ONLY if ALL targets are "OUT OF RANGE \
+even after moving") > Chat (if socially useful). \
+If ANY target is listed under "(in range now)" or "(move first)", you MUST \
+attack or use an ability — do NOT WAIT or DEFEND. \
+Avoid attacking allies unless they betray you. ONLY target combatants listed \
+under ATTACK or ABILITY sections — "(in range now)" or "(move first)".
 
 Respond with a JSON object. No other text. The JSON must have this exact schema:
 {{
   "reasoning": "<your internal tactical reasoning, 1-3 sentences, in character>",
   "action": "<one of: attack, defend, ability, wait>",
-  "target_tile": "<(x, y) format, optional — move to this adjacent tile>",
+  "target_tile": "<(x, y) format, optional — MUST be one of the listed MOVE tiles>",
   "move_order": "<'before' or 'after', optional — when to move relative to your action, default 'before'>",
   "target_agent": "<agent_id, required for attack/ability targeting an enemy, omit for self-targeting abilities>",
   "ability_name": "<name of ability, required for ability action, omit otherwise>",
@@ -140,16 +151,22 @@ RELEVANT MEMORIES:
 COMBATANTS YOU CAN SEE:
 {visible_enemies}
 {eliminated_section}
+MAP OF THE BATTLEFIELD:
+{perception_map}
+
 AVAILABLE ACTIONS:
 {available_actions}
 
 REMEMBER: Engage threats aggressively. Each combatant is labelled ALLIED, \
 NEUTRAL, or HOSTILE — this reflects mutual standing, not just your feelings. \
-Attack HOSTILE and NEUTRAL threats. Do NOT attack ALLIED combatants unless \
+Attack HOSTILE and NEUTRAL threats. For "(move first)" targets, include \
+target_tile to move toward them first (move_order: "before"), then attack/ability. \
+If ANY target is "(in range now)" or "(move first)", you MUST attack or use \
+an ability on them — do NOT WAIT or DEFEND when you have reachable targets. \
+ONLY when ALL targets are "OUT OF RANGE even after moving" should you MOVE \
+closer and WAIT, CHAT, or DEFEND. Do NOT attack ALLIED combatants unless \
 they betray you. Use abilities when impactful — but beware AoE friendly fire \
-on allies. You can MOVE AND ACT in the same turn — include target_tile to \
-move before or after your action (set move_order to "before" or "after"). \
-Defend only if critically wounded. Chat to coordinate with allies or intimidate foes.
+on allies. Chat to coordinate or intimidate.
 Choose your action. Respond with JSON only."""
 
 
@@ -254,6 +271,71 @@ def format_abilities(abilities: list[dict], mana: int) -> str:
     return "\n".join(lines)
 
 
+def build_perception_map(
+    ax: int,
+    ay: int,
+    grid_width: int,
+    grid_height: int,
+    is_passable_fn,
+    visible_agents: list[dict],
+    alliance_statuses: dict | None = None,
+) -> str:
+    """Build an ASCII map of the grid showing agent positions and terrain.
+
+    Returns a compact text map with legend, e.g.::
+
+           0  1  2  3  4  5
+        0  .  .  #  .  .  .
+        1  .  .  .  @  1  .
+        2  .  .  .  .  .  .
+        1=Grimwar [HOSTILE]  @ = You  # = impassable
+    """
+    labels = "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    agent_at: dict[tuple[int, int], str] = {}
+    legend_parts: list[str] = []
+
+    for i, a in enumerate(visible_agents):
+        if i >= len(labels):
+            break
+        lbl = labels[i]
+        agent_at[(a["x"], a["y"])] = lbl
+        status = ""
+        if alliance_statuses and a["agent_id"] in alliance_statuses:
+            status = f" [{alliance_statuses[a['agent_id']].value.upper()}]"
+        legend_parts.append(f"{lbl}={a['name']}{status}")
+
+    lines: list[str] = []
+
+    # Column header
+    row_pad = 2 if grid_height >= 10 else 1
+    header = " " * (row_pad + 2)
+    for x in range(grid_width):
+        header += f"{x:>2} "
+    lines.append(header)
+
+    # Grid rows
+    for y in range(grid_height):
+        row = f"{y:>{row_pad}}  "
+        for x in range(grid_width):
+            if x == ax and y == ay:
+                cell = "@"
+            elif (x, y) in agent_at:
+                cell = agent_at[(x, y)]
+            elif not is_passable_fn(x, y):
+                cell = "#"
+            else:
+                cell = "."
+            row += f"{cell:>2} "
+        lines.append(row)
+
+    # Legend
+    if legend_parts:
+        lines.append("  ".join(legend_parts))
+    lines.append("@ = You  # = impassable (wall/pillar/furniture)  . = passable")
+
+    return "\n".join(lines)
+
+
 def format_visible_enemies(
     enemies: list[dict],
     social_dispositions: dict[str, float] | None = None,
@@ -270,10 +352,22 @@ def format_visible_enemies(
     lines = []
     for e in enemies:
         hp_pct = int(100 * e["hp"] / e["max_hp"]) if e["max_hp"] > 0 else 0
-        in_range = "IN RANGE" if e.get("in_attack_range") else ""
         dmg_type = e.get("damage_type", "physical")
         phys_def = e.get("phys_def", "?")
         mag_def = e.get("mag_def", "?")
+
+        # Skill-oriented range tags
+        reachable = e.get("reachable_by", [])
+        after_move = e.get("reachable_after_move", [])
+        if reachable:
+            range_str = f"in range: {', '.join(reachable)}"
+            if after_move:
+                range_str += f"; after move: {', '.join(after_move)}"
+        elif after_move:
+            range_str = f"after move: {', '.join(after_move)}"
+        else:
+            range_str = "OUT OF RANGE even after moving"
+
         disp_str = ""
         if alliance_statuses and e["agent_id"] in alliance_statuses:
             status = alliance_statuses[e["agent_id"]]
@@ -301,7 +395,7 @@ def format_visible_enemies(
             f"  - {e['name']} ({e['agent_id']}) at ({e['x']}, {e['y']}), "
             f"distance {e['distance']}, HP {e['hp']}/{e['max_hp']} ({hp_pct}%), "
             f"deals {dmg_type} dmg, pDef {phys_def} / mDef {mag_def} "
-            f"{in_range}{disp_str}"
+            f"| {range_str}{disp_str}"
         )
     return "\n".join(lines)
 
@@ -327,20 +421,24 @@ def format_available_actions(
     can_attack: list[str],
     can_chat: list[str],
     can_ability: list[str] | None = None,
+    can_attack_after_move: list[str] | None = None,
+    can_ability_after_move: list[str] | None = None,
 ) -> str:
     """Format the set of available actions for the prompt."""
     lines = []
     if can_move:
-        # Show up to 6 move options to avoid prompt bloat
-        display = can_move[:6]
-        extra = f" (+{len(can_move) - 6} more)" if len(can_move) > 6 else ""
+        # Show all move options so the LLM picks only valid tiles
         lines.append(
-            f"  MOVE (free, before or after your action): {', '.join(display)}{extra}"
+            f"  MOVE (free, before or after your action): {', '.join(can_move)}"
         )
     if can_ability:
-        lines.append(f"  ABILITY options: {', '.join(can_ability)}")
+        lines.append(f"  ABILITY (in range now): {', '.join(can_ability)}")
+    if can_ability_after_move:
+        lines.append(f"  ABILITY (move first): {', '.join(can_ability_after_move)}")
     if can_attack:
-        lines.append(f"  ATTACK targets: {', '.join(can_attack)}")
+        lines.append(f"  ATTACK (in range now): {', '.join(can_attack)}")
+    if can_attack_after_move:
+        lines.append(f"  ATTACK (move first): {', '.join(can_attack_after_move)}")
     lines.append("  DEFEND (raise defense this turn)")
     lines.append("  WAIT (do nothing)")
     if can_chat:
@@ -365,6 +463,9 @@ def build_user_prompt(
     can_ability: list[str] | None = None,
     alliance_statuses: dict[str, AllianceStatus] | None = None,
     eliminated: list[dict] | None = None,
+    perception_map: str = "",
+    can_attack_after_move: list[str] | None = None,
+    can_ability_after_move: list[str] | None = None,
 ) -> str:
     """Build the user prompt with full situational context."""
     status_effects = agent.attributes.status_effects
@@ -416,7 +517,13 @@ def build_user_prompt(
             visible_enemies, social_dispositions, alliance_statuses
         ),
         eliminated_section=format_eliminated(eliminated),
+        perception_map=perception_map,
         available_actions=format_available_actions(
-            can_move, can_attack, can_chat, can_ability
+            can_move,
+            can_attack,
+            can_chat,
+            can_ability,
+            can_attack_after_move,
+            can_ability_after_move,
         ),
     )

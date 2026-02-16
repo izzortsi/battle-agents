@@ -79,6 +79,9 @@ class SimRunner:
         self._lore = None  # LoreContext
         self._commentator = None  # Commentator
         self._commentary_log: list[str] = []
+        # Campaign state (set during _setup if campaign_id in configure_data)
+        self._campaign_mgr = None  # CampaignManager | None
+        self._campaign_db = None  # CampaignDB | None
 
     def apply_configure(self, msg: dict) -> None:
         """Store landing page configuration for use during _setup()."""
@@ -330,13 +333,28 @@ class SimRunner:
             self._env = self._combat_env
             self._tavern_env = None
 
-        # Load characters — filter by landing page selection if configured
-        agents = load_all_characters()
-        if self._configure_data and self._configure_data.get("characters"):
-            selected_ids = set(self._configure_data["characters"])
-            agents = [a for a in agents if a.agent_id in selected_ids]
-        elif self._max_chars and self._max_chars < len(agents):
-            agents = agents[: self._max_chars]
+        # Load characters — campaign roster or landing page selection
+        campaign_id = (
+            self._configure_data.get("campaign_id") if self._configure_data else None
+        )
+        if campaign_id:
+            from campaign.persistence import CampaignDB
+            from campaign.manager import CampaignManager
+
+            self._campaign_db = CampaignDB()
+            self._campaign_mgr = CampaignManager(self._campaign_db, campaign_id)
+            agents = self._campaign_mgr.build_agents()
+            log.info(
+                f"SimRunner: campaign mode (id={campaign_id}, "
+                f"{len(agents)} alive agents)"
+            )
+        else:
+            agents = load_all_characters()
+            if self._configure_data and self._configure_data.get("characters"):
+                selected_ids = set(self._configure_data["characters"])
+                agents = [a for a in agents if a.agent_id in selected_ids]
+            elif self._max_chars and self._max_chars < len(agents):
+                agents = agents[: self._max_chars]
 
         # Apply sprite overrides from landing page before placing
         if self._configure_data and self._configure_data.get("sprites"):
@@ -362,6 +380,12 @@ class SimRunner:
 
             for agent in self._env.agents.values():
                 self._cognitive_loop.register(agent)
+
+            # Restore campaign memories + social relationships
+            if self._campaign_mgr:
+                self._campaign_mgr.restore_agent_state(
+                    list(self._env.agents.values()), self._cognitive_loop
+                )
         else:
             self._model_id = "random"
 
@@ -484,6 +508,9 @@ class SimRunner:
         agents = self._env.alive_agents()
 
         for tick in range(1, duration + 1):
+            await self._broadcast(
+                {"type": "social_tick", "tick": tick, "total": duration}
+            )
             decisions = await self._cognitive_loop.async_run_pre_battle_tick(
                 agents=agents,
                 env=self._env,
@@ -756,12 +783,16 @@ class SimRunner:
                                 decision.move_action, move_result, self._env
                             )
                             await self._broadcast(move_event)
+                        else:
+                            log.warning(
+                                f"  {current.name}: move failed — {move_result.description}"
+                            )
 
                 if not decision.move_after:
                     await _resolve_move()
 
                 # Resolve primary action with retry on invalid actions
-                max_retries = 2
+                max_retries = 4
                 action = decision.primary_action
                 result = self._env.resolve_action(action)
 
@@ -779,6 +810,19 @@ class SimRunner:
                         error_feedback=result.description,
                         urgency_text=urgency_text,
                     )
+                    # Resolve the retry's move (before primary) so the agent
+                    # can reposition before re-attempting the primary action.
+                    if decision.move_action and not decision.move_after:
+                        mr = self._env.resolve_action(decision.move_action)
+                        if mr.success:
+                            move_event = serialize_action_event(
+                                decision.move_action, mr, self._env
+                            )
+                            await self._broadcast(move_event)
+                        else:
+                            log.warning(
+                                f"  {current.name}: retry move failed — {mr.description}"
+                            )
                     action = decision.primary_action
                     result = self._env.resolve_action(action)
 
@@ -951,6 +995,86 @@ class SimRunner:
                     "rounds": self._env.turn_manager.round_number,
                 }
             )
+
+        # Broadcast damage stats (all modes)
+        damage_stats = []
+        for aid, dmg in sorted(self._env.damage_dealt.items(), key=lambda x: -x[1]):
+            agent = self._env.agents.get(aid)
+            damage_stats.append(
+                {
+                    "agent_id": aid,
+                    "name": agent.name if agent else aid,
+                    "damage": dmg,
+                }
+            )
+        if damage_stats:
+            await self._broadcast({"type": "damage_stats", "stats": damage_stats})
+
+        # Campaign post-battle processing
+        if self._campaign_mgr and self._cognitive_loop:
+            try:
+                from runner import create_adapter
+                from config_loader import load_llm_config
+
+                llm_cfg = load_llm_config()
+                adapter, _ = create_adapter(llm_cfg)
+                record = self._campaign_mgr.process_battle_results(
+                    self._env,
+                    self._cognitive_loop,
+                    adapter,
+                )
+
+                # Build campaign update event
+                roster = self._campaign_mgr.get_roster()
+                level_ups = []
+                for r in roster:
+                    if r.alive and r.level > 1:
+                        # Check if levelled this battle by comparing XP
+                        xp_gained = record.xp_awards.get(r.agent_id, 0)
+                        if xp_gained > 0:
+                            level_ups.append(
+                                {
+                                    "agent_id": r.agent_id,
+                                    "name": r.name,
+                                    "level": r.level,
+                                }
+                            )
+
+                await self._broadcast(
+                    {
+                        "type": "campaign_update",
+                        "campaign_id": self._campaign_mgr.campaign_id,
+                        "battle_num": record.battle_num,
+                        "xp_awards": record.xp_awards,
+                        "deaths": record.death_ids,
+                        "level_ups": level_ups,
+                        "roster": [
+                            {
+                                "agent_id": r.agent_id,
+                                "name": r.name,
+                                "combat_class": r.combat_class,
+                                "sprite": r.sprite,
+                                "alive": r.alive,
+                                "level": r.level,
+                                "xp": r.xp,
+                                "xp_to_next": r.xp_to_next_level,
+                                "atk": r.atk,
+                                "mgk": r.mgk,
+                                "spd": r.spd,
+                                "con": r.con,
+                                "hit": r.hit,
+                            }
+                            for r in roster
+                        ],
+                    }
+                )
+                log.info(f"Campaign update broadcast: battle #{record.battle_num}")
+            except Exception:
+                log.error("Campaign post-battle processing failed.", exc_info=True)
+            finally:
+                if self._campaign_db:
+                    self._campaign_db.close()
+                    self._campaign_db = None
 
         # Notify caller that the battle is over (spectator auto-restart)
         if self._on_victory:

@@ -27,6 +27,9 @@ build/
 Thumbs.db
 .DS_Store
 
+# Campaign data (SQLite)
+data/
+
 # Testing
 coverage/
 .nyc_output/

@@ -815,12 +815,49 @@ def run_battle(
                     mr = env.resolve_action(decision.move_action)
                     if mr.success:
                         log.info(f"  {mr.description}")
+                    else:
+                        log.warning(f"  {current.name}: move failed — {mr.description}")
 
             if not decision.move_after:
                 _resolve_move()
 
-            # Resolve primary action
-            result = env.resolve_action(decision.primary_action)
+            # Resolve primary action with retry on invalid actions
+            max_retries = 4
+            action = decision.primary_action
+            result = env.resolve_action(action)
+
+            retry_count = 0
+            while not result.success and retry_count < max_retries:
+                retry_count += 1
+                log.info(
+                    f"  {current.name}: invalid action ({result.description}), "
+                    f"retry {retry_count}/{max_retries}"
+                )
+                decision = cognitive_loop.retry_decide(
+                    current,
+                    env,
+                    round_num,
+                    error_feedback=result.description,
+                    urgency_text=urgency_text,
+                )
+                # Resolve the retry's move (before primary) so the agent
+                # can reposition before re-attempting the primary action.
+                if decision.move_action and not decision.move_after:
+                    mr = env.resolve_action(decision.move_action)
+                    if mr.success:
+                        log.info(f"  {mr.description}")
+                    else:
+                        log.warning(
+                            f"  {current.name}: retry move failed — {mr.description}"
+                        )
+                action = decision.primary_action
+                result = env.resolve_action(action)
+
+            if not result.success and retry_count >= max_retries:
+                log.warning(f"  {current.name}: all retries exhausted, forcing WAIT")
+                action = make_wait(current.agent_id, "retries exhausted — forced wait")
+                result = env.resolve_action(action)
+
             log.info(f"  {result.description}")
             _broadcast_kills(result, current, env, round_num, cognitive_loop)
 
@@ -829,9 +866,9 @@ def run_battle(
 
             # Track damage
             if result.success and (
-                decision.primary_action.action_type == ActionType.ATTACK
+                action.action_type == ActionType.ATTACK
                 or (
-                    decision.primary_action.action_type == ActionType.ABILITY
+                    action.action_type == ActionType.ABILITY
                     and result.details.get("damage", 0) > 0
                 )
             ):
@@ -1185,11 +1222,49 @@ async def async_run_battle(
                 mr = env.resolve_action(decision.move_action)
                 if mr.success:
                     log.info(f"  {mr.description}")
+                else:
+                    log.warning(f"  {current.name}: move failed — {mr.description}")
 
         if not decision.move_after:
             _resolve_move()
 
-        result = env.resolve_action(decision.primary_action)
+        # Resolve primary action with retry on invalid actions
+        max_retries = 4
+        action = decision.primary_action
+        result = env.resolve_action(action)
+
+        retry_count = 0
+        while not result.success and retry_count < max_retries:
+            retry_count += 1
+            log.info(
+                f"  {current.name}: invalid action ({result.description}), "
+                f"retry {retry_count}/{max_retries}"
+            )
+            decision = await cognitive_loop.async_retry_decide(
+                current,
+                env,
+                round_num,
+                error_feedback=result.description,
+                urgency_text=urgency_text,
+            )
+            # Resolve the retry's move (before primary) so the agent
+            # can reposition before re-attempting the primary action.
+            if decision.move_action and not decision.move_after:
+                mr = env.resolve_action(decision.move_action)
+                if mr.success:
+                    log.info(f"  {mr.description}")
+                else:
+                    log.warning(
+                        f"  {current.name}: retry move failed — {mr.description}"
+                    )
+            action = decision.primary_action
+            result = env.resolve_action(action)
+
+        if not result.success and retry_count >= max_retries:
+            log.warning(f"  {current.name}: all retries exhausted, forcing WAIT")
+            action = make_wait(current.agent_id, "retries exhausted — forced wait")
+            result = env.resolve_action(action)
+
         log.info(f"  {result.description}")
         _broadcast_kills(result, current, env, round_num, cognitive_loop)
 
@@ -1197,9 +1272,9 @@ async def async_run_battle(
             _resolve_move()
 
         if result.success and (
-            decision.primary_action.action_type == ActionType.ATTACK
+            action.action_type == ActionType.ATTACK
             or (
-                decision.primary_action.action_type == ActionType.ABILITY
+                action.action_type == ActionType.ABILITY
                 and result.details.get("damage", 0) > 0
             )
         ):
@@ -1272,6 +1347,201 @@ async def _async_main(
         print_grid(combat_env)
 
     await async_run_battle(combat_env, cognitive_loop, model_id)
+
+
+# ==========================================================================
+# Campaign mode
+# ==========================================================================
+
+
+async def _run_campaign(args: argparse.Namespace) -> None:
+    """Run a single campaign battle — create or continue a campaign."""
+    from campaign.persistence import CampaignDB
+    from campaign.manager import CampaignManager, roster_entry_from_agent
+
+    db = CampaignDB()
+
+    try:
+        # --- Create or load campaign ---
+        if args.new_campaign:
+            # Create new campaign and seed roster
+            meta = db.create_campaign(args.new_campaign)
+            agents_from_yaml = load_all_characters()
+            max_chars = getattr(args, "chars", None)
+            if max_chars and max_chars < len(agents_from_yaml):
+                agents_from_yaml = agents_from_yaml[:max_chars]
+            roster = [roster_entry_from_agent(a) for a in agents_from_yaml]
+            db.save_roster(meta.campaign_id, roster)
+            campaign_id = meta.campaign_id
+            log.info(
+                f"Created campaign '{args.new_campaign}' (id={campaign_id}) "
+                f"with {len(roster)} characters."
+            )
+        else:
+            campaign_id = args.campaign
+            meta = db.get_campaign(campaign_id)
+            if meta is None:
+                log.error(f"Campaign {campaign_id} not found.")
+                return
+
+        mgr = CampaignManager(db, campaign_id)
+        alive_roster = mgr.get_alive_roster()
+
+        if len(alive_roster) < 2:
+            log.error(
+                "Not enough alive characters for a battle "
+                f"({len(alive_roster)} alive). Campaign may be over."
+            )
+            _print_campaign_roster(mgr)
+            return
+
+        log.info(f"\n{'=' * 60}")
+        log.info(f"CAMPAIGN: {mgr.meta.name}  |  Battle #{mgr.meta.battle_count + 1}")
+        log.info(f"Alive: {len(alive_roster)} characters")
+        log.info(f"{'=' * 60}")
+
+        # --- Build agents from roster ---
+        agents = mgr.build_agents()
+        for a in agents:
+            log.info(
+                f"  {a.name} (L{next(r.level for r in alive_roster if r.agent_id == a.agent_id)}) "
+                f"— {a.identity.combat_class} | "
+                f"ATK={a.attributes.atk} MGK={a.attributes.mgk} "
+                f"SPD={a.attributes.spd} CON={a.attributes.con} HIT={a.attributes.hit}"
+            )
+
+        # --- Setup environment ---
+        game_cfg = load_game_config()
+        load_balance_config(game_cfg)
+        grid_cfg = game_cfg.get("grid", {})
+        combat_cfg = game_cfg.get("combat", {})
+        pre_battle_cfg = game_cfg.get("pre_battle", {})
+        skip_social = getattr(args, "no_social", False)
+        pre_battle_enabled = pre_battle_cfg.get("enabled", False) and not skip_social
+
+        victory_cfg = game_cfg.get("victory", {})
+        victory_mode = victory_cfg.get("mode", "last_standing")
+
+        combat_grid = BattleGrid.create_arena(
+            width=grid_cfg.get("width", 12),
+            height=grid_cfg.get("height", 10),
+        )
+        combat_env = Environment(
+            grid=combat_grid,
+            perception_radius=combat_cfg.get("perception_radius", 8),
+            victory_mode=victory_mode,
+        )
+
+        pre_battle_map = pre_battle_cfg.get("map", "arena")
+        use_tavern = pre_battle_enabled and pre_battle_map == "tavern"
+
+        if use_tavern:
+            tavern_grid = BattleGrid.create_tavern()
+            tavern_env = Environment(
+                grid=tavern_grid,
+                perception_radius=pre_battle_cfg.get("perception_radius", 12),
+                victory_mode=victory_mode,
+            )
+            place_agents(agents, tavern_env, min_dist=2)
+            initial_env = tavern_env
+        else:
+            tavern_env = None
+            place_agents(agents, combat_env)
+            initial_env = combat_env
+
+        # --- Setup cognitive loop + restore campaign state ---
+        cognitive_loop, model_id = setup_cognitive_loop(game_cfg)
+        for agent in initial_env.agents.values():
+            cognitive_loop.register(agent)
+
+        # Restore memories and social relationships from previous battles
+        mgr.restore_agent_state(list(initial_env.agents.values()), cognitive_loop)
+
+        log.info(f"\nCognitive loop initialised (model: {model_id})")
+
+        # --- Run pre-battle (if enabled) ---
+        if pre_battle_enabled:
+            await async_run_pre_battle(initial_env, cognitive_loop, pre_battle_cfg)
+
+        # Tavern → arena transition
+        if tavern_env is not None:
+            log.info(f"\n{'=' * 60}")
+            log.info("Agents leave the tavern and enter the combat arena...")
+            log.info("=" * 60)
+            place_agents(agents, combat_env)
+            print_grid(combat_env)
+
+        # --- Run battle ---
+        await async_run_battle(combat_env, cognitive_loop, model_id)
+
+        # --- Process results ---
+        from llm.openrouter_adapter import OpenRouterAdapter
+
+        llm_cfg = load_llm_config()
+        adapter, _ = create_adapter(llm_cfg)
+
+        record = mgr.process_battle_results(
+            combat_env,
+            cognitive_loop,
+            adapter,
+        )
+
+        # --- Print summary ---
+        log.info(f"\n{'=' * 60}")
+        log.info("CAMPAIGN BATTLE RESULTS")
+        log.info(f"{'=' * 60}")
+        log.info(f"Battle #{record.battle_num}  |  {record.rounds} rounds")
+
+        if record.winner_ids:
+            winner_names = [
+                combat_env.agents[wid].name
+                for wid in record.winner_ids
+                if wid in combat_env.agents
+            ]
+            log.info(f"Winners: {', '.join(winner_names)}")
+        else:
+            log.info("Result: DRAW")
+
+        if record.death_ids:
+            death_names = []
+            for did in record.death_ids:
+                if did in combat_env.agents:
+                    death_names.append(combat_env.agents[did].name)
+            log.info(f"PERMADEATH: {', '.join(death_names)}")
+
+        log.info("\nXP Awards:")
+        for aid, xp in sorted(record.xp_awards.items(), key=lambda x: -x[1]):
+            agent = combat_env.agents.get(aid)
+            name = agent.name if agent else aid
+            log.info(f"  {name}: +{xp} XP")
+
+        log.info("\nDamage Dealt:")
+        for aid, dmg in sorted(combat_env.damage_dealt.items(), key=lambda x: -x[1]):
+            agent = combat_env.agents.get(aid)
+            name = agent.name if agent else aid
+            log.info(f"  {name}: {dmg} damage")
+
+        _print_campaign_roster(mgr)
+
+    finally:
+        db.close()
+
+
+def _print_campaign_roster(mgr) -> None:
+    """Print the current campaign roster status."""
+    roster = mgr.get_roster()
+    log.info(f"\n{'=' * 60}")
+    log.info(f"CAMPAIGN ROSTER — {mgr.meta.name}")
+    log.info(f"{'=' * 60}")
+    for r in roster:
+        status = "ALIVE" if r.alive else "DEAD"
+        xp_bar = f"{r.xp}/{r.xp_to_next_level} XP"
+        log.info(
+            f"  {r.name:15s}  L{r.level:<3d}  {r.combat_class:15s}  "
+            f"{status:5s}  {xp_bar}"
+        )
+        if r.alive:
+            log.info(f"    ATK={r.atk} MGK={r.mgk} SPD={r.spd} CON={r.con} HIT={r.hit}")
 
 
 # ==========================================================================
@@ -1393,6 +1663,20 @@ def main() -> None:
         action="store_true",
         help="After generating, run a full battle with all characters (implies --save)",
     )
+    parser.add_argument(
+        "--campaign",
+        type=int,
+        default=None,
+        metavar="ID",
+        help="Run the next battle in an existing campaign (by campaign ID)",
+    )
+    parser.add_argument(
+        "--new-campaign",
+        type=str,
+        default=None,
+        metavar="NAME",
+        help="Create a new campaign and run its first battle",
+    )
     args = parser.parse_args()
 
     # --save and --battle only make sense with --generate
@@ -1409,9 +1693,22 @@ def main() -> None:
     if args.generate and args.random:
         parser.error("--generate and --random are mutually exclusive")
 
+    # Campaign args are mutually exclusive with --generate and --random
+    if (args.campaign or args.new_campaign) and args.generate:
+        parser.error("--campaign/--new-campaign cannot be used with --generate")
+    if (args.campaign or args.new_campaign) and args.random:
+        parser.error("--campaign/--new-campaign cannot be used with --random")
+    if args.campaign and args.new_campaign:
+        parser.error("--campaign and --new-campaign are mutually exclusive")
+
     # --battle implies --save (character must be on disk for the battle loader)
     if args.battle:
         args.save = True
+
+    # --- Campaign mode ---
+    if args.campaign or args.new_campaign:
+        asyncio.run(_run_campaign(args))
+        return
 
     # --- Character generation mode ---
     if args.generate:

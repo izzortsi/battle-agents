@@ -414,3 +414,89 @@
     target: enemy
     category: debuff
     chance: 0.8
+- name: Vanishing Act
+  mana_cost: 7
+  damage: 0
+  range: 1
+  aoe_pattern: single
+  cooldown: 4
+  description: Arth'az completely disappears from sight, becoming untargetable and
+    repositioning to a more advantageous spot.
+  tactical_hint: Employ this ability to escape dangerous situations, reposition for
+    a flank, or set up future attacks.
+  effects:
+  - type: stealth
+    behavior: passive
+    duration: 1
+    magnitude: 0.0
+    target: self
+    category: buff
+    chance: 1.0
+  - type: reposition
+    behavior: stat_modifier
+    duration: 1
+    magnitude: 0.5
+    target: self
+    category: movement
+    chance: 1.0
+- name: Inferno Burst
+  mana_cost: 7
+  damage: 20
+  range: 3
+  aoe_pattern: radius
+  cooldown: 4
+  description: Unleashes a volatile explosion of fire, incinerating all foes in a
+    wide area.
+  tactical_hint: Use this ability when enemies are clustered together to maximize
+    damage and apply widespread burning.
+  effects:
+  - type: burn
+    behavior: damage_over_time
+    duration: 2
+    magnitude: 0.08
+    target: enemy
+    category: debuff
+    chance: 0.75
+- name: Chaotic Ignition
+  mana_cost: 5
+  damage: 10
+  range: 4
+  aoe_pattern: single
+  cooldown: 3
+  description: Hurls a highly unstable, magically charged fireball that has a chance
+    to stun or burn the target.
+  tactical_hint: A versatile single-target spell, use it to either control a dangerous
+    enemy with a stun or apply consistent burn damage.
+  effects:
+  - type: stun
+    behavior: skip_turn
+    duration: 1
+    magnitude: 0.0
+    target: enemy
+    category: debuff
+    chance: 0.4
+  - type: burn
+    behavior: damage_over_time
+    duration: 3
+    magnitude: 0.05
+    target: enemy
+    category: debuff
+    chance: 0.6
+- name: Cackling Immolation
+  mana_cost: 5
+  damage: 8
+  range: 2
+  aoe_pattern: line
+  cooldown: 3
+  description: Marduk cackles maniacally as she projects a searing line of fire, leaving
+    enemies disoriented.
+  tactical_hint: Cast this to hit multiple enemies in a row and apply a debilitating
+    debuff, setting them up for further damage.
+  effects:
+  - type: blind
+    behavior: miss_chance
+    duration: 1
+    magnitude: 0.3
+    target: enemy
+    category: debuff
+    chance: 0.8

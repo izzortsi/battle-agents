@@ -24,6 +24,9 @@ class Renderer {
       case 'phase':
         this._updateHeader();
         break;
+      case 'social_tick':
+        this._updateHeader();
+        break;
       case 'turn_start':
         this._updateActiveTurn();
         this._updateHeader();
@@ -51,6 +54,10 @@ class Renderer {
       case 'victory':
         this._updateHeader();
         renderLog(this.state);
+        break;
+      case 'damage_stats':
+      case 'campaign_update':
+        // Handled by main.js victory overlay
         break;
       case 'lore':
         renderLore(this.state);
@@ -170,6 +177,9 @@ class Renderer {
 
     if (this.state.phase === 'combat') {
       roundBadge.textContent = `Round ${this.state.round}`;
+      roundBadge.classList.remove('badge-dim');
+    } else if (this.state.phase === 'pre_battle' && this.state.socialTick) {
+      roundBadge.textContent = `Tick ${this.state.socialTick}/${this.state.socialTickTotal}`;
       roundBadge.classList.remove('badge-dim');
     } else {
       roundBadge.textContent = 'Round \u2014';
