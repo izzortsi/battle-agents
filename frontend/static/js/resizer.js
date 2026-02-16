@@ -1,11 +1,12 @@
 /* resizer.js — Draggable pane resize handles */
 
 (function () {
-  /* ── Main grid handles (bottom row only — right column removed) ── */
+  /* ── Main grid handles (right column + bottom row) ── */
 
   const GRID_KEY = 'ba_panel_sizes';
-  const GRID_DEFAULTS = { rowBottom: 200 };
+  const GRID_DEFAULTS = { colRight: 320, rowBottom: 200 };
   const GRID_LIMITS = {
+    colRight: { min: 200, max: 600 },
     rowBottom: { min: 80, max: 600 },
   };
 
@@ -25,6 +26,7 @@
   function applyGrid() {
     const main = document.getElementById('main');
     if (!main) return;
+    main.style.setProperty('--col-right', gridSizes.colRight + 'px');
     main.style.setProperty('--row-bottom', gridSizes.rowBottom + 'px');
   }
 
@@ -76,6 +78,7 @@
   function init() {
     gridSizes = loadGrid();
     applyGrid();
+    setupGridHandle('resize-right', 'x', 'colRight', true);
     setupGridHandle('resize-bottom', 'y', 'rowBottom', true);
   }
 
