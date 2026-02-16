@@ -1,0 +1,70 @@
+name: Kenshin
+combat_class: Wandering Swordsman
+sprite: Himura
+moral_alignment: neutral_good
+backstory: Kenshin is a master swordsman haunted by a past filled with violence and
+  regret. He once served as a legendary assassin, an instrument of war whose blade
+  brought an end to an era but also countless lives. Now, he wanders the land, a self-imposed
+  protector of the innocent, seeking to atone for his past by never again taking a
+  life, though he is ever-ready to disable those who threaten peace, bearing the heavy
+  burden of his lethal capabilities.
+personality_traits:
+- Stoic
+- Compassionate
+- World-weary
+- Protective
+- Self-sacrificing
+attributes:
+  atk: 18
+  mgk: 5
+  spd: 16
+  con: 14
+  hit: 17
+  attack_range: 1
+abilities:
+- name: 'Hiten Mitsurugi-ryū: Dragon Flight'
+  mana_cost: 6
+  damage: 15
+  range: 1
+  aoe_pattern: single
+  cooldown: 3
+  current_cd: 0
+  description: Kenshin moves with blinding speed, striking a single foe with a non-lethal
+    but devastating blow, designed to incapacitate rather than kill.
+  tactical_hint: Use this to deal significant damage to a key enemy while also potentially
+    disorienting them, setting up for follow-up attacks.
+  effects:
+  - type: disorient
+    behavior: miss_chance
+    duration: 2
+    magnitude: 0.35
+    target: enemy
+    category: debuff
+    chance: 0.75
+- name: 'Amakakeru Ryū no Hirameki: Sheathed Blade'
+  mana_cost: 8
+  damage: 0
+  range: 1
+  aoe_pattern: single
+  cooldown: 4
+  current_cd: 0
+  description: Kenshin draws his reverse-blade sword with such force and precision
+    that the air itself seems to ripple, creating a protective barrier around himself
+    while preparing for a counter-attack.
+  tactical_hint: Activate this when anticipating heavy incoming damage or to set up
+    a powerful retaliatory strike on the next turn.
+  effects:
+  - type: resolve
+    behavior: reduce_incoming_damage
+    duration: 1
+    magnitude: 0.3
+    target: self
+    category: buff
+    chance: 1.0
+  - type: prepared_counter
+    behavior: boost_outgoing_damage
+    duration: 1
+    magnitude: 0.5
+    target: self
+    category: buff
+    chance: 1.0
