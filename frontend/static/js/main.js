@@ -219,7 +219,7 @@
               <span class="victory-xp-name">${esc(r.name)}</span>
               ${xpGained > 0 ? `<span class="victory-xp-amount">+${xpGained} XP</span>` : ''}
               ${levelUpSet.has(r.agent_id) ? `<span class="victory-levelup">LEVEL UP! Lv.${(cu.level_ups.find(l => l.agent_id === r.agent_id) || {}).level || ''}</span>` : ''}
-              ${deathSet.has(r.agent_id) ? '<span class="victory-death-tag">PERMADEATH</span>' : ''}
+              ${deathSet.has(r.agent_id) ? '<span class="victory-death-tag">FALLEN</span>' : ''}
             </div>
           `;
         }

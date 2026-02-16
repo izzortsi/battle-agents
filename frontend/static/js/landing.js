@@ -92,10 +92,7 @@ class LandingPage {
       this._spritePresets = await spritesRes.json();
       this._campaigns = await campaignsRes.json();
 
-      // Select all characters by default
-      for (const c of this._characters) {
-        this._selectedIds.add(c.id);
-      }
+      // No characters selected by default — user picks manually
 
       // YAML sprites always win — override any stale localStorage value
       for (const c of this._characters) {
@@ -464,7 +461,7 @@ class LandingPage {
           <div class="campaign-roster-name">
             ${this._esc(r.name)}
             <span class="campaign-roster-level">Lv.${r.level}</span>
-            ${!r.alive ? '<span class="campaign-roster-dead-tag">DEAD</span>' : ''}
+            ${!r.alive ? '<span class="campaign-roster-dead-tag">FALLEN</span>' : ''}
           </div>
           <div class="campaign-roster-class">${this._esc(r.combat_class)}</div>
           <div class="campaign-roster-alignment">

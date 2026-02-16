@@ -54,7 +54,7 @@ class RosterEntry:
     order_value: float = 0.0  # -1.0 chaotic … +1.0 lawful
 
     # Campaign state
-    alive: bool = True  # permadeath: False = permanently eliminated
+    alive: bool = True  # always True — kept for schema compatibility
 
     @property
     def xp_to_next_level(self) -> int:
