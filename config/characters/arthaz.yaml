@@ -1,0 +1,60 @@
+name: Arthaz
+combat_class: Shadowblade Rogue
+sprite: Rogue
+moral_alignment: neutral_evil
+backstory: Arthaz grew up in the harsh underbelly of the city, learning early that
+  trust was a weakness and compassion a luxury. He honed his skills in stealth and
+  assassination not for any grand cause, but purely for survival and personal gain.
+  He dreams of accumulating enough wealth and power to never again be beholden to
+  anyone.
+personality_traits:
+- cunning
+- selfish
+- opportunistic
+- untrustworthy
+attributes:
+  atk: 14
+  mgk: 5
+  spd: 18
+  con: 10
+  hit: 16
+  attack_range: 1
+abilities:
+- name: Shadow Strike
+  mana_cost: 5
+  damage: 15
+  range: 1
+  aoe_pattern: single
+  cooldown: 3
+  current_cd: 0
+  description: Arthaz melts into the shadows, reappearing to strike a critical blow
+    from an unexpected angle.
+  tactical_hint: Use this to deal high burst damage to a single vulnerable target,
+    especially after repositioning.
+  effects:
+  - type: Bleed
+    behavior: damage_over_time
+    duration: 2
+    magnitude: 0.05
+    target: enemy
+    category: debuff
+    chance: 0.75
+- name: Smoke Bomb
+  mana_cost: 7
+  damage: 0
+  range: 3
+  aoe_pattern: radius
+  cooldown: 4
+  current_cd: 0
+  description: Arthaz hurls a device that explodes into a dense cloud of smoke, disorienting
+    enemies and obscuring vision.
+  tactical_hint: Deploy this to create a safe zone for escape, to protect allies,
+    or to set up future attacks by debuffing multiple enemies.
+  effects:
+  - type: Blind
+    behavior: miss_chance
+    duration: 2
+    magnitude: 0.3
+    target: enemy
+    category: debuff
+    chance: 0.8

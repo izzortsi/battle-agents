@@ -189,7 +189,7 @@ function renderLog(state) {
   }
 }
 
-// ===== Dialogue (bottom right) =====
+// ===== Dialogue (bottom panel — grouped sessions) =====
 
 function renderDialogue(state) {
   const container = document.getElementById('dialogue-content');
@@ -199,19 +199,38 @@ function renderDialogue(state) {
 
   container.innerHTML = '';
 
-  for (const entry of state.dialogueLog) {
+  for (let i = 0; i < state.dialogueSessions.length; i++) {
+    const session = state.dialogueSessions[i];
     const div = document.createElement('div');
-    div.className = 'dialogue-bubble';
+    div.className = 'dialogue-session-row';
 
-    let shiftText = '';
-    if (entry.dispositionShift > 0) shiftText = ` <span style="color:#3cb371">+${entry.dispositionShift.toFixed(2)}</span>`;
-    else if (entry.dispositionShift < 0) shiftText = ` <span style="color:#e94560">${entry.dispositionShift.toFixed(2)}</span>`;
+    // Compute net disposition shift from all exchanges
+    let netShift = 0;
+    for (const ex of session.exchanges) {
+      netShift += ex.dispositionShift || 0;
+    }
+
+    let shiftBadge = '';
+    if (netShift > 0) shiftBadge = `<span class="dialogue-shift positive">+${netShift.toFixed(2)}</span>`;
+    else if (netShift < 0) shiftBadge = `<span class="dialogue-shift negative">${netShift.toFixed(2)}</span>`;
+
+    // Summary preview — use first participant's summary or first exchange message
+    const summaryKeys = Object.keys(session.summaries || {});
+    let preview = '';
+    if (summaryKeys.length > 0) {
+      preview = truncate(session.summaries[summaryKeys[0]], 50);
+    } else if (session.exchanges.length > 0) {
+      preview = truncate(session.exchanges[0].message, 50);
+    }
 
     div.innerHTML = `
-      <div class="bubble-speaker">${escHtml(entry.speakerName)}</div>
-      <div class="bubble-message">"${escHtml(entry.message)}"</div>
-      ${shiftText ? `<div class="bubble-shift">${shiftText}</div>` : ''}
+      <span class="dialogue-session-participants">${escHtml(session.initiatorName)} & ${escHtml(session.responderName)}</span>
+      <span class="dialogue-session-count">${session.exchangeCount || session.exchanges.length}</span>
+      <span class="dialogue-preview">${escHtml(preview)}</span>
+      ${shiftBadge}
     `;
+
+    div.addEventListener('click', () => openDialogueDetail(state, i));
     container.appendChild(div);
   }
 
@@ -219,6 +238,94 @@ function renderDialogue(state) {
     container.scrollTop = container.scrollHeight;
   }
 }
+
+// ===== Dialogue Detail Popup =====
+
+function openDialogueDetail(state, index) {
+  const session = state.dialogueSessions[index];
+  if (!session) return;
+
+  const container = document.getElementById('popup-dialogue-detail');
+  if (!container) return;
+
+  // Header: participants + exchange count
+  let html = `
+    <div class="dialogue-detail-header">
+      <span class="dialogue-detail-speaker">${escHtml(session.initiatorName)}</span>
+      <span class="dialogue-detail-arrow">&amp;</span>
+      <span class="dialogue-detail-target">${escHtml(session.responderName)}</span>
+      <span class="dialogue-session-badge">${session.exchangeCount || session.exchanges.length} exchanges</span>
+    </div>
+  `;
+
+  // Thread: all messages as chat bubbles
+  html += '<div class="dialogue-thread">';
+  for (const ex of session.exchanges) {
+    const isInitiator = ex.speaker === session.initiator;
+    const alignClass = isInitiator ? 'initiator' : 'responder';
+
+    let shiftTag = '';
+    if (ex.dispositionShift > 0) shiftTag = `<span class="dialogue-shift positive">+${ex.dispositionShift.toFixed(2)}</span>`;
+    else if (ex.dispositionShift < 0) shiftTag = `<span class="dialogue-shift negative">${ex.dispositionShift.toFixed(2)}</span>`;
+
+    html += `
+      <div class="dialogue-thread-msg ${alignClass}">
+        <div class="dialogue-thread-speaker">${escHtml(ex.speakerName)} ${shiftTag}</div>
+        <div class="dialogue-thread-text">"${escHtml(ex.message)}"</div>
+      </div>
+    `;
+  }
+  html += '</div>';
+
+  // Per-participant summaries
+  const summaryEntries = Object.entries(session.summaries || {});
+  if (summaryEntries.length > 0) {
+    html += '<div class="dialogue-summaries-section">';
+    html += '<div class="dialogue-summaries-title">Participant Summaries</div>';
+    for (const [agentId, summary] of summaryEntries) {
+      // Try to resolve agent name
+      const agentName = (agentId === session.initiator)
+        ? session.initiatorName
+        : (agentId === session.responder)
+          ? session.responderName
+          : agentId;
+      html += `
+        <div class="dialogue-summary-box">
+          <div class="dialogue-summary-box-name">${escHtml(agentName)}</div>
+          <div class="dialogue-summary-box-text">${escHtml(summary)}</div>
+        </div>
+      `;
+    }
+    html += '</div>';
+  }
+
+  container.innerHTML = html;
+  document.getElementById('dialogue-popup').classList.remove('hidden');
+}
+
+function closeDialoguePopup() {
+  document.getElementById('dialogue-popup').classList.add('hidden');
+}
+
+// Wire up dialogue popup controls
+(function initDialoguePopupControls() {
+  function wire() {
+    const popup = document.getElementById('dialogue-popup');
+    if (!popup) return;
+
+    document.getElementById('dialogue-popup-close').addEventListener('click', () => closeDialoguePopup());
+    popup.addEventListener('click', (e) => { if (e.target === popup) closeDialoguePopup(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !popup.classList.contains('hidden')) closeDialoguePopup();
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wire);
+  } else {
+    wire();
+  }
+})();
 
 // ===== Social (right panel, upper) =====
 
@@ -474,34 +581,80 @@ function renderCharacterSheet(state) {
 // ===== Lore panel (right panel, top) =====
 
 function renderLore(state) {
-  const panel = document.getElementById('lore-panel');
-  const container = document.getElementById('lore-content');
-  if (!panel || !container) return;
+  const container = document.getElementById('popup-lore');
+  const btn = document.getElementById('btn-lore');
 
   if (!state.lore || !state.lore.world_description) {
-    panel.classList.remove('has-lore');
-    container.innerHTML = '';
+    if (btn) btn.classList.add('hidden');
+    if (container) container.innerHTML = '';
     return;
   }
 
-  // Only render once
-  if (container.dataset.rendered === 'true') return;
-  container.dataset.rendered = 'true';
+  // Show the header button
+  if (btn) btn.classList.remove('hidden');
 
-  panel.classList.add('has-lore');
+  // Only render the popup content once
+  if (container && container.dataset.rendered !== 'true') {
+    container.dataset.rendered = 'true';
 
-  const lore = state.lore;
-  let factsHtml = '';
-  if (lore.key_facts && lore.key_facts.length > 0) {
-    factsHtml = '<ul style="margin:4px 0 0 16px;padding:0">' +
-      lore.key_facts.map(f => `<li>${escHtml(f)}</li>`).join('') + '</ul>';
+    const lore = state.lore;
+    let factsHtml = '';
+    if (lore.key_facts && lore.key_facts.length > 0) {
+      factsHtml = '<ul style="margin:4px 0 0 16px;padding:0">' +
+        lore.key_facts.map(f => `<li>${escHtml(f)}</li>`).join('') + '</ul>';
+    }
+
+    let connectionsHtml = '';
+    if (lore.character_connections && lore.character_connections.length > 0) {
+      connectionsHtml = '<div class="cs-label" style="margin-top:12px">Character Connections</div><ul style="margin:4px 0 0 16px;padding:0">' +
+        lore.character_connections.map(c => `<li>${escHtml(c)}</li>`).join('') + '</ul>';
+    }
+
+    container.innerHTML = `
+      <div class="cs-label">World Description</div>
+      <p style="margin:4px 0 8px">${escHtml(lore.world_description)}</p>
+      ${factsHtml ? '<div class="cs-label" style="margin-top:12px">Key Facts</div>' + factsHtml : ''}
+      ${connectionsHtml}
+    `;
+  }
+}
+
+function openLorePopup() {
+  document.getElementById('lore-popup').classList.remove('hidden');
+}
+
+function closeLorePopup() {
+  document.getElementById('lore-popup').classList.add('hidden');
+}
+
+// Wire up lore popup controls
+(function initLorePopupControls() {
+  function wire() {
+    const btn = document.getElementById('btn-lore');
+    const popup = document.getElementById('lore-popup');
+    if (!btn || !popup) return;
+
+    btn.addEventListener('click', () => openLorePopup());
+
+    document.getElementById('lore-popup-close').addEventListener('click', () => closeLorePopup());
+
+    popup.addEventListener('click', (e) => {
+      if (e.target === popup) closeLorePopup();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !popup.classList.contains('hidden')) {
+        closeLorePopup();
+      }
+    });
   }
 
-  container.innerHTML = `
-    <p>${escHtml(lore.world_description)}</p>
-    ${factsHtml}
-  `;
-}
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wire);
+  } else {
+    wire();
+  }
+})();
 
 // ===== Commentary (inline in battle log) =====
 

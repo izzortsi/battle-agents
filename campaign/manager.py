@@ -206,12 +206,14 @@ class CampaignManager:
         roster = self.db.load_roster(self.campaign_id)
         roster_by_id = {r.agent_id: r for r in roster}
 
-        # Apply permadeath
+        # Log deaths (characters revive between battles — no permadeath)
         for aid in death_ids:
             entry = roster_by_id.get(aid)
             if entry:
-                entry.alive = False
-                log.info("PERMADEATH: %s is eliminated from the campaign.", entry.name)
+                log.info(
+                    "%s fell in battle (loses survival/victory XP bonus).",
+                    entry.name,
+                )
 
         # Award XP + level-ups
         level_ups: list[str] = []

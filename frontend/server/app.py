@@ -78,9 +78,12 @@ _runner_lock = asyncio.Lock()
 
 
 async def _get_or_create_runner():
-    """Create the SimRunner on first use."""
+    """Create the SimRunner on first use, or replace it if the previous battle finished."""
     global _runner
     async with _runner_lock:
+        if _runner is not None and _runner._phase == "victory":
+            # Previous battle is done — create a fresh runner for the next one
+            _runner = None
         if _runner is None:
             from frontend.server.sim_runner import SimRunner
 

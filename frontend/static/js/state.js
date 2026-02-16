@@ -13,6 +13,7 @@ class GameState {
     this.turnOrder = [];
     this.eventLog = [];      // { description, actionType, round }
     this.dialogueLog = [];   // { speaker, speakerName, target, message, dispositionShift }
+    this.dialogueSessions = []; // grouped conversation sessions
     this.cognitive = {};     // agent_id -> { memoryCount, importance, plan, reflection, reasoning }
     this.selectedAgent = null;
     this.lore = null;        // { world_description, key_facts, character_connections }
@@ -80,6 +81,23 @@ class GameState {
         reasoning: c.reasoning,
       };
     }
+
+    // Restore dialogue sessions
+    this.dialogueSessions = (data.dialogue_sessions || []).map(s => ({
+      initiator: s.initiator,
+      initiatorName: s.initiator_name,
+      responder: s.responder,
+      responderName: s.responder_name,
+      exchanges: (s.exchanges || []).map(ex => ({
+        speaker: ex.speaker,
+        speakerName: ex.speaker_name,
+        message: ex.message,
+        dispositionShift: ex.disposition_shift || 0,
+      })),
+      summaries: s.summaries || {},
+      status: s.status,
+      exchangeCount: s.exchange_count || 0,
+    }));
 
     // Restore lore + commentary
     if (data.lore) {
@@ -150,6 +168,30 @@ class GameState {
     }
 
     this.notify('dialogue', data);
+  }
+
+  applyDialogueSession(data) {
+    this.dialogueSessions.push({
+      initiator: data.initiator,
+      initiatorName: data.initiator_name,
+      responder: data.responder,
+      responderName: data.responder_name,
+      exchanges: (data.exchanges || []).map(ex => ({
+        speaker: ex.speaker,
+        speakerName: ex.speaker_name,
+        message: ex.message,
+        dispositionShift: ex.disposition_shift || 0,
+      })),
+      summaries: data.summaries || {},
+      status: data.status,
+      exchangeCount: data.exchange_count || 0,
+    });
+
+    if (this.dialogueSessions.length > 50) {
+      this.dialogueSessions = this.dialogueSessions.slice(-50);
+    }
+
+    this.notify('dialogue_session', data);
   }
 
   applyCognitive(data) {

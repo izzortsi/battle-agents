@@ -76,6 +76,9 @@
       case 'dialogue':
         state.applyDialogue(msg);
         break;
+      case 'dialogue_session':
+        state.applyDialogueSession(msg);
+        break;
       case 'cognitive':
         state.applyCognitive(msg);
         break;
@@ -216,7 +219,7 @@
               <span class="victory-xp-name">${esc(r.name)}</span>
               ${xpGained > 0 ? `<span class="victory-xp-amount">+${xpGained} XP</span>` : ''}
               ${levelUpSet.has(r.agent_id) ? `<span class="victory-levelup">LEVEL UP! Lv.${(cu.level_ups.find(l => l.agent_id === r.agent_id) || {}).level || ''}</span>` : ''}
-              ${deathSet.has(r.agent_id) ? '<span class="victory-death-tag">PERMADEATH</span>' : ''}
+              ${deathSet.has(r.agent_id) ? '<span class="victory-death-tag">FALLEN</span>' : ''}
             </div>
           `;
         }
@@ -237,14 +240,24 @@
     landing.show();
     battleStarted = false;
 
-    // Close agent popup if open
+    // Close popups if open
     if (isPopupOpen()) closeAgentPopup(state);
+    closeLorePopup();
+    closeDialoguePopup();
 
     // Reset state for next battle
     state.phase = 'idle';
     state.victoryData = null;
     state.damageStats = null;
     state.campaignUpdate = null;
+    state.lore = null;
+    state.dialogueSessions = [];
+
+    // Reset lore popup content + hide button
+    const loreContent = document.getElementById('popup-lore');
+    if (loreContent) { loreContent.innerHTML = ''; loreContent.dataset.rendered = ''; }
+    const loreBtn = document.getElementById('btn-lore');
+    if (loreBtn) loreBtn.classList.add('hidden');
 
     // Re-enable controls
     btnStep.disabled = true;

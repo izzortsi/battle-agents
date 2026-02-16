@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Battle-Agents</title>
-  <link rel="stylesheet" href="/static/css/layout.css?v=11">
-  <link rel="stylesheet" href="/static/css/landing.css?v=11">
-  <link rel="stylesheet" href="/static/css/sprites.css?v=11">
-  <link rel="stylesheet" href="/static/css/animations.css?v=11">
+  <link rel="stylesheet" href="/static/css/layout.css?v=16">
+  <link rel="stylesheet" href="/static/css/landing.css?v=16">
+  <link rel="stylesheet" href="/static/css/sprites.css?v=16">
+  <link rel="stylesheet" href="/static/css/animations.css?v=16">
 </head>
 <body>
   <!-- Header -->
@@ -16,6 +16,7 @@
       <span class="logo">Battle-Agents</span>
       <span id="phase-badge" class="badge">IDLE</span>
       <span id="round-badge" class="badge badge-dim">Round —</span>
+      <button id="btn-lore" class="btn-lore hidden" title="View world lore">Lore</button>
     </div>
     <div class="header-controls">
       <button id="btn-start" title="Start simulation" style="display:none">Start</button>
@@ -43,10 +44,6 @@
 
     <!-- Center: SVG grid -->
     <section id="panel-grid" class="panel">
-      <div id="lore-panel">
-        <div class="lore-panel-header" id="lore-toggle">World Lore</div>
-        <div class="lore-panel-body" id="lore-content"></div>
-      </div>
       <svg id="battle-grid" xmlns="http://www.w3.org/2000/svg">
         <defs id="svg-defs"></defs>
         <g id="layer-tiles"></g>
@@ -57,21 +54,49 @@
       </svg>
     </section>
 
-    <!-- Bottom left: Battle log -->
+    <!-- Right panel: Battle log -->
     <section id="panel-log" class="panel">
       <h2>Battle Log</h2>
       <div id="log-content"></div>
     </section>
 
-    <!-- Bottom right: Dialogue -->
+    <!-- Bottom: Dialogue -->
     <section id="panel-dialogue" class="panel">
       <h2>Dialogue</h2>
       <div id="dialogue-content"></div>
     </section>
 
-    <!-- Resize handle (bottom row) -->
+    <!-- Resize handles -->
+    <div id="resize-right" class="resize-handle resize-handle-v"
+         style="grid-column:3; grid-row:1"></div>
     <div id="resize-bottom" class="resize-handle resize-handle-h"
          style="grid-column:1/-1; grid-row:2"></div>
+
+    <!-- Dialogue detail popup (hidden by default) -->
+    <div id="dialogue-popup" class="agent-popup hidden">
+      <div class="agent-popup-panel dialogue-popup-panel">
+        <button class="agent-popup-close" id="dialogue-popup-close">&times;</button>
+        <div class="agent-popup-tabs">
+          <button class="agent-popup-tab active">Dialogue</button>
+        </div>
+        <div class="agent-popup-body">
+          <div class="agent-popup-content active" id="popup-dialogue-detail"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lore popup modal (hidden by default) -->
+    <div id="lore-popup" class="agent-popup hidden">
+      <div class="agent-popup-panel lore-popup-panel">
+        <button class="agent-popup-close" id="lore-popup-close">&times;</button>
+        <div class="agent-popup-tabs">
+          <button class="agent-popup-tab active">World Lore</button>
+        </div>
+        <div class="agent-popup-body">
+          <div class="agent-popup-content active" id="popup-lore"></div>
+        </div>
+      </div>
+    </div>
 
     <!-- Agent popup modal (hidden by default) -->
     <div id="agent-popup" class="agent-popup hidden">
@@ -91,13 +116,13 @@
     </div>
   </main>
 
-  <script src="/static/js/constants.js?v=11"></script>
-  <script src="/static/js/state.js?v=11"></script>
-  <script src="/static/js/sprites.js?v=11"></script>
-  <script src="/static/js/panels.js?v=11"></script>
-  <script src="/static/js/renderer.js?v=11"></script>
-  <script src="/static/js/resizer.js?v=11"></script>
-  <script src="/static/js/landing.js?v=11"></script>
-  <script src="/static/js/main.js?v=11"></script>
+  <script src="/static/js/constants.js?v=16"></script>
+  <script src="/static/js/state.js?v=16"></script>
+  <script src="/static/js/sprites.js?v=16"></script>
+  <script src="/static/js/panels.js?v=16"></script>
+  <script src="/static/js/renderer.js?v=16"></script>
+  <script src="/static/js/resizer.js?v=16"></script>
+  <script src="/static/js/landing.js?v=16"></script>
+  <script src="/static/js/main.js?v=16"></script>
 </body>
 </html>

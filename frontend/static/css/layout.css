@@ -118,6 +118,24 @@ html, body {
   text-align: right;
 }
 
+/* Lore button in header */
+.btn-lore {
+  padding: 3px 10px;
+  border: 1px solid var(--accent-gold);
+  border-radius: 4px;
+  background: rgba(218, 165, 32, 0.15);
+  color: var(--accent-gold);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-lore:hover {
+  background: rgba(218, 165, 32, 0.3);
+}
+
 /* ===== Visibility ===== */
 
 .hidden {
@@ -128,7 +146,7 @@ html, body {
 
 #main {
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: 200px 1fr 5px var(--col-right, 320px);
   grid-template-rows: 1fr 5px var(--row-bottom, 200px);
   gap: 0;
   height: calc(100vh - var(--header-height));
@@ -206,28 +224,10 @@ html, body {
   height: 100%;
 }
 
-/* Lore panel (inside #panel-grid) */
-#lore-panel {
-  display: none;
-  width: 100%;
-  flex-shrink: 0;
-}
-
-#lore-panel.has-lore {
-  display: block;
-}
-
-#lore-content {
-  font-size: 11px;
-  color: #ccc;
-  line-height: 1.5;
-  padding: 0 4px 6px;
-}
-
-/* Bottom panels */
+/* Right panel: Battle log */
 #panel-log {
-  grid-row: 3;
-  grid-column: 1;
+  grid-row: 1;
+  grid-column: 4;
 }
 
 #log-content {
@@ -238,9 +238,10 @@ html, body {
   line-height: 1.4;
 }
 
+/* Bottom panel: Dialogue */
 #panel-dialogue {
   grid-row: 3;
-  grid-column: 2;
+  grid-column: 1 / -1;
 }
 
 #dialogue-content {
@@ -379,29 +380,182 @@ html, body {
 .log-entry.wait { color: var(--text-dim); }
 .log-entry.death { color: var(--accent); font-weight: 600; }
 
-/* ===== Dialogue bubbles ===== */
+/* ===== Dialogue session rows (bottom panel) ===== */
 
-.dialogue-bubble {
-  margin: 4px 0;
-  padding: 6px 8px;
-  border-radius: 6px;
+.dialogue-session-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 11px;
+}
+
+.dialogue-session-row:hover {
   background: rgba(255, 255, 255, 0.06);
 }
 
-.dialogue-bubble .bubble-speaker {
+.dialogue-session-participants {
   font-weight: 600;
-  font-size: 11px;
-  margin-bottom: 2px;
+  color: var(--text);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.dialogue-bubble .bubble-message {
+.dialogue-session-count {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  background: rgba(65, 105, 225, 0.15);
+  padding: 1px 5px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.dialogue-preview {
+  color: var(--text-dim);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.dialogue-shift {
+  font-size: 9px;
+  font-weight: 600;
+  flex-shrink: 0;
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+.dialogue-shift.positive {
+  color: #3cb371;
+  background: rgba(60, 179, 113, 0.12);
+}
+
+.dialogue-shift.negative {
+  color: #e94560;
+  background: rgba(233, 69, 96, 0.12);
+}
+
+/* ===== Dialogue detail popup ===== */
+
+.dialogue-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.dialogue-detail-speaker {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--accent-gold);
+}
+
+.dialogue-detail-arrow {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.dialogue-detail-target {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.dialogue-session-badge {
+  font-size: 10px;
+  color: var(--accent-blue);
+  background: rgba(65, 105, 225, 0.12);
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: auto;
+}
+
+/* Thread: message list inside popup */
+
+.dialogue-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.dialogue-thread-msg {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.dialogue-thread-msg.initiator {
+  border-left: 3px solid var(--accent-gold);
+}
+
+.dialogue-thread-msg.responder {
+  border-left: 3px solid var(--accent-blue);
+}
+
+.dialogue-thread-speaker {
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dialogue-thread-text {
+  color: #ddd;
   font-style: italic;
 }
 
-.dialogue-bubble .bubble-shift {
+/* Per-participant summaries at bottom of popup */
+
+.dialogue-summaries-section {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.dialogue-summaries-title {
   font-size: 10px;
+  text-transform: uppercase;
   color: var(--text-dim);
-  margin-top: 2px;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.dialogue-summary-box {
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+
+.dialogue-summary-box-name {
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--accent-gold);
+  margin-bottom: 3px;
+}
+
+.dialogue-summary-box-text {
+  font-size: 11px;
+  color: #ccc;
+  line-height: 1.5;
+}
+
+/* Wider dialogue popup to fit thread comfortably */
+.dialogue-popup-panel {
+  width: 560px;
 }
 
 /* ===== Social relationships ===== */
