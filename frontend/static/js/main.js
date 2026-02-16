@@ -4,6 +4,7 @@
 
 (function () {
   const state = new GameState();
+  window._gameState = state;  // exposed for popup close handler in panels.js
   const renderer = new Renderer(state);
 
   // Wire up state changes to rendering
@@ -235,6 +236,9 @@
     document.getElementById('main').classList.add('hidden');
     landing.show();
     battleStarted = false;
+
+    // Close agent popup if open
+    if (isPopupOpen()) closeAgentPopup(state);
 
     // Reset state for next battle
     state.phase = 'idle';

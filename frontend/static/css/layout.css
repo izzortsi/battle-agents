@@ -128,7 +128,7 @@ html, body {
 
 #main {
   display: grid;
-  grid-template-columns: 200px 1fr 5px var(--col-right, 720px);
+  grid-template-columns: 200px 1fr;
   grid-template-rows: 1fr 5px var(--row-bottom, 200px);
   gap: 0;
   height: calc(100vh - var(--header-height));
@@ -192,10 +192,12 @@ html, body {
   grid-row: 1;
   grid-column: 2;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   padding: 8px;
+  position: relative;
 }
 
 #battle-grid {
@@ -204,70 +206,28 @@ html, body {
   height: 100%;
 }
 
-/* Right panel: info */
-#panel-info {
-  grid-row: 1;
-  grid-column: 4;
-}
-
-#lore-panel,
-#character-panel,
-#social-panel,
-#cognitive-panel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-height: 0;
-}
-
+/* Lore panel (inside #panel-grid) */
 #lore-panel {
-  flex: none;          /* size to content, don't grow or shrink */
-  max-height: 30%;
-  overflow-y: auto;
-}
-
-#lore-panel:empty,
-#lore-panel:not(.has-lore) {
   display: none;
+  width: 100%;
+  flex-shrink: 0;
 }
 
-#character-panel {
-  flex: 2;
+#lore-panel.has-lore {
+  display: block;
 }
 
-#social-panel {
-  flex: 0.5;
-}
-
-/* Intra-pane resize handles (inside #panel-info) */
-.info-resize {
-  flex: 0 0 4px;
-  background: var(--border);
-  cursor: row-resize;
-  transition: background 0.15s;
-}
-
-.info-resize:hover,
-.info-resize.dragging {
-  background: var(--accent-blue);
-}
-
-#lore-content,
-#character-content,
-#social-content,
-#cognitive-content {
-  overflow-y: auto;
-  padding: 6px 10px;
-  flex: 1;
-  font-size: 12px;
+#lore-content {
+  font-size: 11px;
+  color: #ccc;
   line-height: 1.5;
+  padding: 0 4px 6px;
 }
 
 /* Bottom panels */
 #panel-log {
   grid-row: 3;
-  grid-column: 1 / 3;
+  grid-column: 1;
 }
 
 #log-content {
@@ -280,7 +240,7 @@ html, body {
 
 #panel-dialogue {
   grid-row: 3;
-  grid-column: 4;
+  grid-column: 2;
 }
 
 #dialogue-content {
@@ -306,6 +266,11 @@ html, body {
 .agent-card.active {
   border-color: var(--accent-gold);
   box-shadow: 0 0 8px rgba(218, 165, 32, 0.3);
+}
+
+.agent-card.selected {
+  border-color: var(--accent-blue);
+  background: rgba(65, 105, 225, 0.08);
 }
 
 .agent-card.dead {
@@ -771,6 +736,116 @@ html, body {
 
 .cog-value.reasoning {
   color: var(--accent-blue);
+}
+
+/* ===== Agent Popup Modal ===== */
+
+.agent-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  animation: popupFadeIn 0.15s ease;
+}
+
+.agent-popup.hidden {
+  display: none !important;
+}
+
+@keyframes popupFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.agent-popup-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 520px;
+  max-width: 92vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+
+.agent-popup-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+  z-index: 1;
+}
+
+.agent-popup-close:hover {
+  color: var(--accent);
+  background: rgba(233, 69, 96, 0.15);
+}
+
+.agent-popup-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  padding: 0 8px;
+}
+
+.agent-popup-tab {
+  padding: 8px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.agent-popup-tab:hover {
+  color: var(--text);
+}
+
+.agent-popup-tab.active {
+  color: var(--accent-gold);
+  border-bottom-color: var(--accent-gold);
+}
+
+.agent-popup-body {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.agent-popup-content {
+  display: none;
+  overflow-y: auto;
+  padding: 12px 16px;
+  height: 100%;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.agent-popup-content.active {
+  display: block;
 }
 
 /* ===== Scrollbar styling ===== */

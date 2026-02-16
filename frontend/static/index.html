@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Battle-Agents</title>
-  <link rel="stylesheet" href="/static/css/layout.css?v=10">
-  <link rel="stylesheet" href="/static/css/landing.css?v=10">
-  <link rel="stylesheet" href="/static/css/sprites.css?v=10">
-  <link rel="stylesheet" href="/static/css/animations.css?v=10">
+  <link rel="stylesheet" href="/static/css/layout.css?v=11">
+  <link rel="stylesheet" href="/static/css/landing.css?v=11">
+  <link rel="stylesheet" href="/static/css/sprites.css?v=11">
+  <link rel="stylesheet" href="/static/css/animations.css?v=11">
 </head>
 <body>
   <!-- Header -->
@@ -43,6 +43,10 @@
 
     <!-- Center: SVG grid -->
     <section id="panel-grid" class="panel">
+      <div id="lore-panel">
+        <div class="lore-panel-header" id="lore-toggle">World Lore</div>
+        <div class="lore-panel-body" id="lore-content"></div>
+      </div>
       <svg id="battle-grid" xmlns="http://www.w3.org/2000/svg">
         <defs id="svg-defs"></defs>
         <g id="layer-tiles"></g>
@@ -52,28 +56,6 @@
         <g id="layer-effects"></g>
       </svg>
     </section>
-
-    <!-- Right panel: Lore + Character Sheet + Social + Cognitive -->
-    <aside id="panel-info" class="panel">
-      <div id="lore-panel">
-        <h2>Global Lore</h2>
-        <div id="lore-content"></div>
-      </div>
-      <div id="character-panel">
-        <h2>Character Sheet</h2>
-        <div id="character-content"></div>
-      </div>
-      <div class="info-resize" data-above="character-panel" data-below="social-panel"></div>
-      <div id="social-panel">
-        <h2>Social</h2>
-        <div id="social-content"></div>
-      </div>
-      <div class="info-resize" data-above="social-panel" data-below="cognitive-panel"></div>
-      <div id="cognitive-panel">
-        <h2>Mind View</h2>
-        <div id="cognitive-content"></div>
-      </div>
-    </aside>
 
     <!-- Bottom left: Battle log -->
     <section id="panel-log" class="panel">
@@ -87,20 +69,35 @@
       <div id="dialogue-content"></div>
     </section>
 
-    <!-- Resize handles -->
-    <div id="resize-right" class="resize-handle resize-handle-v"
-         style="grid-column:3; grid-row:1/-1"></div>
+    <!-- Resize handle (bottom row) -->
     <div id="resize-bottom" class="resize-handle resize-handle-h"
          style="grid-column:1/-1; grid-row:2"></div>
+
+    <!-- Agent popup modal (hidden by default) -->
+    <div id="agent-popup" class="agent-popup hidden">
+      <div class="agent-popup-panel">
+        <button class="agent-popup-close" id="agent-popup-close">&times;</button>
+        <div class="agent-popup-tabs">
+          <button class="agent-popup-tab active" data-tab="character">Character</button>
+          <button class="agent-popup-tab" data-tab="social">Social</button>
+          <button class="agent-popup-tab" data-tab="mind">Mind</button>
+        </div>
+        <div class="agent-popup-body">
+          <div class="agent-popup-content active" id="popup-character"></div>
+          <div class="agent-popup-content" id="popup-social"></div>
+          <div class="agent-popup-content" id="popup-mind"></div>
+        </div>
+      </div>
+    </div>
   </main>
 
-  <script src="/static/js/constants.js?v=10"></script>
-  <script src="/static/js/state.js?v=10"></script>
-  <script src="/static/js/sprites.js?v=10"></script>
-  <script src="/static/js/panels.js?v=10"></script>
-  <script src="/static/js/renderer.js?v=10"></script>
-  <script src="/static/js/resizer.js?v=10"></script>
-  <script src="/static/js/landing.js?v=10"></script>
-  <script src="/static/js/main.js?v=10"></script>
+  <script src="/static/js/constants.js?v=11"></script>
+  <script src="/static/js/state.js?v=11"></script>
+  <script src="/static/js/sprites.js?v=11"></script>
+  <script src="/static/js/panels.js?v=11"></script>
+  <script src="/static/js/renderer.js?v=11"></script>
+  <script src="/static/js/resizer.js?v=11"></script>
+  <script src="/static/js/landing.js?v=11"></script>
+  <script src="/static/js/main.js?v=11"></script>
 </body>
 </html>
