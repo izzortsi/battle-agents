@@ -434,7 +434,35 @@ function createSprite(agentData) {
   statusG.dataset.role = 'status-container';
   g.appendChild(statusG);
 
+  // Emoji bubble (thinking / talking indicator — hidden by default)
+  const fo = svgEl('foreignObject', {
+    x: 0,
+    y: -18,
+    width: SPRITE_W,
+    height: 20,
+    class: 'sprite-emoji-fo',
+  });
+  fo.dataset.role = 'emoji-bubble';
+  const emojiDiv = document.createElement('div');
+  emojiDiv.className = 'sprite-emoji';
+  fo.appendChild(emojiDiv);
+  g.appendChild(fo);
+
   return g;
+}
+
+/**
+ * Show or clear the emoji bubble above a sprite.
+ * @param {SVGGElement} spriteG — the sprite <g> element
+ * @param {string} emoji — emoji character to show, or '' to clear
+ */
+function setSpriteEmoji(spriteG, emoji) {
+  const fo = spriteG.querySelector('[data-role="emoji-bubble"]');
+  if (!fo) return;
+  const div = fo.querySelector('.sprite-emoji');
+  if (!div) return;
+  div.textContent = emoji || '';
+  fo.classList.toggle('visible', !!emoji);
 }
 
 /**

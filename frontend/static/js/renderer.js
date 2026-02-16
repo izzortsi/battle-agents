@@ -33,6 +33,7 @@ class Renderer {
         renderCards(this.state);
         break;
       case 'action':
+        this._clearThinkingEmoji(detail && detail.agent_id);
         this._updateAgents();
         this._playActionAnimation(detail);
         renderLog(this.state);
@@ -40,10 +41,18 @@ class Renderer {
         refreshPopupIfOpen(this.state);
         break;
       case 'dialogue':
-        // Individual exchanges are still broadcast for live streaming;
-        // the dialogue pane now renders from grouped sessions, so no-op here.
+        // Show talking emoji on the speaker
+        if (detail) {
+          this._showTalkingEmoji(detail.speaker);
+          this._showTalkingEmoji(detail.target);
+        }
         break;
       case 'dialogue_session':
+        // Clear talking emojis from both participants
+        if (detail) {
+          this._clearThinkingEmoji(detail.initiator);
+          this._clearThinkingEmoji(detail.responder);
+        }
         renderDialogue(this.state);
         break;
       case 'cognitive':
@@ -151,14 +160,27 @@ class Renderer {
   }
 
   _updateActiveTurn() {
-    // Clear all active
+    // Clear all active + thinking emojis
     for (const g of Object.values(this._sprites)) {
       g.dataset.activeTurn = 'false';
+      setSpriteEmoji(g, '');
     }
-    // Set current
+    // Set current — show thinking emoji
     if (this.state.activeAgent && this._sprites[this.state.activeAgent]) {
-      this._sprites[this.state.activeAgent].dataset.activeTurn = 'true';
+      const g = this._sprites[this.state.activeAgent];
+      g.dataset.activeTurn = 'true';
+      setSpriteEmoji(g, '\uD83D\uDCAD'); // 💭
     }
+  }
+
+  _clearThinkingEmoji(agentId) {
+    const g = agentId ? this._sprites[agentId] : null;
+    if (g) setSpriteEmoji(g, '');
+  }
+
+  _showTalkingEmoji(agentId) {
+    const g = agentId ? this._sprites[agentId] : null;
+    if (g) setSpriteEmoji(g, '\uD83D\uDCAC'); // 💬
   }
 
   _updateHeader() {
