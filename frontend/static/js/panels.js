@@ -474,34 +474,80 @@ function renderCharacterSheet(state) {
 // ===== Lore panel (right panel, top) =====
 
 function renderLore(state) {
-  const panel = document.getElementById('lore-panel');
-  const container = document.getElementById('lore-content');
-  if (!panel || !container) return;
+  const container = document.getElementById('popup-lore');
+  const btn = document.getElementById('btn-lore');
 
   if (!state.lore || !state.lore.world_description) {
-    panel.classList.remove('has-lore');
-    container.innerHTML = '';
+    if (btn) btn.classList.add('hidden');
+    if (container) container.innerHTML = '';
     return;
   }
 
-  // Only render once
-  if (container.dataset.rendered === 'true') return;
-  container.dataset.rendered = 'true';
+  // Show the header button
+  if (btn) btn.classList.remove('hidden');
 
-  panel.classList.add('has-lore');
+  // Only render the popup content once
+  if (container && container.dataset.rendered !== 'true') {
+    container.dataset.rendered = 'true';
 
-  const lore = state.lore;
-  let factsHtml = '';
-  if (lore.key_facts && lore.key_facts.length > 0) {
-    factsHtml = '<ul style="margin:4px 0 0 16px;padding:0">' +
-      lore.key_facts.map(f => `<li>${escHtml(f)}</li>`).join('') + '</ul>';
+    const lore = state.lore;
+    let factsHtml = '';
+    if (lore.key_facts && lore.key_facts.length > 0) {
+      factsHtml = '<ul style="margin:4px 0 0 16px;padding:0">' +
+        lore.key_facts.map(f => `<li>${escHtml(f)}</li>`).join('') + '</ul>';
+    }
+
+    let connectionsHtml = '';
+    if (lore.character_connections && lore.character_connections.length > 0) {
+      connectionsHtml = '<div class="cs-label" style="margin-top:12px">Character Connections</div><ul style="margin:4px 0 0 16px;padding:0">' +
+        lore.character_connections.map(c => `<li>${escHtml(c)}</li>`).join('') + '</ul>';
+    }
+
+    container.innerHTML = `
+      <div class="cs-label">World Description</div>
+      <p style="margin:4px 0 8px">${escHtml(lore.world_description)}</p>
+      ${factsHtml ? '<div class="cs-label" style="margin-top:12px">Key Facts</div>' + factsHtml : ''}
+      ${connectionsHtml}
+    `;
+  }
+}
+
+function openLorePopup() {
+  document.getElementById('lore-popup').classList.remove('hidden');
+}
+
+function closeLorePopup() {
+  document.getElementById('lore-popup').classList.add('hidden');
+}
+
+// Wire up lore popup controls
+(function initLorePopupControls() {
+  function wire() {
+    const btn = document.getElementById('btn-lore');
+    const popup = document.getElementById('lore-popup');
+    if (!btn || !popup) return;
+
+    btn.addEventListener('click', () => openLorePopup());
+
+    document.getElementById('lore-popup-close').addEventListener('click', () => closeLorePopup());
+
+    popup.addEventListener('click', (e) => {
+      if (e.target === popup) closeLorePopup();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !popup.classList.contains('hidden')) {
+        closeLorePopup();
+      }
+    });
   }
 
-  container.innerHTML = `
-    <p>${escHtml(lore.world_description)}</p>
-    ${factsHtml}
-  `;
-}
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wire);
+  } else {
+    wire();
+  }
+})();
 
 // ===== Commentary (inline in battle log) =====
 

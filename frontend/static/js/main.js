@@ -237,14 +237,22 @@
     landing.show();
     battleStarted = false;
 
-    // Close agent popup if open
+    // Close popups if open
     if (isPopupOpen()) closeAgentPopup(state);
+    closeLorePopup();
 
     // Reset state for next battle
     state.phase = 'idle';
     state.victoryData = null;
     state.damageStats = null;
     state.campaignUpdate = null;
+    state.lore = null;
+
+    // Reset lore popup content + hide button
+    const loreContent = document.getElementById('popup-lore');
+    if (loreContent) { loreContent.innerHTML = ''; loreContent.dataset.rendered = ''; }
+    const loreBtn = document.getElementById('btn-lore');
+    if (loreBtn) loreBtn.classList.add('hidden');
 
     // Re-enable controls
     btnStep.disabled = true;
