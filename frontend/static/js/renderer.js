@@ -37,13 +37,13 @@ class Renderer {
         this._playActionAnimation(detail);
         renderLog(this.state);
         renderCards(this.state);
-        renderCharacterSheet(this.state);
+        refreshPopupIfOpen(this.state);
         break;
       case 'dialogue':
         renderDialogue(this.state);
         break;
       case 'cognitive':
-        renderCognitive(this.state);
+        refreshPopupIfOpen(this.state);
         break;
       case 'death':
         this._playDeathAnimation(detail);
@@ -66,13 +66,11 @@ class Renderer {
         renderCommentaryEntry(this.state);
         break;
       case 'social_update':
-        renderSocial(this.state);
+        refreshPopupIfOpen(this.state);
         break;
       case 'select':
         renderCards(this.state);
-        renderCharacterSheet(this.state);
-        renderCognitive(this.state);
-        renderSocial(this.state);
+        refreshPopupIfOpen(this.state);
         break;
     }
   }
@@ -84,9 +82,7 @@ class Renderer {
     renderLore(this.state);
     this._updateActiveTurn();
     renderCards(this.state);
-    renderCharacterSheet(this.state);
-    renderSocial(this.state);
-    renderCognitive(this.state);
+    refreshPopupIfOpen(this.state);
     renderLog(this.state);
     renderDialogue(this.state);
   }
@@ -133,10 +129,10 @@ class Renderer {
       this.layerAgents.appendChild(g);
       this._sprites[id] = g;
 
-      // Click handler for agent selection
+      // Click handler — open agent popup
       g.style.cursor = 'pointer';
       g.addEventListener('click', () => {
-        this.state.selectAgent(id);
+        openAgentPopup(this.state, id);
       });
     }
   }

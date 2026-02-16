@@ -1,6 +1,98 @@
 /**
  * panels.js — UI panel rendering: agent cards, battle log, dialogue, social, cognitive.
+ *             Character sheet / social / cognitive render into the agent popup modal.
  */
+
+// ===== Agent Popup Management =====
+
+let _popupAgentId = null;  // currently open agent in the popup
+
+function openAgentPopup(state, agentId) {
+  _popupAgentId = agentId;
+  state.selectedAgent = agentId;
+
+  const popup = document.getElementById('agent-popup');
+  popup.classList.remove('hidden');
+
+  // Render all three tabs
+  renderCharacterSheet(state);
+  renderSocial(state);
+  renderCognitive(state);
+  renderCards(state);  // update card highlight
+}
+
+function closeAgentPopup(state) {
+  _popupAgentId = null;
+  state.selectedAgent = null;
+
+  const popup = document.getElementById('agent-popup');
+  popup.classList.add('hidden');
+  renderCards(state);  // clear card highlight
+}
+
+function isPopupOpen() {
+  return _popupAgentId !== null;
+}
+
+function getPopupAgentId() {
+  return _popupAgentId;
+}
+
+/** Refresh the popup contents if it's open (e.g. after an action updates agent data). */
+function refreshPopupIfOpen(state) {
+  if (!_popupAgentId) return;
+  renderCharacterSheet(state);
+  renderSocial(state);
+  renderCognitive(state);
+}
+
+// Wire up popup close + tab switching after DOM ready
+(function initPopupControls() {
+  function wire() {
+    const popup = document.getElementById('agent-popup');
+    if (!popup) return;
+
+    // Close button
+    document.getElementById('agent-popup-close').addEventListener('click', () => {
+      // Access state via the global — it's set up in main.js
+      closeAgentPopup(window._gameState || { selectedAgent: null });
+    });
+
+    // Click backdrop to close
+    popup.addEventListener('click', (e) => {
+      if (e.target === popup) {
+        closeAgentPopup(window._gameState || { selectedAgent: null });
+      }
+    });
+
+    // Escape key to close
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isPopupOpen()) {
+        closeAgentPopup(window._gameState || { selectedAgent: null });
+      }
+    });
+
+    // Tab switching
+    const tabs = popup.querySelectorAll('.agent-popup-tab');
+    const contents = popup.querySelectorAll('.agent-popup-content');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        contents.forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        const target = tab.dataset.tab;
+        const pane = document.getElementById(`popup-${target}`);
+        if (pane) pane.classList.add('active');
+      });
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wire);
+  } else {
+    wire();
+  }
+})();
 
 // ===== Agent Cards (left panel) =====
 
@@ -30,7 +122,7 @@ function renderCards(state) {
     card.className = 'agent-card';
     if (!agent.is_alive) card.classList.add('dead');
     if (state.activeAgent === id) card.classList.add('active');
-    if (state.selectedAgent === id) card.style.borderColor = '#4169e1';
+    if (_popupAgentId === id) card.classList.add('selected');
 
     const hpPct = agent.max_hp > 0 ? agent.hp / agent.max_hp : 0;
     const hpClass = hpPct > 0.6 ? 'hp' : hpPct > 0.3 ? 'hp warn' : 'hp crit';
@@ -63,7 +155,7 @@ function renderCards(state) {
       ${actionText ? `<div class="card-action">${escHtml(actionText)}</div>` : ''}
     `;
 
-    card.addEventListener('click', () => state.selectAgent(id));
+    card.addEventListener('click', () => openAgentPopup(state, id));
     container.appendChild(card);
   }
 
@@ -131,13 +223,13 @@ function renderDialogue(state) {
 // ===== Social (right panel, upper) =====
 
 function renderSocial(state) {
-  const container = document.getElementById('social-content');
+  const container = document.getElementById('popup-social');
   if (!container) return;
 
   container.innerHTML = '';
 
-  // Show selected agent's relationships, or active agent's
-  const agentId = state.selectedAgent || state.activeAgent;
+  // Show the popup agent's relationships
+  const agentId = _popupAgentId || state.selectedAgent || state.activeAgent;
   if (!agentId || !state.social[agentId]) {
     container.innerHTML = '<div style="color:var(--text-dim)">Select an agent</div>';
     return;
@@ -178,12 +270,12 @@ function renderSocial(state) {
 // ===== Cognitive (right panel, lower) =====
 
 function renderCognitive(state) {
-  const container = document.getElementById('cognitive-content');
+  const container = document.getElementById('popup-mind');
   if (!container) return;
 
   container.innerHTML = '';
 
-  const agentId = state.selectedAgent || state.activeAgent;
+  const agentId = _popupAgentId || state.selectedAgent || state.activeAgent;
   if (!agentId) {
     container.innerHTML = '<div style="color:var(--text-dim)">Select an agent</div>';
     return;
@@ -226,12 +318,12 @@ function renderCognitive(state) {
 // ===== Character Sheet (right panel, top) =====
 
 function renderCharacterSheet(state) {
-  const container = document.getElementById('character-content');
+  const container = document.getElementById('popup-character');
   if (!container) return;
 
   container.innerHTML = '';
 
-  const agentId = state.selectedAgent || state.activeAgent;
+  const agentId = _popupAgentId || state.selectedAgent || state.activeAgent;
   if (!agentId || !state.agents[agentId]) {
     container.innerHTML = '<div style="color:var(--text-dim)">Select an agent to view their character sheet</div>';
     return;
