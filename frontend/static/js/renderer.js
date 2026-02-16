@@ -117,6 +117,7 @@ class Renderer {
     this.svg.removeAttribute('width');
     this.svg.removeAttribute('height');
     this.svg.setAttribute('viewBox', `0 0 ${svgW} ${svgH}`);
+    this.svg.setAttribute('overflow', 'visible');
 
     // Inject defs
     injectDefs(this.svg);

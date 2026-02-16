@@ -442,37 +442,63 @@ class SimRunner:
                 log.info(f"  Model override: {role} -> {adapter_key}")
 
     async def _generate_lore(self) -> None:
-        """Generate world lore if a lore prompt is configured."""
+        """Generate world lore, or load persisted lore for campaigns."""
         if self._use_random or not self._cognitive_loop:
             return
 
-        lore_prompt = ""
-        if self._configure_data:
-            lore_prompt = self._configure_data.get("lore_prompt", "")
-
-        # Always generate lore (with or without custom prompt)
         from cognition.lore import LoreContext, generate_lore, inject_lore_memories
 
-        # Build character summaries for the lore generator
-        char_summaries = []
-        for agent in self._env.agents.values():
-            char_summaries.append(
-                {
-                    "name": agent.identity.name,
-                    "combat_class": agent.identity.combat_class,
-                    "backstory": agent.identity.backstory,
-                    "personality_traits": agent.identity.personality_traits,
-                }
+        # Campaign mode: try to load persisted lore first
+        if self._campaign_db and self._campaign_mgr:
+            saved = self._campaign_db.load_lore(self._campaign_mgr.campaign_id)
+            if saved:
+                self._lore = LoreContext(
+                    world_description=saved.get("world_description", ""),
+                    key_facts=saved.get("key_facts", []),
+                    character_connections=saved.get("character_connections", []),
+                    raw_text=saved.get("raw_text", ""),
+                )
+                log.info(
+                    "Campaign lore loaded from DB (%d chars)", len(self._lore.raw_text)
+                )
+
+        # Generate lore if we don't have any yet
+        if not self._lore or not self._lore.world_description:
+            lore_prompt = ""
+            if self._configure_data:
+                lore_prompt = self._configure_data.get("lore_prompt", "")
+
+            # Build character summaries for the lore generator
+            char_summaries = []
+            for agent in self._env.agents.values():
+                char_summaries.append(
+                    {
+                        "name": agent.identity.name,
+                        "combat_class": agent.identity.combat_class,
+                        "backstory": agent.identity.backstory,
+                        "personality_traits": agent.identity.personality_traits,
+                    }
+                )
+
+            lore_llm = self._cognitive_loop._get_llm("lore_generation")
+
+            await self._broadcast({"type": "phase", "phase": "generating_lore"})
+
+            self._lore = await asyncio.to_thread(
+                generate_lore, char_summaries, lore_llm, lore_prompt
             )
 
-        # Get the lore generation adapter
-        lore_llm = self._cognitive_loop._get_llm("lore_generation")
-
-        await self._broadcast({"type": "phase", "phase": "generating_lore"})
-
-        self._lore = await asyncio.to_thread(
-            generate_lore, char_summaries, lore_llm, lore_prompt
-        )
+            # Persist lore for campaign reuse
+            if (
+                self._lore
+                and self._lore.world_description
+                and self._campaign_db
+                and self._campaign_mgr
+            ):
+                lore_save = self._lore.to_dict()
+                lore_save["raw_text"] = self._lore.raw_text
+                self._campaign_db.save_lore(self._campaign_mgr.campaign_id, lore_save)
+                log.info("Campaign lore saved to DB")
 
         if self._lore and self._lore.world_description:
             # Inject lore into agent memories

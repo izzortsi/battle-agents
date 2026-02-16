@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     name            TEXT    NOT NULL,
     created_at      TEXT    NOT NULL,
-    battle_count    INTEGER NOT NULL DEFAULT 0
+    battle_count    INTEGER NOT NULL DEFAULT 0,
+    lore_json       TEXT    DEFAULT NULL              -- JSON: persisted LoreContext
 );
 
 CREATE TABLE IF NOT EXISTS roster (
@@ -116,8 +117,9 @@ class CampaignDB:
 
     def _init_schema(self) -> None:
         self._conn.executescript(_SCHEMA)
-        # Migrate existing databases: add alignment columns if missing
+        # Migrate existing databases
         self._migrate_alignment_columns()
+        self._migrate_lore_column()
         self._conn.commit()
 
     def _migrate_alignment_columns(self) -> None:
@@ -132,6 +134,17 @@ class CampaignDB:
         if "order_value" not in cols:
             self._conn.execute(
                 "ALTER TABLE roster ADD COLUMN order_value REAL NOT NULL DEFAULT 0.0"
+            )
+
+    def _migrate_lore_column(self) -> None:
+        """Add lore_json column to campaigns if it doesn't exist."""
+        cols = {
+            row[1]
+            for row in self._conn.execute("PRAGMA table_info(campaigns)").fetchall()
+        }
+        if "lore_json" not in cols:
+            self._conn.execute(
+                "ALTER TABLE campaigns ADD COLUMN lore_json TEXT DEFAULT NULL"
             )
 
     def close(self) -> None:
@@ -182,6 +195,23 @@ class CampaignDB:
             (campaign_id,),
         )
         self._conn.commit()
+
+    def save_lore(self, campaign_id: int, lore_dict: dict) -> None:
+        """Persist lore JSON for a campaign."""
+        self._conn.execute(
+            "UPDATE campaigns SET lore_json = ? WHERE id = ?",
+            (json.dumps(lore_dict), campaign_id),
+        )
+        self._conn.commit()
+
+    def load_lore(self, campaign_id: int) -> dict | None:
+        """Load persisted lore for a campaign, or None if not yet generated."""
+        row = self._conn.execute(
+            "SELECT lore_json FROM campaigns WHERE id = ?", (campaign_id,)
+        ).fetchone()
+        if row and row["lore_json"]:
+            return json.loads(row["lore_json"])
+        return None
 
     def delete_campaign(self, campaign_id: int) -> None:
         """Delete a campaign and all associated data."""

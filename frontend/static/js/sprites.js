@@ -437,14 +437,16 @@ function createSprite(agentData) {
   // Emoji bubble (thinking / talking indicator — hidden by default)
   const fo = svgEl('foreignObject', {
     x: 0,
-    y: -18,
+    y: -20,
     width: SPRITE_W,
-    height: 20,
-    class: 'sprite-emoji-fo',
+    height: 22,
+    overflow: 'visible',
   });
-  fo.dataset.role = 'emoji-bubble';
-  const emojiDiv = document.createElement('div');
-  emojiDiv.className = 'sprite-emoji';
+  fo.setAttribute('data-role', 'emoji-bubble');
+  fo.setAttribute('class', 'sprite-emoji-fo');
+  const emojiDiv = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+  emojiDiv.setAttribute('class', 'sprite-emoji');
+  emojiDiv.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
   fo.appendChild(emojiDiv);
   g.appendChild(fo);
 
@@ -457,12 +459,16 @@ function createSprite(agentData) {
  * @param {string} emoji — emoji character to show, or '' to clear
  */
 function setSpriteEmoji(spriteG, emoji) {
-  const fo = spriteG.querySelector('[data-role="emoji-bubble"]');
+  const fo = spriteG.querySelector('foreignObject[data-role="emoji-bubble"]');
   if (!fo) return;
-  const div = fo.querySelector('.sprite-emoji');
+  const div = fo.firstElementChild;
   if (!div) return;
   div.textContent = emoji || '';
-  fo.classList.toggle('visible', !!emoji);
+  if (emoji) {
+    fo.style.display = '';
+  } else {
+    fo.style.display = 'none';
+  }
 }
 
 /**

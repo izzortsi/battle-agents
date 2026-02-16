@@ -391,6 +391,8 @@ async def websocket_endpoint(ws: WebSocket):
             cmd = msg.get("type", "")
             if cmd == "configure":
                 if not SPECTATOR_MODE:
+                    # Re-fetch runner — creates a fresh one if the previous battle finished
+                    runner = await _get_or_create_runner()
                     runner.apply_configure(msg)
             elif cmd == "start":
                 if not SPECTATOR_MODE:
