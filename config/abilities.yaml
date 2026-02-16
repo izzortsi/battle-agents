@@ -500,3 +500,46 @@
     target: enemy
     category: debuff
     chance: 0.8
+- name: Silent Blade
+  mana_cost: 5
+  damage: 15
+  range: 1
+  aoe_pattern: single
+  cooldown: 3
+  description: Himura executes a swift, precise strike, aiming for a vital point with
+    deadly accuracy.
+  tactical_hint: Use this ability to deal significant damage to a single high-priority
+    target.
+  effects:
+  - type: Bleed
+    behavior: damage_over_time
+    duration: 2
+    magnitude: 0.05
+    target: enemy
+    category: debuff
+    chance: 0.8
+- name: Unwavering Stance
+  mana_cost: 8
+  damage: 0
+  range: 1
+  aoe_pattern: single
+  cooldown: 4
+  description: Himura adopts a defensive posture, deflecting incoming blows and shrugging
+    off debilitating effects.
+  tactical_hint: Activate this when Himura is focused by enemies or anticipating heavy
+    damage/debuffs.
+  effects:
+  - type: Iron Skin
+    behavior: reduce_incoming_damage
+    duration: 2
+    magnitude: 0.3
+    target: self
+    category: buff
+    chance: 1.0
+  - type: Resolve
+    behavior: passive
+    duration: 2
+    magnitude: 0.0
+    target: self
+    category: buff
+    chance: 1.0
