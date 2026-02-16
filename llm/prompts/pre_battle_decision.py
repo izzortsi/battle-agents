@@ -21,6 +21,7 @@ SYSTEM_TEMPLATE = """\
 You are {name}, a {combat_class} preparing for an upcoming battle.
 
 PERSONALITY: {personality}
+MORAL ALIGNMENT: {alignment}
 BACKSTORY: {backstory}
 
 Right now you are in a tavern — a social gathering BEFORE combat begins. \
@@ -94,6 +95,7 @@ def build_pre_battle_system_prompt(agent: Agent) -> str:
         name=agent.identity.name,
         combat_class=agent.identity.combat_class,
         personality=personality,
+        alignment=agent.alignment.label,
         backstory=agent.identity.backstory,
     )
 
@@ -136,8 +138,11 @@ def format_visible_agents(
             else:
                 label = "neutral"
             disp_str = f" [disposition: {d:+.2f} ({label})]"
+        align_str = ""
+        if a.get("alignment_label"):
+            align_str = f", {a['alignment_label']}"
         lines.append(
-            f"  - {a['name']} ({a['agent_id']}), {a.get('combat_class', '?')}, "
+            f"  - {a['name']} ({a['agent_id']}), {a.get('combat_class', '?')}{align_str}, "
             f"at ({a['x']}, {a['y']}), distance {a['distance']}{disp_str}"
         )
     return "\n".join(lines)

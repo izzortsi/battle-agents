@@ -1,6 +1,7 @@
 name: Lyra
 combat_class: mage
 sprite: Wizard_1
+moral_alignment: lawful_neutral
 backstory: >
   A prodigy of the Arcane Academy, expelled for delving into forbidden
   knowledge. Lyra seeks ancient power to prove her former masters wrong.

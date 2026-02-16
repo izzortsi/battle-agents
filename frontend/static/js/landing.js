@@ -149,12 +149,16 @@ class LandingPage {
         ? `<div class="char-sprite-preview" style="background-image:url(/static/assets/spritesheets/${this._esc(assignedSprite)}.png)"></div>`
         : '';
 
+      const alignLabel = (c.moral_alignment || 'true_neutral').replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
+      const alignCss = this._alignmentCssClass(c.moral_alignment || 'true_neutral');
+
       div.innerHTML = `
         <input type="checkbox" ${this._selectedIds.has(c.id) ? 'checked' : ''}>
         ${previewHtml}
         <div class="char-roster-info">
           <div class="char-roster-name">${this._esc(c.name)}</div>
           <div class="char-roster-class">${this._esc(c.combat_class)}</div>
+          <span class="alignment-badge ${alignCss}">${this._esc(alignLabel)}</span>
           <div class="char-roster-backstory">${this._esc(c.backstory)}</div>
         </div>
         <button class="char-delete-btn" title="Delete character">&times;</button>
@@ -447,6 +451,13 @@ class LandingPage {
       // XP bar
       const xpPct = r.xp_to_next > 0 ? Math.min(100, (r.xp / r.xp_to_next) * 100) : 100;
 
+      const campAlignLabel = r.alignment_label || 'True Neutral';
+      const campAlignCss = this._alignmentCssClass(
+        (r.alignment_label || 'True Neutral').toLowerCase().replace(/ /g, '_')
+      );
+      const campMorality = (r.morality != null ? r.morality : 0).toFixed(2);
+      const campOrder = (r.order_value != null ? r.order_value : 0).toFixed(2);
+
       entry.innerHTML = `
         ${spriteHtml}
         <div class="campaign-roster-info">
@@ -456,6 +467,10 @@ class LandingPage {
             ${!r.alive ? '<span class="campaign-roster-dead-tag">DEAD</span>' : ''}
           </div>
           <div class="campaign-roster-class">${this._esc(r.combat_class)}</div>
+          <div class="campaign-roster-alignment">
+            <span class="alignment-badge ${campAlignCss}">${this._esc(campAlignLabel)}</span>
+            <span class="alignment-values">G/E:${campMorality} L/C:${campOrder}</span>
+          </div>
           <div class="campaign-roster-xp">
             <div class="xp-bar"><div class="xp-bar-fill" style="width:${xpPct}%"></div></div>
             <span class="xp-label">${r.xp}/${r.xp_to_next} XP</span>
@@ -644,6 +659,16 @@ class LandingPage {
     try {
       localStorage.setItem('ba_sprite_assignments', JSON.stringify(this._spriteAssignments));
     } catch { /* quota exceeded or private mode */ }
+  }
+
+  _alignmentCssClass(key) {
+    if (!key) return 'align-neutral';
+    const k = key.toLowerCase().replace(/ /g, '_');
+    if (k.includes('good')) return 'align-good';
+    if (k.includes('evil')) return 'align-evil';
+    if (k.includes('lawful')) return 'align-lawful';
+    if (k.includes('chaotic')) return 'align-chaotic';
+    return 'align-neutral';
   }
 
   _esc(str) {

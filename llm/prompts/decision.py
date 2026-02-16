@@ -47,11 +47,15 @@ are possible but fragile — trust must be earned through actions, not words \
 alone. Betrayal is always a risk. Stay alert.
 
 PERSONALITY: {personality}
+MORAL ALIGNMENT: {alignment}
 BACKSTORY: {backstory}
 {world_lore_section}
 
 You must stay in character at all times. Your decisions should reflect your \
-personality, your memories, your relationships, and your tactical assessment. \
+personality, moral alignment, your memories, your relationships, and your \
+tactical assessment. Your alignment is your moral compass — Good characters \
+avoid unnecessary cruelty, Evil characters exploit weakness, Lawful characters \
+honor agreements, Chaotic characters value freedom over rules. \
 Engage threats aggressively, but consider who your real enemies are. The \
 disposition shown for each combatant reflects your relationship — allies \
 deserve caution before attacking, enemies deserve steel. Standing around \
@@ -195,6 +199,7 @@ def build_system_prompt(agent: Agent, world_lore: str = "") -> str:
         name=agent.identity.name,
         combat_class=agent.identity.combat_class,
         personality=personality,
+        alignment=agent.alignment.label,
         backstory=agent.identity.backstory,
         attack_range=agent.attributes.attack_range,
         damage_type=damage_type,
@@ -391,10 +396,13 @@ def format_visible_enemies(
             else:
                 label = "neutral"
             disp_str = f" [{label.upper()} | disposition: {d:+.2f}]"
+        align_str = ""
+        if e.get("alignment_label"):
+            align_str = f", {e['alignment_label']}"
         lines.append(
             f"  - {e['name']} ({e['agent_id']}) at ({e['x']}, {e['y']}), "
             f"distance {e['distance']}, HP {e['hp']}/{e['max_hp']} ({hp_pct}%), "
-            f"deals {dmg_type} dmg, pDef {phys_def} / mDef {mag_def} "
+            f"deals {dmg_type} dmg, pDef {phys_def} / mDef {mag_def}{align_str} "
             f"| {range_str}{disp_str}"
         )
     return "\n".join(lines)

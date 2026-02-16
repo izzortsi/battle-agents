@@ -45,6 +45,7 @@ PLAN_SYSTEM = """\
 You are {name}, a {combat_class}. {location_context}
 
 PERSONALITY: {personality}
+MORAL ALIGNMENT: {alignment}
 BACKSTORY: {backstory}
 
 {plan_directives}
@@ -135,12 +136,14 @@ def build_plan_prompts(
     plan_directives: str = "",
     closing_instruction: str = "",
     show_combat_stats: bool = True,
+    alignment: str = "True Neutral",
 ) -> tuple[str, str]:
     """Build system + user prompts for high-level plan generation."""
     system = PLAN_SYSTEM.format(
         name=agent_name,
         combat_class=combat_class,
         personality=personality,
+        alignment=alignment,
         backstory=backstory,
         location_context=location_context or _DEFAULT_LOCATION_CONTEXT,
         plan_directives=plan_directives or _DEFAULT_PLAN_DIRECTIVES,

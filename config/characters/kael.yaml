@@ -1,6 +1,7 @@
 name: Kael
 combat_class: warrior
 sprite: Fighter
+moral_alignment: neutral_good
 backstory: >
   A battle-hardened mercenary who has seen too many wars. Once served a king
   who betrayed his own people. Now Kael fights for coin and survival, trusting

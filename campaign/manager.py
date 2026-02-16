@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING
 from agent.agent import Agent
 from agent.attributes import Attributes
 from agent.identity import Identity
+from agent.moral_alignment import MoralAlignment
 from campaign.memory_compression import compress_memories, restore_memories
 from campaign.models import (
     BattleRecord,
@@ -70,12 +71,18 @@ class CampaignManager:
         roster = self.db.load_alive_roster(self.campaign_id)
         agents: list[Agent] = []
         for entry in roster:
+            # Derive a label from the persisted float values so __post_init__
+            # produces a MoralAlignment close to the saved state.
+            _temp_align = MoralAlignment(
+                morality=entry.morality, order=entry.order_value
+            )
             identity = Identity(
                 name=entry.name,
                 backstory=entry.backstory,
                 personality_traits=list(entry.personality_traits),
                 combat_class=entry.combat_class,
                 sprite=entry.sprite,
+                moral_alignment=_temp_align.label_key,
             )
             # Reset cooldowns on all abilities
             abilities = []
@@ -98,6 +105,10 @@ class CampaignManager:
                 identity=identity,
                 attributes=attributes,
             )
+            # Restore exact float alignment values (label-based init loses
+            # precision from in-battle drift).
+            agent.alignment.morality = entry.morality
+            agent.alignment.order = entry.order_value
             agents.append(agent)
         log.info(
             "Built %d agents from campaign %d roster.", len(agents), self.campaign_id
@@ -230,6 +241,13 @@ class CampaignManager:
                 )
                 level_ups.append(entry.name)
 
+        # Save drifted alignment values to roster
+        for aid, agent in env.agents.items():
+            entry = roster_by_id.get(aid)
+            if entry:
+                entry.morality = agent.alignment.morality
+                entry.order_value = agent.alignment.order
+
         # Compress and save memories
         all_compressed = []
         for aid, agent in env.agents.items():
@@ -331,4 +349,6 @@ def roster_entry_from_agent(agent: Agent) -> RosterEntry:
         hit=a.hit,
         attack_range=a.attack_range,
         abilities=[dict(ab) for ab in a.abilities],
+        morality=agent.alignment.morality,
+        order_value=agent.alignment.order,
     )

@@ -40,9 +40,13 @@ function renderCards(state) {
     const lastAction = state.eventLog.filter(e => e.agentId === id).slice(-1)[0];
     const actionText = lastAction ? truncate(lastAction.description, 40) : '';
 
+    const align = agent.alignment || {};
+    const alignLabel = align.label || 'True Neutral';
+    const alignCss = alignmentCssClass(alignLabel);
+
     card.innerHTML = `
       <div class="card-name">${escHtml(agent.name)}</div>
-      <div class="card-class">${escHtml(agent.combat_class)}</div>
+      <div class="card-class">${escHtml(agent.combat_class)} <span class="alignment-badge ${alignCss} small">${escHtml(alignLabel)}</span></div>
       <div class="card-bars">
         <div class="bar-row">
           <span class="bar-label">HP</span>
@@ -243,6 +247,24 @@ function renderCharacterSheet(state) {
     <div class="cs-class">${escHtml(agent.combat_class)}</div>
   `;
   container.appendChild(header);
+
+  // Moral alignment
+  const csAlign = agent.alignment || {};
+  const csAlignLabel = csAlign.label || 'True Neutral';
+  const csAlignCss = alignmentCssClass(csAlignLabel);
+  const csMorality = (csAlign.morality != null ? csAlign.morality : 0).toFixed(2);
+  const csOrder = (csAlign.order != null ? csAlign.order : 0).toFixed(2);
+
+  const alignSection = document.createElement('div');
+  alignSection.className = 'cs-section';
+  alignSection.innerHTML = `
+    <div class="cs-label">Moral Alignment</div>
+    <div class="cs-alignment">
+      <span class="alignment-badge ${csAlignCss}">${escHtml(csAlignLabel)}</span>
+      <span class="alignment-values">Good/Evil: ${csMorality} | Lawful/Chaotic: ${csOrder}</span>
+    </div>
+  `;
+  container.appendChild(alignSection);
 
   // Personality traits
   if (agent.personality && agent.personality.length > 0) {
@@ -458,6 +480,17 @@ function abilityEffectTooltip(eff) {
   if (eff.target) lines.push(`Target: ${eff.target}`);
   if (eff.category) lines.push(`Category: ${eff.category}`);
   return lines.join('\n');
+}
+
+/** Map an alignment label to a CSS class for color-coding. */
+function alignmentCssClass(label) {
+  if (!label) return 'align-neutral';
+  const l = label.toLowerCase();
+  if (l.includes('good')) return 'align-good';
+  if (l.includes('evil')) return 'align-evil';
+  if (l.includes('lawful')) return 'align-lawful';
+  if (l.includes('chaotic')) return 'align-chaotic';
+  return 'align-neutral';
 }
 
 function truncate(str, max) {

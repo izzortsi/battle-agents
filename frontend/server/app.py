@@ -293,6 +293,8 @@ async def create_campaign(req: CreateCampaignRequest):
 @app.get("/api/campaigns/{campaign_id}")
 async def get_campaign(campaign_id: int):
     """Get campaign details including roster and battle history."""
+    from agent.moral_alignment import MoralAlignment
+
     db = _get_campaign_db()
     try:
         meta = db.get_campaign(campaign_id)
@@ -326,6 +328,11 @@ async def get_campaign(campaign_id: int):
                     "hit": r.hit,
                     "attack_range": r.attack_range,
                     "abilities": r.abilities,
+                    "morality": r.morality,
+                    "order_value": r.order_value,
+                    "alignment_label": MoralAlignment(
+                        morality=r.morality, order=r.order_value
+                    ).label,
                 }
                 for r in roster
             ],

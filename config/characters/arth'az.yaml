@@ -1,6 +1,7 @@
 name: Arth'az
 combat_class: Shadow Thief
 sprite: Rogue
+moral_alignment: chaotic_neutral
 backstory: Arth'az, once a respected scout in the Drow city of Menzoberranzan, was
   framed for a crime he didn't commit by a jealous rival. Escaping into the Underdark's
   treacherous tunnels, he honed his stealth and thievery skills to survive. Now, he

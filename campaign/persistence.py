@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS roster (
     hit             INTEGER NOT NULL DEFAULT 10,
     attack_range    INTEGER NOT NULL DEFAULT 1,
     abilities       TEXT    NOT NULL DEFAULT '[]',   -- JSON list
+    morality        REAL    NOT NULL DEFAULT 0.0,    -- -1.0 evil … +1.0 good
+    order_value     REAL    NOT NULL DEFAULT 0.0,    -- -1.0 chaotic … +1.0 lawful
     PRIMARY KEY (campaign_id, agent_id),
     FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
 );
@@ -114,7 +116,23 @@ class CampaignDB:
 
     def _init_schema(self) -> None:
         self._conn.executescript(_SCHEMA)
+        # Migrate existing databases: add alignment columns if missing
+        self._migrate_alignment_columns()
         self._conn.commit()
+
+    def _migrate_alignment_columns(self) -> None:
+        """Add morality/order_value columns to roster if they don't exist."""
+        cols = {
+            row[1] for row in self._conn.execute("PRAGMA table_info(roster)").fetchall()
+        }
+        if "morality" not in cols:
+            self._conn.execute(
+                "ALTER TABLE roster ADD COLUMN morality REAL NOT NULL DEFAULT 0.0"
+            )
+        if "order_value" not in cols:
+            self._conn.execute(
+                "ALTER TABLE roster ADD COLUMN order_value REAL NOT NULL DEFAULT 0.0"
+            )
 
     def close(self) -> None:
         self._conn.close()
@@ -183,8 +201,8 @@ class CampaignDB:
                    (campaign_id, agent_id, name, combat_class, sprite,
                     backstory, personality,
                     alive, xp, level, atk, mgk, spd, con, hit,
-                    attack_range, abilities)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    attack_range, abilities, morality, order_value)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     campaign_id,
                     r.agent_id,
@@ -203,6 +221,8 @@ class CampaignDB:
                     r.hit,
                     r.attack_range,
                     json.dumps(r.abilities),
+                    r.morality,
+                    r.order_value,
                 ),
             )
         self._conn.commit()
@@ -391,4 +411,6 @@ def _row_to_roster_entry(r: sqlite3.Row) -> RosterEntry:
         hit=r["hit"],
         attack_range=r["attack_range"],
         abilities=json.loads(r["abilities"]),
+        morality=r["morality"],
+        order_value=r["order_value"],
     )

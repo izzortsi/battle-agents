@@ -19,6 +19,7 @@ DIALOGUE_SYSTEM_TEMPLATE = """\
 You are {name}, a {combat_class} in a tactical combat arena.
 
 PERSONALITY: {personality}
+MORAL ALIGNMENT: {alignment}
 BACKSTORY: {backstory}
 
 You are engaged in a conversation during combat. Stay in character. \
@@ -115,6 +116,7 @@ def build_dialogue_system_prompt(agent: Agent) -> str:
         name=agent.identity.name,
         combat_class=agent.identity.combat_class,
         personality=personality,
+        alignment=agent.alignment.label,
         backstory=agent.identity.backstory,
     )
 

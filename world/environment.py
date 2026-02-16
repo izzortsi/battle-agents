@@ -66,6 +66,19 @@ class Environment:
     # -- Setup -----------------------------------------------------------------
 
     def register_agent(self, agent: Agent, x: int, y: int) -> None:
+        # Seed initial dispositions based on alignment compatibility
+        for other in self.agents.values():
+            if other.agent_id == agent.agent_id:
+                continue
+            bias = agent.alignment.compatibility(other.alignment)
+            if bias != 0.0:
+                agent.social.ensure_relationship(
+                    other.agent_id, other.identity.name, initial_bias=bias
+                )
+                other.social.ensure_relationship(
+                    agent.agent_id, agent.identity.name, initial_bias=bias
+                )
+
         self.agents[agent.agent_id] = agent
         tile = BattleGrid.tile_key(x, y)
         self.world_state.set_position(agent.agent_id, tile)
@@ -105,6 +118,7 @@ class Environment:
             "action_type": action.action_type.value,
             "description": result.description,
             "success": result.success,
+            "target_agent": action.target_agent,
             **result.details,
         }
 
@@ -123,10 +137,43 @@ class Environment:
         return result
 
     def _update_social_models(self, action: CombatAction, result: ActionResult) -> None:
-        """Update social models based on resolved combat events."""
+        """Update social models and alignment drift based on resolved combat events."""
         from combat.actions import ActionType
 
         turn = self.turn_manager.global_turn
+
+        # -- Alignment drift for defend --
+        if action.action_type == ActionType.DEFEND:
+            agent = self.agents.get(action.agent_id)
+            if agent:
+                agent.alignment.apply_drift("defend")
+
+        # -- Alignment drift: spare low-HP enemy (WAIT/DEFEND with low-HP foe in range) --
+        if action.action_type in (ActionType.WAIT, ActionType.DEFEND):
+            agent = self.agents.get(action.agent_id)
+            if agent:
+                pos = self.world_state.get_position(agent.agent_id)
+                if pos:
+                    ax, ay = BattleGrid.parse_tile(pos)
+                    atk_range = agent.attributes.attack_range
+                    for other in self.alive_agents():
+                        if other.agent_id == agent.agent_id:
+                            continue
+                        opos = self.world_state.get_position(other.agent_id)
+                        if opos is None:
+                            continue
+                        ox, oy = BattleGrid.parse_tile(opos)
+                        dist = BattleGrid.manhattan(ax, ay, ox, oy)
+                        alliance = self.get_alliance_status(
+                            agent.agent_id, other.agent_id
+                        )
+                        if (
+                            dist <= atk_range
+                            and alliance != AllianceStatus.ALLIED
+                            and other.attributes.hp < other.attributes.max_hp * 0.2
+                        ):
+                            agent.alignment.apply_drift("spare_low_hp")
+                            break  # one drift per turn is enough
 
         if (
             action.action_type in (ActionType.ATTACK, ActionType.ABILITY)
@@ -143,6 +190,50 @@ class Environment:
             if action.action_type == ActionType.ABILITY:
                 kills = result.details.get("kills", [])
                 killed = len(kills) > 0
+
+            # -- Alignment drift for combat events --
+            alliance = self.get_alliance_status(attacker.agent_id, target.agent_id)
+
+            # Attack ally → evil drift
+            if alliance == AllianceStatus.ALLIED:
+                attacker.alignment.apply_drift("attack_ally")
+                # If alliance was declared, this is betrayal
+                rel = attacker.social.get_relationship(target.agent_id)
+                if rel and rel.alliance_declared:
+                    attacker.alignment.apply_drift("betray_alliance")
+
+            # Heal/buff ally (ability with heal effects, no damage)
+            if action.action_type == ActionType.ABILITY and damage == 0:
+                effects = result.details.get("effects_applied", [])
+                if effects and alliance == AllianceStatus.ALLIED:
+                    attacker.alignment.apply_drift("heal_ally")
+
+            # Kill blow → slight evil drift
+            if killed:
+                attacker.alignment.apply_drift("kill_blow")
+
+            # Honor alliance — attacking the same target an ally recently attacked
+            if alliance != AllianceStatus.ALLIED:
+                for ally_id, recent in self.recent_actions.items():
+                    if ally_id == attacker.agent_id:
+                        continue
+                    ally_alliance = self.get_alliance_status(attacker.agent_id, ally_id)
+                    if (
+                        ally_alliance == AllianceStatus.ALLIED
+                        and recent.get("action_type") in ("attack", "ability")
+                        and recent.get("target_agent") == target.agent_id
+                    ):
+                        attacker.alignment.apply_drift("honor_alliance")
+                        break
+
+            # AoE friendly fire drift (check collateral in kills/hits)
+            aoe_hits = result.details.get("aoe_hits", [])
+            for hit_id in aoe_hits:
+                if hit_id == target.agent_id:
+                    continue  # primary target, already handled
+                hit_alliance = self.get_alliance_status(attacker.agent_id, hit_id)
+                if hit_alliance == AllianceStatus.ALLIED:
+                    attacker.alignment.apply_drift("aoe_hit_ally")
 
             # Target's social model: attacked by attacker
             target.social.on_attacked_by(

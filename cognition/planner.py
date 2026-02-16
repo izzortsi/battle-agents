@@ -186,6 +186,7 @@ class Planner:
             plan_directives=plan_directives,
             closing_instruction=closing_instruction,
             show_combat_stats=show_combat_stats,
+            alignment=agent.alignment.label,
         )
 
         _fallback = fallback_plan or self._DEFAULT_FALLBACK_PLAN
@@ -334,6 +335,7 @@ class Planner:
             plan_directives=plan_directives,
             closing_instruction=closing_instruction,
             show_combat_stats=show_combat_stats,
+            alignment=agent.alignment.label,
         )
 
         _fallback = fallback_plan or self._DEFAULT_FALLBACK_PLAN

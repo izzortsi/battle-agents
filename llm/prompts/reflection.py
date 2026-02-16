@@ -24,7 +24,7 @@ Generate exactly 3 questions. Focus on:
 
 QUESTION_SYSTEM = """\
 You are analyzing the recent experiences of {name} \
-({combat_class}){phase_context}. Your job is to identify the most important \
+({combat_class}, {alignment}){phase_context}. Your job is to identify the most important \
 high-level questions that can be answered from these observations.
 
 Respond with a JSON object:
@@ -88,12 +88,14 @@ def build_question_prompts(
     recent_memories: list[MemoryNode],
     phase_context: str = "",
     question_focus: str = "",
+    alignment: str = "True Neutral",
 ) -> tuple[str, str]:
     """Build system + user prompts for question generation."""
     statements = _format_numbered_statements(recent_memories)
     system = QUESTION_SYSTEM.format(
         name=agent_name,
         combat_class=combat_class,
+        alignment=alignment,
         phase_context=phase_context or " in tactical combat",
         question_focus=question_focus or _DEFAULT_QUESTION_FOCUS,
     )
