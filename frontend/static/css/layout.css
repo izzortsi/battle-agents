@@ -380,29 +380,98 @@ html, body {
 .log-entry.wait { color: var(--text-dim); }
 .log-entry.death { color: var(--accent); font-weight: 600; }
 
-/* ===== Dialogue bubbles ===== */
+/* ===== Dialogue summaries (compact) ===== */
 
-.dialogue-bubble {
-  margin: 4px 0;
-  padding: 6px 8px;
-  border-radius: 6px;
+.dialogue-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 11px;
+}
+
+.dialogue-summary:hover {
   background: rgba(255, 255, 255, 0.06);
 }
 
-.dialogue-bubble .bubble-speaker {
+.dialogue-speaker {
   font-weight: 600;
-  font-size: 11px;
-  margin-bottom: 2px;
+  color: var(--text);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.dialogue-bubble .bubble-message {
-  font-style: italic;
-}
-
-.dialogue-bubble .bubble-shift {
-  font-size: 10px;
+.dialogue-preview {
   color: var(--text-dim);
-  margin-top: 2px;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.dialogue-shift {
+  font-size: 9px;
+  font-weight: 600;
+  flex-shrink: 0;
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+.dialogue-shift.positive {
+  color: #3cb371;
+  background: rgba(60, 179, 113, 0.12);
+}
+
+.dialogue-shift.negative {
+  color: #e94560;
+  background: rgba(233, 69, 96, 0.12);
+}
+
+/* ===== Dialogue detail popup ===== */
+
+.dialogue-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.dialogue-detail-speaker {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--accent-gold);
+}
+
+.dialogue-detail-arrow {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.dialogue-detail-target {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.dialogue-detail-message {
+  font-size: 13px;
+  font-style: italic;
+  line-height: 1.6;
+  color: #ddd;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 3px solid var(--accent-gold);
+  margin-bottom: 10px;
+}
+
+.dialogue-detail-shift {
+  font-size: 11px;
+  color: var(--text-dim);
 }
 
 /* ===== Social relationships ===== */

@@ -240,6 +240,7 @@
     // Close popups if open
     if (isPopupOpen()) closeAgentPopup(state);
     closeLorePopup();
+    closeDialoguePopup();
 
     // Reset state for next battle
     state.phase = 'idle';

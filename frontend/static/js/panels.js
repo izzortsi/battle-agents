@@ -189,7 +189,7 @@ function renderLog(state) {
   }
 }
 
-// ===== Dialogue (bottom right) =====
+// ===== Dialogue (bottom panel — compact summaries) =====
 
 function renderDialogue(state) {
   const container = document.getElementById('dialogue-content');
@@ -199,19 +199,24 @@ function renderDialogue(state) {
 
   container.innerHTML = '';
 
-  for (const entry of state.dialogueLog) {
+  for (let i = 0; i < state.dialogueLog.length; i++) {
+    const entry = state.dialogueLog[i];
     const div = document.createElement('div');
-    div.className = 'dialogue-bubble';
+    div.className = 'dialogue-summary';
 
-    let shiftText = '';
-    if (entry.dispositionShift > 0) shiftText = ` <span style="color:#3cb371">+${entry.dispositionShift.toFixed(2)}</span>`;
-    else if (entry.dispositionShift < 0) shiftText = ` <span style="color:#e94560">${entry.dispositionShift.toFixed(2)}</span>`;
+    let shiftBadge = '';
+    if (entry.dispositionShift > 0) shiftBadge = `<span class="dialogue-shift positive">+${entry.dispositionShift.toFixed(2)}</span>`;
+    else if (entry.dispositionShift < 0) shiftBadge = `<span class="dialogue-shift negative">${entry.dispositionShift.toFixed(2)}</span>`;
+
+    const preview = truncate(entry.message, 60);
 
     div.innerHTML = `
-      <div class="bubble-speaker">${escHtml(entry.speakerName)}</div>
-      <div class="bubble-message">"${escHtml(entry.message)}"</div>
-      ${shiftText ? `<div class="bubble-shift">${shiftText}</div>` : ''}
+      <span class="dialogue-speaker">${escHtml(entry.speakerName)}</span>
+      <span class="dialogue-preview">${escHtml(preview)}</span>
+      ${shiftBadge}
     `;
+
+    div.addEventListener('click', () => openDialogueDetail(state, i));
     container.appendChild(div);
   }
 
@@ -219,6 +224,55 @@ function renderDialogue(state) {
     container.scrollTop = container.scrollHeight;
   }
 }
+
+// ===== Dialogue Detail Popup =====
+
+function openDialogueDetail(state, index) {
+  const entry = state.dialogueLog[index];
+  if (!entry) return;
+
+  const container = document.getElementById('popup-dialogue-detail');
+  if (!container) return;
+
+  let shiftHtml = '';
+  if (entry.dispositionShift > 0) shiftHtml = `<div class="dialogue-detail-shift"><span style="color:#3cb371">+${entry.dispositionShift.toFixed(2)}</span> disposition toward ${escHtml(entry.speakerName)}</div>`;
+  else if (entry.dispositionShift < 0) shiftHtml = `<div class="dialogue-detail-shift"><span style="color:#e94560">${entry.dispositionShift.toFixed(2)}</span> disposition toward ${escHtml(entry.speakerName)}</div>`;
+
+  container.innerHTML = `
+    <div class="dialogue-detail-header">
+      <span class="dialogue-detail-speaker">${escHtml(entry.speakerName)}</span>
+      ${entry.target ? `<span class="dialogue-detail-arrow">to</span> <span class="dialogue-detail-target">${escHtml(entry.target)}</span>` : ''}
+    </div>
+    <div class="dialogue-detail-message">"${escHtml(entry.message)}"</div>
+    ${shiftHtml}
+  `;
+
+  document.getElementById('dialogue-popup').classList.remove('hidden');
+}
+
+function closeDialoguePopup() {
+  document.getElementById('dialogue-popup').classList.add('hidden');
+}
+
+// Wire up dialogue popup controls
+(function initDialoguePopupControls() {
+  function wire() {
+    const popup = document.getElementById('dialogue-popup');
+    if (!popup) return;
+
+    document.getElementById('dialogue-popup-close').addEventListener('click', () => closeDialoguePopup());
+    popup.addEventListener('click', (e) => { if (e.target === popup) closeDialoguePopup(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !popup.classList.contains('hidden')) closeDialoguePopup();
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wire);
+  } else {
+    wire();
+  }
+})();
 
 // ===== Social (right panel, upper) =====
 
