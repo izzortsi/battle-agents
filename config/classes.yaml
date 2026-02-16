@@ -27,3 +27,5 @@ manic pyromancer:
   sprite: Fighter
 infernal witch:
   sprite: Witch
+sword saint:
+  sprite: Himura

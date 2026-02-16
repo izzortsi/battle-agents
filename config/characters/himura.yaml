@@ -1,0 +1,67 @@
+name: Himura
+combat_class: Sword Saint
+sprite: Himura
+moral_alignment: neutral_good
+backstory: Himura was once a celebrated protector, his blade a beacon of hope in a
+  war-torn land. However, each victory came with a cost, a silent tally of lives taken
+  that slowly eroded his spirit. Now, he roams, a shadow of his former self, driven
+  by a grim duty to shield the innocent from fates he could not prevent for others.
+personality_traits:
+- Stoic
+- Melancholic
+- Precise
+- Self-sacrificing
+- Haunted
+attributes:
+  atk: 18
+  mgk: 5
+  spd: 15
+  con: 14
+  hit: 17
+  attack_range: 1
+abilities:
+- name: Silent Blade
+  mana_cost: 5
+  damage: 15
+  range: 1
+  aoe_pattern: single
+  cooldown: 3
+  current_cd: 0
+  description: Himura executes a swift, precise strike, aiming for a vital point with
+    deadly accuracy.
+  tactical_hint: Use this ability to deal significant damage to a single high-priority
+    target.
+  effects:
+  - type: Bleed
+    behavior: damage_over_time
+    duration: 2
+    magnitude: 0.05
+    target: enemy
+    category: debuff
+    chance: 0.8
+- name: Unwavering Stance
+  mana_cost: 8
+  damage: 0
+  range: 1
+  aoe_pattern: single
+  cooldown: 4
+  current_cd: 0
+  description: Himura adopts a defensive posture, deflecting incoming blows and shrugging
+    off debilitating effects.
+  tactical_hint: Activate this when Himura is focused by enemies or anticipating heavy
+    damage/debuffs.
+  effects:
+  - type: Iron Skin
+    behavior: reduce_incoming_damage
+    duration: 2
+    magnitude: 0.3
+    target: self
+    category: buff
+    chance: 1.0
+  - type: Resolve
+    behavior: passive
+    duration: 2
+    magnitude: 0.0
+    target: self
+    category: buff
+    chance: 1.0
