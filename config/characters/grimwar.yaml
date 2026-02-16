@@ -1,6 +1,7 @@
 name: Grimwar
 combat_class: Berserker
 sprite: Berserker
+moral_alignment: chaotic_evil
 backstory: Once a high chieftain of the Red Crag clan, Grimwar abandoned his throne
   after a divine vision of an endless crimson feast. He now wanders the blood-soaked
   battlefields of the arena, believing that every drop of ichor spilled is a tribute

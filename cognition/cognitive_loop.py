@@ -252,6 +252,7 @@ class CognitiveLoop:
             llm=self._get_llm("reflection"),
             current_turn=current_turn,
             threshold=self._reflection_threshold,
+            alignment=agent.alignment.label,
         )
         self._embed_nodes(state.memory, reflect_ids)
 
@@ -461,6 +462,7 @@ class CognitiveLoop:
                 llm=self._get_llm("reflection"),
                 current_turn=current_turn,
                 threshold=self._reflection_threshold,
+                alignment=agent.alignment.label,
                 phase_context=(" socialising in a tavern before combat"),
                 question_focus=(
                     "Generate exactly 3 questions. Focus on:\n"
@@ -717,6 +719,7 @@ class CognitiveLoop:
             llm=self._get_llm("reflection"),
             current_turn=current_turn,
             threshold=self._reflection_threshold,
+            alignment=agent.alignment.label,
         )
 
         pre_plan_count = len(state.memory)
@@ -853,6 +856,7 @@ class CognitiveLoop:
             llm=self._get_llm("reflection"),
             current_turn=current_turn,
             threshold=self._reflection_threshold,
+            alignment=agent.alignment.label,
             phase_context=(" socialising in a tavern before combat"),
             question_focus=(
                 "Generate exactly 3 questions. Focus on:\n"

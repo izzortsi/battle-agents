@@ -49,6 +49,10 @@ class RosterEntry:
     # Abilities (serialised as list of dicts)
     abilities: list[dict] = field(default_factory=list)
 
+    # Moral alignment (persisted across battles, drifts in-battle)
+    morality: float = 0.0  # -1.0 evil … +1.0 good
+    order_value: float = 0.0  # -1.0 chaotic … +1.0 lawful
+
     # Campaign state
     alive: bool = True  # permadeath: False = permanently eliminated
 

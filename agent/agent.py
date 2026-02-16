@@ -1,4 +1,4 @@
-"""Agent class — ties together identity, attributes, knowledge, and social model."""
+"""Agent class — ties together identity, attributes, knowledge, social model, and alignment."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from agent.attributes import Attributes
 from agent.identity import Identity
+from agent.moral_alignment import MoralAlignment
 from agent.social_model import SocialModel
 from ontology.knowledge import AgentKnowledge
 
@@ -19,9 +20,11 @@ class Agent:
     attributes: Attributes = field(default_factory=Attributes)
     knowledge: AgentKnowledge = field(default_factory=AgentKnowledge)
     social: SocialModel = field(init=False)
+    alignment: MoralAlignment = field(init=False)
 
     def __post_init__(self) -> None:
         self.social = SocialModel(self.agent_id)
+        self.alignment = MoralAlignment.from_label(self.identity.moral_alignment)
 
     @property
     def is_alive(self) -> bool:

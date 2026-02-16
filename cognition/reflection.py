@@ -38,6 +38,7 @@ def reflect(
     threshold: float = 50.0,
     phase_context: str = "",
     question_focus: str = "",
+    alignment: str = "True Neutral",
 ) -> list[int]:
     """Run the reflection process if importance threshold is met.
 
@@ -66,6 +67,7 @@ def reflect(
         llm,
         phase_context=phase_context,
         question_focus=question_focus,
+        alignment=alignment,
     )
     if not questions:
         log.warning(f"  [{agent_name}] Question generation failed")
@@ -128,6 +130,7 @@ def _generate_questions(
     llm: LLMAdapter,
     phase_context: str = "",
     question_focus: str = "",
+    alignment: str = "True Neutral",
 ) -> list[str]:
     """Stage 1: Generate 3 high-level questions from recent memories."""
     system, user = build_question_prompts(
@@ -136,6 +139,7 @@ def _generate_questions(
         recent_memories,
         phase_context=phase_context,
         question_focus=question_focus,
+        alignment=alignment,
     )
 
     try:
@@ -219,6 +223,7 @@ async def async_reflect(
     threshold: float = 50.0,
     phase_context: str = "",
     question_focus: str = "",
+    alignment: str = "True Neutral",
 ) -> list[int]:
     """Async version of reflect(). Calls llm.async_complete()."""
     if memory.importance_accumulator < threshold:
@@ -241,6 +246,7 @@ async def async_reflect(
         llm,
         phase_context=phase_context,
         question_focus=question_focus,
+        alignment=alignment,
     )
     if not questions:
         log.warning(f"  [{agent_name}] Question generation failed")
@@ -296,6 +302,7 @@ async def _async_generate_questions(
     llm: LLMAdapter,
     phase_context: str = "",
     question_focus: str = "",
+    alignment: str = "True Neutral",
 ) -> list[str]:
     """Async version of _generate_questions()."""
     system, user = build_question_prompts(
@@ -304,6 +311,7 @@ async def _async_generate_questions(
         recent_memories,
         phase_context=phase_context,
         question_focus=question_focus,
+        alignment=alignment,
     )
 
     try:

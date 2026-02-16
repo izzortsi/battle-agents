@@ -1,6 +1,7 @@
 name: Marduk
 combat_class: Infernal Witch
 sprite: Witch
+moral_alignment: chaotic_evil
 backstory: Marduk was once a respected alchemist, but a catastrophic experiment with
   volatile reagents fused infernal energy to her very being, twisting her mind and
   body. Now, she sees the world as kindling, eager to unleash the purifying (in her

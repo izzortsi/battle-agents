@@ -1,4 +1,4 @@
-"""Agent identity — name, backstory, personality, combat class."""
+"""Agent identity — name, backstory, personality, combat class, moral alignment."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ class Identity:
     personality_traits: list[str] = field(default_factory=list)
     combat_class: str = "warrior"  # warrior, mage, rogue, healer, etc.
     sprite: str = ""  # sprite preset name (e.g. "Mecha_Samus"), empty = SVG silhouette
+    moral_alignment: str = "true_neutral"  # D&D label, e.g. "lawful_good"
 
     @property
     def summary(self) -> str:

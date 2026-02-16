@@ -22,6 +22,7 @@ from pathlib import Path
 
 import yaml
 
+from agent.moral_alignment import VALID_LABELS as _VALID_ALIGNMENTS
 from combat.status_registry import ensure_registered, get_behavior
 from llm.adapter import LLMAdapter
 from llm.json_utils import extract_json
@@ -212,6 +213,16 @@ def generate_character(
     personality_traits: list[str] = layer1.get(
         "personality_traits", ["determined", "resourceful", "bold"]
     )
+    moral_alignment: str = layer1.get("moral_alignment", "true_neutral")
+    # Validate alignment label
+    if moral_alignment.lower().replace(" ", "_") not in _VALID_ALIGNMENTS:
+        log.warning(
+            "Invalid moral_alignment '%s' from LLM; defaulting to true_neutral.",
+            moral_alignment,
+        )
+        moral_alignment = "true_neutral"
+    else:
+        moral_alignment = moral_alignment.lower().replace(" ", "_")
 
     # --- Layer 2: Mechanics ---
     log.info("Layer 2: Generating stats and abilities for '%s'...", name)
@@ -230,6 +241,7 @@ def generate_character(
     data: dict = {
         "name": name,
         "combat_class": combat_class,
+        "moral_alignment": moral_alignment,
         "backstory": backstory,
         "personality_traits": personality_traits,
         "attributes": layer2.get("attributes", {}),
@@ -265,6 +277,7 @@ def to_yaml(data: dict) -> str:
         "name",
         "combat_class",
         "sprite",
+        "moral_alignment",
         "backstory",
         "personality_traits",
         "attributes",

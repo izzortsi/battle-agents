@@ -88,6 +88,7 @@ def _gather_pre_battle_context(
                 "y": oy,
                 "distance": dist,
                 "combat_class": other.identity.combat_class,
+                "alignment_label": other.alignment.label,
             }
         )
         social_dispositions[other.agent_id] = agent.social.get_disposition(

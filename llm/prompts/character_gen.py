@@ -27,11 +27,18 @@ motivation, and their history. Make it vivid and specific.
 Personality traits should be 3-5 adjectives or short phrases that capture \
 how they behave in and out of combat.
 
+Moral alignment uses the D&D two-axis system (pick exactly one):
+  lawful_good, neutral_good, chaotic_good,
+  lawful_neutral, true_neutral, chaotic_neutral,
+  lawful_evil, neutral_evil, chaotic_evil
+Choose the alignment that best fits the character's personality and backstory.
+
 Respond with a JSON object only. No other text. Schema:
 {
   "combat_class": "<class string>",
   "backstory": "<2-4 sentence backstory>",
-  "personality_traits": ["<trait1>", "<trait2>", "<trait3>"]
+  "personality_traits": ["<trait1>", "<trait2>", "<trait3>"],
+  "moral_alignment": "<alignment label from the list above>"
 }"""
 
 

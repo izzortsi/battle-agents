@@ -46,11 +46,22 @@ class SocialModel:
         self.owner_id = owner_id
         self._relationships: dict[str, Relationship] = {}
 
-    def ensure_relationship(self, agent_id: str, agent_name: str) -> Relationship:
-        """Get or create a relationship with the given agent."""
+    def ensure_relationship(
+        self,
+        agent_id: str,
+        agent_name: str,
+        initial_bias: float = 0.0,
+    ) -> Relationship:
+        """Get or create a relationship with the given agent.
+
+        *initial_bias* (from alignment compatibility) is applied only when
+        the relationship is first created.
+        """
         if agent_id not in self._relationships:
             self._relationships[agent_id] = Relationship(
-                agent_id=agent_id, agent_name=agent_name
+                agent_id=agent_id,
+                agent_name=agent_name,
+                disposition=max(-1.0, min(1.0, initial_bias)),
             )
         return self._relationships[agent_id]
 

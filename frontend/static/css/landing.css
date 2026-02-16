@@ -867,6 +867,76 @@
   background: rgba(218, 165, 32, 0.3);
 }
 
+/* ===== Alignment Badges ===== */
+
+.alignment-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.alignment-badge.small {
+  font-size: 8px;
+  padding: 0 4px;
+}
+
+.alignment-badge.align-good {
+  color: #daa520;
+  background: rgba(218, 165, 32, 0.15);
+  border: 1px solid rgba(218, 165, 32, 0.3);
+}
+
+.alignment-badge.align-evil {
+  color: #e94560;
+  background: rgba(233, 69, 96, 0.12);
+  border: 1px solid rgba(233, 69, 96, 0.3);
+}
+
+.alignment-badge.align-lawful {
+  color: #4169e1;
+  background: rgba(65, 105, 225, 0.12);
+  border: 1px solid rgba(65, 105, 225, 0.3);
+}
+
+.alignment-badge.align-chaotic {
+  color: #9b59b6;
+  background: rgba(155, 89, 182, 0.12);
+  border: 1px solid rgba(155, 89, 182, 0.3);
+}
+
+.alignment-badge.align-neutral {
+  color: #888;
+  background: rgba(136, 136, 136, 0.1);
+  border: 1px solid rgba(136, 136, 136, 0.25);
+}
+
+.alignment-values {
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-left: 4px;
+  letter-spacing: 0.3px;
+}
+
+.campaign-roster-alignment {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+/* Character sheet alignment */
+.cs-alignment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* Commentary in battle log */
 .log-entry.commentary {
   color: var(--accent-gold);

@@ -54,6 +54,7 @@ def load_character(path: str | Path) -> Agent:
         personality_traits=data.get("personality_traits", []),
         combat_class=data.get("combat_class", "warrior"),
         sprite=data.get("sprite", ""),
+        moral_alignment=data.get("moral_alignment", "true_neutral"),
     )
     attrs_data = data.get("attributes", {})
     abilities_data = data.get("abilities", [])
@@ -97,6 +98,7 @@ def load_character_summaries(directory: str | Path | None = None) -> list[dict]:
                 "backstory": data.get("backstory", ""),
                 "personality_traits": data.get("personality_traits", []),
                 "sprite": data.get("sprite", ""),
+                "moral_alignment": data.get("moral_alignment", "true_neutral"),
             }
         )
     return summaries

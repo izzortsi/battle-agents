@@ -40,6 +40,7 @@ def serialize_agent(agent: Agent, env: Environment) -> dict:
         "damage_type": a.damage_type,
         "phys_def": a.phys_def,
         "mag_def": a.mag_def,
+        "alignment": agent.alignment.to_dict(),
         "is_alive": a.is_alive,
         "status_effects": [
             {

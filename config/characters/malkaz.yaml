@@ -1,6 +1,7 @@
 name: Malkaz
 combat_class: Geometric Gunslinger
 sprite: Gunslinger
+moral_alignment: lawful_evil
 backstory: Once a prestigious professor of spatial dynamics, Malkaz abandoned his
   chalkboard when he realized the world's most complex equations were best solved
   in ballistic motion. He now treats every skirmish as a live-fire proof, utilizing

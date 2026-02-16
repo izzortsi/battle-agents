@@ -1,4 +1,4 @@
-"""Tests for the agent layer: Attributes, Identity, Agent, SocialModel."""
+"""Tests for the agent layer: Attributes, Identity, Agent, SocialModel, MoralAlignment."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import pytest
 from agent.attributes import Attributes
 from agent.identity import Identity
 from agent.agent import Agent
+from agent.moral_alignment import DRIFT_TABLE, VALID_LABELS, MoralAlignment
 from agent.social_model import Relationship, SocialModel
 from tests.conftest import make_agent
 
@@ -207,7 +208,9 @@ class TestSocialModel:
         result = sm.update_disposition("lyra", 5.0, "extreme", agent_name="Lyra")
         assert result == 1.0  # clamped
 
-        result = sm.update_disposition("lyra", -10.0, "extreme negative", agent_name="Lyra")
+        result = sm.update_disposition(
+            "lyra", -10.0, "extreme negative", agent_name="Lyra"
+        )
         assert result == -1.0  # clamped
 
     def test_update_disposition_notes(self):
@@ -305,3 +308,184 @@ class TestSocialModel:
         s = sm.summary()
         assert "Lyra" in s
         assert "ally" in s
+
+
+# ---------------------------------------------------------------------------
+# MoralAlignment
+# ---------------------------------------------------------------------------
+
+
+class TestMoralAlignment:
+    """Tests for MoralAlignment dataclass."""
+
+    # -- from_label / label round-trip -----------------------------------------
+
+    @pytest.mark.parametrize(
+        "label_key, expected_label",
+        [
+            ("lawful_good", "Lawful Good"),
+            ("lawful_neutral", "Lawful Neutral"),
+            ("lawful_evil", "Lawful Evil"),
+            ("neutral_good", "Neutral Good"),
+            ("true_neutral", "True Neutral"),
+            ("neutral_neutral", "True Neutral"),
+            ("neutral_evil", "Neutral Evil"),
+            ("chaotic_good", "Chaotic Good"),
+            ("chaotic_neutral", "Chaotic Neutral"),
+            ("chaotic_evil", "Chaotic Evil"),
+        ],
+    )
+    def test_from_label_round_trip(self, label_key, expected_label):
+        ma = MoralAlignment.from_label(label_key)
+        assert ma.label == expected_label
+
+    def test_from_label_case_insensitive(self):
+        ma = MoralAlignment.from_label("Lawful_Good")
+        assert ma.label == "Lawful Good"
+
+    def test_from_label_space_separator(self):
+        ma = MoralAlignment.from_label("chaotic evil")
+        assert ma.label == "Chaotic Evil"
+
+    def test_from_label_invalid_falls_back_to_neutral(self):
+        ma = MoralAlignment.from_label("garbage_input_xyz")
+        assert ma.label == "True Neutral"
+
+    def test_from_label_empty_falls_back_to_neutral(self):
+        ma = MoralAlignment.from_label("")
+        assert ma.label == "True Neutral"
+
+    # -- label_key property ----------------------------------------------------
+
+    def test_label_key(self):
+        ma = MoralAlignment.from_label("chaotic_good")
+        assert ma.label_key == "chaotic_good"
+
+    def test_label_key_true_neutral(self):
+        ma = MoralAlignment(morality=0.0, order=0.0)
+        assert ma.label_key == "true_neutral"
+
+    # -- shift -----------------------------------------------------------------
+
+    def test_shift_basic(self):
+        ma = MoralAlignment(morality=0.0, order=0.0)
+        ma.shift(morality_delta=0.5, order_delta=-0.3)
+        assert ma.morality == pytest.approx(0.5)
+        assert ma.order == pytest.approx(-0.3)
+
+    def test_shift_clamp_upper(self):
+        ma = MoralAlignment(morality=0.8, order=0.9)
+        ma.shift(morality_delta=0.5, order_delta=0.5)
+        assert ma.morality == pytest.approx(1.0)
+        assert ma.order == pytest.approx(1.0)
+
+    def test_shift_clamp_lower(self):
+        ma = MoralAlignment(morality=-0.8, order=-0.9)
+        ma.shift(morality_delta=-0.5, order_delta=-0.5)
+        assert ma.morality == pytest.approx(-1.0)
+        assert ma.order == pytest.approx(-1.0)
+
+    # -- apply_drift -----------------------------------------------------------
+
+    def test_apply_drift_all_events(self):
+        """Every DRIFT_TABLE event type should shift at least one axis."""
+        for event_type, (m_delta, o_delta) in DRIFT_TABLE.items():
+            ma = MoralAlignment(morality=0.0, order=0.0)
+            ma.apply_drift(event_type)
+            if m_delta != 0:
+                assert ma.morality == pytest.approx(m_delta), f"{event_type} morality"
+            if o_delta != 0:
+                assert ma.order == pytest.approx(o_delta), f"{event_type} order"
+
+    def test_apply_drift_unknown_event_no_change(self):
+        ma = MoralAlignment(morality=0.5, order=-0.3)
+        ma.apply_drift("totally_unknown_event")
+        assert ma.morality == pytest.approx(0.5)
+        assert ma.order == pytest.approx(-0.3)
+
+    def test_apply_drift_attack_ally(self):
+        ma = MoralAlignment(morality=0.5, order=0.0)
+        ma.apply_drift("attack_ally")
+        assert ma.morality == pytest.approx(0.42)  # 0.5 - 0.08
+
+    def test_apply_drift_heal_ally(self):
+        ma = MoralAlignment(morality=0.0, order=0.0)
+        ma.apply_drift("heal_ally")
+        assert ma.morality == pytest.approx(0.05)
+
+    # -- compatibility ---------------------------------------------------------
+
+    def test_compatibility_same_good(self):
+        a = MoralAlignment.from_label("lawful_good")
+        b = MoralAlignment.from_label("neutral_good")
+        bias = a.compatibility(b)
+        assert bias > 0, "Same-side morality should produce positive bias"
+
+    def test_compatibility_opposed(self):
+        a = MoralAlignment.from_label("lawful_good")
+        b = MoralAlignment.from_label("chaotic_evil")
+        bias = a.compatibility(b)
+        assert bias < 0, "Opposed alignment should produce negative bias"
+
+    def test_compatibility_symmetric(self):
+        a = MoralAlignment.from_label("chaotic_good")
+        b = MoralAlignment.from_label("lawful_evil")
+        assert a.compatibility(b) == pytest.approx(b.compatibility(a))
+
+    def test_compatibility_neutral_is_zero(self):
+        a = MoralAlignment.from_label("true_neutral")
+        b = MoralAlignment.from_label("true_neutral")
+        assert a.compatibility(b) == pytest.approx(0.0)
+
+    def test_compatibility_clamped_range(self):
+        a = MoralAlignment(morality=1.0, order=1.0)
+        b = MoralAlignment(morality=-1.0, order=-1.0)
+        bias = a.compatibility(b)
+        assert -0.25 <= bias <= 0.25
+
+    # -- to_dict ---------------------------------------------------------------
+
+    def test_to_dict(self):
+        ma = MoralAlignment(morality=0.666, order=-0.333)
+        d = ma.to_dict()
+        assert d["morality"] == pytest.approx(0.666, abs=0.001)
+        assert d["order"] == pytest.approx(-0.333, abs=0.001)
+        assert isinstance(d["label"], str)
+
+    def test_to_dict_keys(self):
+        d = MoralAlignment().to_dict()
+        assert set(d.keys()) == {"morality", "order", "label"}
+
+    # -- VALID_LABELS ----------------------------------------------------------
+
+    def test_valid_labels_count(self):
+        # 9 standard (3x3) + true_neutral = 10
+        assert len(VALID_LABELS) == 10
+
+    def test_valid_labels_contains_all(self):
+        expected = {
+            "lawful_good",
+            "lawful_neutral",
+            "lawful_evil",
+            "neutral_good",
+            "neutral_neutral",
+            "neutral_evil",
+            "chaotic_good",
+            "chaotic_neutral",
+            "chaotic_evil",
+            "true_neutral",
+        }
+        assert VALID_LABELS == expected
+
+    # -- Agent integration -----------------------------------------------------
+
+    def test_agent_alignment_from_identity(self):
+        identity = Identity(name="Test", moral_alignment="chaotic_evil")
+        agent = Agent(agent_id="test", identity=identity)
+        assert agent.alignment.label == "Chaotic Evil"
+        assert agent.alignment.morality < 0
+        assert agent.alignment.order < 0
+
+    def test_agent_default_alignment(self):
+        agent = make_agent("test", "Test")
+        assert agent.alignment.label == "True Neutral"

@@ -130,6 +130,7 @@ def _gather_context(
                 "in_attack_range": in_range,
                 "reachable_by": reachable_by,
                 "reachable_after_move": reachable_after_move,
+                "alignment_label": other.alignment.label,
             }
         )
         # Social disposition lookup

@@ -1,6 +1,7 @@
 name: Shadowcat
 combat_class: Shadow Mage
 sprite: Cat_Shadowmage
+moral_alignment: chaotic_neutral
 backstory: Once a pampered housecat, Shadowcat stumbled into a rift between realms
   and was imbued with the essence of pure shadow. Now, she stalks the arena, a silent
   hunter seeking to master her newfound dark powers. Her ultimate goal is to unravel
