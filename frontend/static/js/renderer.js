@@ -170,7 +170,7 @@ class Renderer {
     if (this.state.activeAgent && this._sprites[this.state.activeAgent]) {
       const g = this._sprites[this.state.activeAgent];
       g.dataset.activeTurn = 'true';
-      setSpriteEmoji(g, '\uD83D\uDCAD'); // 💭
+      setSpriteEmoji(g, '\uD83E\uDD14'); // 🤔
     }
   }
 
@@ -181,7 +181,7 @@ class Renderer {
 
   _showTalkingEmoji(agentId) {
     const g = agentId ? this._sprites[agentId] : null;
-    if (g) setSpriteEmoji(g, '\uD83D\uDCAC'); // 💬
+    if (g) setSpriteEmoji(g, '\uD83D\uDDE3\uFE0F'); // 🗣️
   }
 
   _updateHeader() {

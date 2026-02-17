@@ -81,13 +81,16 @@ async def _get_or_create_runner():
     """Create the SimRunner on first use, or replace it if the previous battle finished."""
     global _runner
     async with _runner_lock:
-        if _runner is not None and _runner._phase == "victory":
-            # Previous battle is done — create a fresh runner for the next one
+        if _runner is not None and _runner._phase in ("victory", "crashed"):
+            log.info(
+                "Replacing finished runner (phase=%s) with a fresh one", _runner._phase
+            )
             _runner = None
         if _runner is None:
             from frontend.server.sim_runner import SimRunner
 
             _runner = SimRunner(manager, **_sim_options)
+            log.info("Created new SimRunner")
         return _runner
 
 

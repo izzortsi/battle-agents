@@ -94,9 +94,13 @@ class SimRunner:
     async def start(self) -> None:
         """Start the simulation (called once from the WebSocket handler)."""
         if self._started:
+            log.warning(
+                "SimRunner.start() called but already started (phase=%s)", self._phase
+            )
             return
         self._started = True
         self._mode = "playing" if self._auto_play else "paused"
+        log.info("SimRunner: starting simulation (mode=%s)", self._mode)
         self._task = asyncio.create_task(self._run())
 
     def get_snapshot(self) -> dict | None:
@@ -314,6 +318,7 @@ class SimRunner:
 
         except Exception:
             log.exception("SimRunner crashed")
+            self._phase = "crashed"
             # Notify caller so spectator mode can restart after crashes
             if self._on_victory:
                 self._on_victory()
