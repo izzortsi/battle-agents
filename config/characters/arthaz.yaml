@@ -58,3 +58,31 @@ abilities:
     target: enemy
     category: debuff
     chance: 0.8
+limit_break:
+  name: Death's Embrace
+  mana_cost: 5
+  damage: 45
+  range: 1
+  aoe_pattern: single
+  cooldown: 0
+  current_cd: 0
+  is_limit_break: true
+  description: Arthaz vanishes completely and reappears behind his target, delivering
+    a devastating poison-laced assassination strike to the most vulnerable point.
+  tactical_hint: Extreme single-target burst with a lethal poison. Save for a high-value
+    target you need eliminated immediately.
+  effects:
+  - type: lethal_venom
+    behavior: damage_over_time
+    duration: 4
+    magnitude: 0.12
+    target: enemy
+    category: debuff
+    chance: 0.95
+  - type: shadow_step
+    behavior: stat_modifier
+    duration: 1
+    magnitude: 0.0
+    target: self
+    category: movement
+    chance: 1.0

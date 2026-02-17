@@ -65,3 +65,24 @@ abilities:
     target: self
     category: buff
     chance: 1.0
+limit_break:
+  name: Final Atonement
+  mana_cost: 8
+  damage: 35
+  range: 1
+  aoe_pattern: single
+  cooldown: 0
+  current_cd: 0
+  is_limit_break: true
+  description: Himura channels all his guilt and resolve into a single transcendent
+    strike, then steels himself with an unbreakable will to endure.
+  tactical_hint: High single-target damage plus a powerful defensive buff. Best used
+    against the biggest threat while preparing to weather retaliation.
+  effects:
+  - type: atonement_guard
+    behavior: reduce_incoming_damage
+    duration: 3
+    magnitude: 0.5
+    target: self
+    category: buff
+    chance: 1.0

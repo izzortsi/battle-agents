@@ -741,6 +741,25 @@ def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult"
             f"{agent.name} tried to use {ability['name']} but it's on cooldown ({ability['current_cd']} turns).",
         )
 
+    # --- Limit Break check ---
+    is_limit_break = ability.get("is_limit_break", False)
+    lb_tier = 0  # 0 = not LB, 1 = LB1, 2 = LB2 (always crits)
+    if is_limit_break:
+        if agent.attributes.limit_break_uses >= 2:
+            return ActionResult(
+                agent.agent_id,
+                False,
+                f"{agent.name} already used both Limit Break tiers this battle.",
+            )
+        if not agent.attributes.limit_break_available:
+            threshold = "50%" if agent.attributes.limit_break_uses == 0 else "25%"
+            return ActionResult(
+                agent.agent_id,
+                False,
+                f"{agent.name} tried to use {ability['name']} but Limit Break is not yet available (HP must drop to {threshold}).",
+            )
+        lb_tier = agent.attributes.limit_break_tier  # 1 or 2
+
     # --- Mana sufficient? ---
     mana_cost = ability.get("mana_cost", 0)
     if not agent.attributes.spend_mana(mana_cost):
@@ -749,6 +768,13 @@ def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult"
             False,
             f"{agent.name} tried to use {ability['name']} but lacks mana ({agent.attributes.mana}/{mana_cost}).",
         )
+
+    # Mark limit break as consumed (after mana check, before resolution)
+    if is_limit_break:
+        agent.attributes.limit_break_uses += 1
+        agent.attributes.limit_break_available = False
+        tier_label = "Limit Break" if lb_tier == 1 else "Limit Break II (CRITICAL)"
+        log.info(f"  {agent.name} unleashes {tier_label}: {ability['name']}!")
 
     # --- Determine if self-targeting ---
     effects = ability.get("effects", [])
@@ -890,7 +916,12 @@ def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult"
 
     # --- Apply damage and effects to affected agents ---
     base_damage = ability.get("damage", 0)
-    log_parts: list[str] = [f"{agent.name} uses {ability['name']}!"]
+    # LB2 always crits: multiply base damage by crit_multiplier
+    lb_crit = lb_tier == 2
+    if lb_crit and base_damage > 0:
+        base_damage = int(base_damage * get_balance().crit_multiplier)
+    lb_prefix = " LIMIT BREAK II — CRITICAL!" if lb_crit else ""
+    log_parts: list[str] = [f"{agent.name} uses {ability['name']}!{lb_prefix}"]
     total_damage = 0
     kills: list[str] = []
 
@@ -933,7 +964,7 @@ def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult"
                         agent.agent_id,
                         affected.agent_id,
                     )
-                    is_ally = status == AllianceStatus.ALLIED
+                    is_ally = status.is_positive  # ALLIED or FRIENDLY
 
                 # Dodge check: (target.spd - attacker.spd) * 0.03
                 dodge_chance = max(

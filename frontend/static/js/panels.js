@@ -137,6 +137,29 @@ function renderCards(state) {
     const alignCss = alignmentCssClass(alignLabel);
 
     const lvl = agent.level || 1;
+
+    // Limit Break indicator (two-tier system)
+    let lbHtml = '';
+    if (agent.limit_break) {
+      const lbName = agent.limit_break.name || '?';
+      const uses = agent.limit_break_uses || 0;
+      if (uses >= 2) {
+        lbHtml = `<div class="card-lb lb-used">LB: ${escHtml(lbName)} (USED)</div>`;
+      } else if (agent.limit_break_ready && uses === 1) {
+        // LB2 ready — always crits
+        lbHtml = `<div class="card-lb lb-ready-crit">LB II: ${escHtml(lbName)} CRIT!</div>`;
+      } else if (agent.limit_break_ready && uses === 0) {
+        // LB1 ready
+        lbHtml = `<div class="card-lb lb-ready">LB: ${escHtml(lbName)} READY</div>`;
+      } else if (uses === 1) {
+        // LB1 used, LB2 locked
+        lbHtml = `<div class="card-lb lb-locked">LB II: ${escHtml(lbName)} <span class="lb-hint">(≤25% HP)</span></div>`;
+      } else {
+        // LB1 locked
+        lbHtml = `<div class="card-lb lb-locked">LB: ${escHtml(lbName)} <span class="lb-hint">(≤50% HP)</span></div>`;
+      }
+    }
+
     card.innerHTML = `
       <div class="card-name">${escHtml(agent.name)}${lvl > 1 ? ` <span class="card-level">Lv.${lvl}</span>` : ''}</div>
       <div class="card-class">${escHtml(agent.combat_class)} <span class="alignment-badge ${alignCss} small">${escHtml(alignLabel)}</span></div>
@@ -152,6 +175,7 @@ function renderCards(state) {
           <span class="bar-value">${agent.mana}/${agent.max_mana}</span>
         </div>
       </div>
+      ${lbHtml}
       <div class="card-stats">ATK:${agent.atk} MGK:${agent.mgk} SPD:${agent.spd} CON:${agent.con} HIT:${agent.hit}</div>
       ${actionText ? `<div class="card-action">${escHtml(actionText)}</div>` : ''}
     `;
@@ -359,8 +383,10 @@ function renderSocial(state) {
     const isPos = disp >= 0;
 
     let badge = '';
-    if (rel.alliance_declared) badge = '<span class="social-badge ally">ALLY</span>';
-    else if (disp < -0.3) badge = '<span class="social-badge enemy">ENEMY</span>';
+    if (disp >= 0.5) badge = '<span class="social-badge allied">ALLIED</span>';
+    else if (disp >= 0.15) badge = '<span class="social-badge friendly">FRIENDLY</span>';
+    else if (disp <= -0.5) badge = '<span class="social-badge hostile">HOSTILE</span>';
+    else if (disp <= -0.15) badge = '<span class="social-badge enemy">ENEMY</span>';
 
     pair.innerHTML = `
       <span style="width:50px;overflow:hidden;text-overflow:ellipsis">${escHtml(rel.agent_name)}</span>
@@ -576,6 +602,59 @@ function renderCharacterSheet(state) {
     }
 
     container.appendChild(abilitiesSection);
+  }
+
+  // Limit Break
+  if (agent.limit_break) {
+    const lb = agent.limit_break;
+    const lbSection = document.createElement('div');
+    lbSection.className = 'cs-section';
+
+    let lbStatus = '';
+    let lbCssClass = '';
+    const lbUses = agent.limit_break_uses || 0;
+    if (lbUses >= 2) {
+      lbStatus = 'BOTH TIERS USED';
+      lbCssClass = 'lb-used';
+    } else if (agent.limit_break_ready && lbUses === 1) {
+      lbStatus = 'TIER II READY — ALWAYS CRITS';
+      lbCssClass = 'lb-ready-crit';
+    } else if (agent.limit_break_ready && lbUses === 0) {
+      lbStatus = 'TIER I READY';
+      lbCssClass = 'lb-ready';
+    } else if (lbUses === 1) {
+      lbStatus = 'TIER II LOCKED (HP must reach 25%)';
+      lbCssClass = 'lb-locked';
+    } else {
+      lbStatus = 'TIER I LOCKED (HP must reach 50%)';
+      lbCssClass = 'lb-locked';
+    }
+
+    let lbEffectsHtml = '';
+    if (lb.effects && lb.effects.length > 0) {
+      lbEffectsHtml = `<div class="cs-ability-effects">${lb.effects.map(eff => {
+        const chanceStr = eff.chance < 1 ? ` (${Math.round(eff.chance * 100)}%)` : '';
+        const magStr = eff.magnitude > 0 ? ` ${Math.round(eff.magnitude * 100)}%` : '';
+        return `<span class="cs-ability-effect ${escHtml(eff.category)}" data-tooltip="${escHtml(abilityEffectTooltip(eff))}">${prettyStatus(eff.type)}${magStr} ${eff.duration}t${chanceStr}</span>`;
+      }).join('')}</div>`;
+    }
+
+    lbSection.innerHTML = `
+      <div class="cs-label">Limit Break <span class="cs-lb-status ${lbCssClass}">${lbStatus}</span></div>
+      <div class="cs-ability cs-limit-break ${lbCssClass}">
+        <div class="cs-ability-header">
+          <span class="cs-ability-name">${escHtml(lb.name)}</span>
+          <span class="cs-ability-cost">${lb.mana_cost} MP</span>
+        </div>
+        <div class="cs-ability-meta">
+          DMG: ${lb.damage}${lbUses === 1 || (agent.limit_break_ready && lbUses === 1) ? ' (2x CRIT)' : ''} | Range: ${lb.range} | AoE: ${escHtml(lb.aoe_pattern)} | Two Tiers
+        </div>
+        ${lb.description ? `<div class="cs-ability-desc">${escHtml(lb.description)}</div>` : ''}
+        ${lb.tactical_hint ? `<div class="cs-ability-hint">${escHtml(lb.tactical_hint)}</div>` : ''}
+        ${lbEffectsHtml}
+      </div>
+    `;
+    container.appendChild(lbSection);
   }
 }
 

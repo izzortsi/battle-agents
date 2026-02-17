@@ -120,6 +120,7 @@ class CampaignDB:
         # Migrate existing databases
         self._migrate_alignment_columns()
         self._migrate_lore_column()
+        self._migrate_limit_break_column()
         self._conn.commit()
 
     def _migrate_alignment_columns(self) -> None:
@@ -145,6 +146,16 @@ class CampaignDB:
         if "lore_json" not in cols:
             self._conn.execute(
                 "ALTER TABLE campaigns ADD COLUMN lore_json TEXT DEFAULT NULL"
+            )
+
+    def _migrate_limit_break_column(self) -> None:
+        """Add limit_break column to roster if it doesn't exist."""
+        cols = {
+            row[1] for row in self._conn.execute("PRAGMA table_info(roster)").fetchall()
+        }
+        if "limit_break" not in cols:
+            self._conn.execute(
+                "ALTER TABLE roster ADD COLUMN limit_break TEXT DEFAULT NULL"
             )
 
     def close(self) -> None:
@@ -231,8 +242,8 @@ class CampaignDB:
                    (campaign_id, agent_id, name, combat_class, sprite,
                     backstory, personality,
                     alive, xp, level, atk, mgk, spd, con, hit,
-                    attack_range, abilities, morality, order_value)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    attack_range, abilities, limit_break, morality, order_value)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     campaign_id,
                     r.agent_id,
@@ -251,6 +262,7 @@ class CampaignDB:
                     r.hit,
                     r.attack_range,
                     json.dumps(r.abilities),
+                    json.dumps(r.limit_break) if r.limit_break else None,
                     r.morality,
                     r.order_value,
                 ),
@@ -424,6 +436,7 @@ class CampaignDB:
 
 
 def _row_to_roster_entry(r: sqlite3.Row) -> RosterEntry:
+    lb_raw = r["limit_break"] if "limit_break" in r.keys() else None
     return RosterEntry(
         agent_id=r["agent_id"],
         name=r["name"],
@@ -441,6 +454,7 @@ def _row_to_roster_entry(r: sqlite3.Row) -> RosterEntry:
         hit=r["hit"],
         attack_range=r["attack_range"],
         abilities=json.loads(r["abilities"]),
+        limit_break=json.loads(lb_raw) if lb_raw else None,
         morality=r["morality"],
         order_value=r["order_value"],
     )

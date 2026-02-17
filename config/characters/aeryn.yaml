@@ -52,3 +52,25 @@ abilities:
     target: enemy
     category: debuff
     chance: 0.85
+limit_break:
+  name: Storm of Retribution
+  mana_cost: 5
+  damage: 35
+  range: 4
+  aoe_pattern: radius
+  cooldown: 0
+  current_cd: 0
+  is_limit_break: true
+  description: Aeryn fires every arrow in her quiver skyward, each one whispering
+    a name of those who wronged her. They rain down across the battlefield in a storm
+    of vengeance, marking all targets they strike.
+  tactical_hint: Long-range AoE arrow rain. Marked targets take more damage from all
+    sources — coordinate with allies for devastating follow-up.
+  effects:
+  - type: mark_of_vengeance
+    behavior: boost_outgoing_damage
+    duration: 3
+    magnitude: 0.3
+    target: enemy
+    category: debuff
+    chance: 0.85

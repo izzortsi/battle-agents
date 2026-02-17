@@ -91,6 +91,12 @@ class CampaignManager:
                 ab_copy["current_cd"] = 0
                 abilities.append(ab_copy)
 
+            # Load limit break (ensure is_limit_break flag is set)
+            lb = None
+            if entry.limit_break:
+                lb = dict(entry.limit_break)
+                lb["is_limit_break"] = True
+
             attributes = Attributes(
                 atk=entry.atk,
                 mgk=entry.mgk,
@@ -99,6 +105,7 @@ class CampaignManager:
                 hit=entry.hit,
                 attack_range=entry.attack_range,
                 abilities=abilities,
+                limit_break=lb,
             )
             agent = Agent(
                 agent_id=entry.agent_id,
@@ -352,6 +359,7 @@ def roster_entry_from_agent(agent: Agent) -> RosterEntry:
         hit=a.hit,
         attack_range=a.attack_range,
         abilities=[dict(ab) for ab in a.abilities],
+        limit_break=dict(a.limit_break) if a.limit_break else None,
         morality=agent.alignment.morality,
         order_value=agent.alignment.order,
     )

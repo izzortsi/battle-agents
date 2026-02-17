@@ -67,3 +67,31 @@ abilities:
     target: ally
     category: buff
     chance: 1.0
+limit_break:
+  name: Kernel Panic
+  mana_cost: 6
+  damage: 35
+  range: 3
+  aoe_pattern: radius
+  cooldown: 0
+  current_cd: 0
+  is_limit_break: true
+  description: HelloWorld destabilises local reality by dumping its entire memory stack,
+    causing a cascading system failure that glitches all nearby entities.
+  tactical_hint: AoE damage plus stun in a radius. Position to maximise the number
+    of enemies caught in the digital meltdown.
+  effects:
+  - type: system_crash
+    behavior: skip_turn
+    duration: 1
+    magnitude: 0.0
+    target: enemy
+    category: debuff
+    chance: 0.7
+  - type: emergency_reboot
+    behavior: stat_modifier
+    duration: 1
+    magnitude: 0.2
+    target: self
+    category: heal
+    chance: 1.0

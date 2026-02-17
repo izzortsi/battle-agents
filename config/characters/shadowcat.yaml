@@ -59,3 +59,24 @@ abilities:
     target: self
     category: movement
     chance: 1.0
+limit_break:
+  name: Event Horizon
+  mana_cost: 7
+  damage: 35
+  range: 4
+  aoe_pattern: radius
+  cooldown: 0
+  current_cd: 0
+  is_limit_break: true
+  description: Shadowcat tears open a rift to the void, pulling all nearby enemies
+    into a collapsing singularity of pure darkness that disorients and damages them.
+  tactical_hint: Long-range AoE nuke that blinds survivors. Excellent for disrupting
+    enemy formations from a safe distance.
+  effects:
+  - type: void_collapse
+    behavior: miss_chance
+    duration: 3
+    magnitude: 0.5
+    target: enemy
+    category: debuff
+    chance: 0.85

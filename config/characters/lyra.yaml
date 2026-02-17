@@ -57,3 +57,24 @@ abilities:
         target: enemy
         category: debuff
         chance: 0.7
+limit_break:
+  name: Arcane Singularity
+  mana_cost: 8
+  damage: 40
+  range: 3
+  aoe_pattern: cross
+  cooldown: 0
+  current_cd: 0
+  is_limit_break: true
+  description: Lyra channels forbidden knowledge into a devastating arcane detonation
+    that tears across the battlefield in a cross pattern, freezing all it touches.
+  tactical_hint: Massive cross-pattern AoE with freeze. Align the cross to catch
+    maximum enemies. Frozen targets cannot move for 2 turns.
+  effects:
+    - type: absolute_zero
+      behavior: prevent_move
+      duration: 2
+      magnitude: 0.0
+      target: enemy
+      category: debuff
+      chance: 0.8

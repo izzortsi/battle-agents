@@ -78,6 +78,36 @@ def serialize_agent(agent: Agent, env: Environment) -> dict:
             }
             for ab in a.abilities
         ],
+        "limit_break": (
+            {
+                "name": a.limit_break.get("name", "?"),
+                "mana_cost": a.limit_break.get("mana_cost", 0),
+                "damage": a.limit_break.get("damage", 0),
+                "range": a.limit_break.get("range", 0),
+                "aoe_pattern": a.limit_break.get("aoe_pattern", "single"),
+                "description": a.limit_break.get("description", ""),
+                "tactical_hint": a.limit_break.get("tactical_hint", ""),
+                "effects": [
+                    {
+                        "type": eff.get("type", ""),
+                        "behavior": eff.get("behavior", ""),
+                        "duration": eff.get("duration", 0),
+                        "magnitude": eff.get("magnitude", 0),
+                        "target": eff.get("target", ""),
+                        "category": eff.get("category", ""),
+                        "chance": eff.get("chance", 0),
+                    }
+                    for eff in a.limit_break.get("effects", [])
+                ],
+            }
+            if a.limit_break
+            else None
+        ),
+        "limit_break_available": a.limit_break_available,
+        "limit_break_used": a.limit_break_used,  # True when both tiers consumed
+        "limit_break_uses": a.limit_break_uses,  # 0, 1, or 2
+        "limit_break_tier": a.limit_break_tier,  # current tier: 1, 2, or 0
+        "limit_break_ready": a.limit_break_ready,
     }
 
 

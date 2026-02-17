@@ -72,3 +72,32 @@ abilities:
     target: enemy
     category: debuff
     chance: 0.8
+limit_break:
+  name: Desert Requiem
+  mana_cost: 6
+  damage: 42
+  range: 2
+  aoe_pattern: radius
+  cooldown: 0
+  current_cd: 0
+  is_limit_break: true
+  description: Zara commands the very sand beneath the arena to erupt in a devastating
+    storm of razor-sharp crystallised grains that shred all nearby enemies while encasing
+    herself in protective quartz armor.
+  tactical_hint: High-damage AoE plus a strong self-shield. Dash into a cluster of
+    enemies before unleashing for maximum devastation.
+  effects:
+  - type: sand_flay
+    behavior: damage_over_time
+    duration: 3
+    magnitude: 0.08
+    target: enemy
+    category: debuff
+    chance: 0.85
+  - type: quartz_armor
+    behavior: reduce_incoming_damage
+    duration: 3
+    magnitude: 0.4
+    target: self
+    category: buff
+    chance: 1.0

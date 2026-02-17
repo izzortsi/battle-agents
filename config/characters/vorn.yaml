@@ -63,3 +63,32 @@ abilities:
         target: enemy
         category: debuff
         chance: 0.7
+limit_break:
+  name: Traitor's Gambit
+  mana_cost: 4
+  damage: 40
+  range: 1
+  aoe_pattern: single
+  cooldown: 0
+  current_cd: 0
+  is_limit_break: true
+  description: With his back against the wall, Vorn reveals his deadliest trick —
+    a concealed blade coated in his most lethal toxin, delivered with a charming smile
+    and absolute precision.
+  tactical_hint: Maximum single-target assassination damage with crippling poison and
+    a stun. Save for the most dangerous enemy.
+  effects:
+    - type: king_cobra_venom
+      behavior: damage_over_time
+      duration: 4
+      magnitude: 0.1
+      target: enemy
+      category: debuff
+      chance: 0.95
+    - type: nerve_strike
+      behavior: skip_turn
+      duration: 1
+      magnitude: 0.0
+      target: enemy
+      category: debuff
+      chance: 0.65

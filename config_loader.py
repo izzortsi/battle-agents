@@ -58,6 +58,9 @@ def load_character(path: str | Path) -> Agent:
     )
     attrs_data = data.get("attributes", {})
     abilities_data = data.get("abilities", [])
+    limit_break_data = data.get("limit_break", None)
+    if limit_break_data:
+        limit_break_data["is_limit_break"] = True
     attributes = Attributes(
         atk=attrs_data.get("atk", 10),
         mgk=attrs_data.get("mgk", 10),
@@ -66,6 +69,7 @@ def load_character(path: str | Path) -> Agent:
         hit=attrs_data.get("hit", 10),
         attack_range=attrs_data.get("attack_range", 1),
         abilities=abilities_data if abilities_data else [],
+        limit_break=limit_break_data,
     )
     agent_id = data["name"].lower().replace(" ", "_")
     return Agent(agent_id=agent_id, identity=identity, attributes=attributes)

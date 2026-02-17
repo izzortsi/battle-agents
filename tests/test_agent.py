@@ -307,7 +307,7 @@ class TestSocialModel:
         sm.update_disposition("lyra", 0.8, "best friend", agent_name="Lyra")
         s = sm.summary()
         assert "Lyra" in s
-        assert "ally" in s
+        assert "allied" in s
 
 
 # ---------------------------------------------------------------------------

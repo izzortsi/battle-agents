@@ -66,3 +66,31 @@ abilities:
     target: self
     category: buff
     chance: 1.0
+limit_break:
+  name: Blood Tide
+  mana_cost: 4
+  damage: 42
+  range: 1
+  aoe_pattern: radius
+  cooldown: 0
+  current_cd: 0
+  is_limit_break: true
+  description: Grimwar enters a primal blood frenzy, swinging his ancestral axe in
+    a devastating whirlwind that bathes the arena in crimson while feeding on the carnage.
+  tactical_hint: Devastating AoE centered on self. The lifesteal helps survive the
+    low HP that triggered this. Rush into enemy clusters.
+  effects:
+  - type: blood_frenzy
+    behavior: boost_outgoing_damage
+    duration: 2
+    magnitude: 0.4
+    target: self
+    category: buff
+    chance: 1.0
+  - type: crimson_drain
+    behavior: stat_modifier
+    duration: 1
+    magnitude: 0.25
+    target: self
+    category: heal
+    chance: 1.0

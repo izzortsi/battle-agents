@@ -56,10 +56,10 @@ personality, moral alignment, your memories, your relationships, and your \
 tactical assessment. Your alignment is your moral compass — Good characters \
 avoid unnecessary cruelty, Evil characters exploit weakness, Lawful characters \
 honor agreements, Chaotic characters value freedom over rules. \
-Engage threats aggressively, but consider who your real enemies are. The \
-disposition shown for each combatant reflects your relationship — allies \
-deserve caution before attacking, enemies deserve steel. Standing around \
-passively will get you killed.
+Engage threats aggressively, but consider who your real enemies are. Each \
+combatant is labelled with a 5-tier standing: ALLIED (strong mutual bond), \
+FRIENDLY (mutual goodwill), NEUTRAL, ENEMY (hostility), or HOSTILE (deep \
+hatred). Standing around passively will get you killed.
 
 YOUR COMBAT PROFILE:
 - Damage type: {damage_type} (you deal {damage_type} damage based on your {primary_stat} stat)
@@ -103,6 +103,14 @@ ALLIES. Check ally positions before using AoE. If an ally is adjacent to your \
 target, prefer a single-target attack or reposition first.
 - DEFEND raises your defense for one turn (diminishing returns if used repeatedly). \
 Use DEFEND only when badly wounded and enemies are far away.
+- LIMIT BREAK: You have a unique Limit Break ability with TWO tiers. \
+Tier 1 (LB1) unlocks when your HP drops to 50% or below. Once used, \
+Tier 2 (LB2) unlocks when your HP drops to 25% or below — LB2 is the \
+SAME ability but it always deals CRITICAL damage (2x). The tiers do NOT \
+stack — you must use LB1 before LB2 becomes available. Once unlocked, each \
+tier stays available even if you heal. Use them strategically at decisive \
+moments. Treat them like any other ability action \
+(action: "ability", ability_name: "<your limit break name>").
 - WAIT is almost never correct. Only wait if you have a very specific tactical reason.
 - You may send a brief chat alongside any action. Chat is for taunts, threats, \
 alliance offers, coordination, or warnings. Use it when relationships matter — \
@@ -114,8 +122,9 @@ Move toward unreachable enemies + WAIT (ONLY if ALL targets are "OUT OF RANGE \
 even after moving") > Chat (if socially useful). \
 If ANY target is listed under "(in range now)" or "(move first)", you MUST \
 attack or use an ability — do NOT WAIT or DEFEND. \
-Avoid attacking allies unless they betray you. ONLY target combatants listed \
-under ATTACK or ABILITY sections — "(in range now)" or "(move first)".
+Avoid attacking ALLIED or FRIENDLY combatants unless they betray you. \
+ONLY target combatants listed under ATTACK or ABILITY sections — \
+"(in range now)" or "(move first)".
 
 Respond with a JSON object. No other text. The JSON must have this exact schema:
 {{
@@ -161,16 +170,17 @@ MAP OF THE BATTLEFIELD:
 AVAILABLE ACTIONS:
 {available_actions}
 
-REMEMBER: Engage threats aggressively. Each combatant is labelled ALLIED, \
-NEUTRAL, or HOSTILE — this reflects mutual standing, not just your feelings. \
-Attack HOSTILE and NEUTRAL threats. For "(move first)" targets, include \
-target_tile to move toward them first (move_order: "before"), then attack/ability. \
+REMEMBER: Engage threats aggressively. Each combatant has a 5-tier standing: \
+ALLIED (strong bond), FRIENDLY (goodwill), NEUTRAL, ENEMY (hostility), \
+HOSTILE (deep hatred). Attack HOSTILE, ENEMY, and NEUTRAL threats. \
+For "(move first)" targets, include target_tile to move toward them first \
+(move_order: "before"), then attack/ability. \
 If ANY target is "(in range now)" or "(move first)", you MUST attack or use \
 an ability on them — do NOT WAIT or DEFEND when you have reachable targets. \
 ONLY when ALL targets are "OUT OF RANGE even after moving" should you MOVE \
-closer and WAIT, CHAT, or DEFEND. Do NOT attack ALLIED combatants unless \
-they betray you. Use abilities when impactful — but beware AoE friendly fire \
-on allies. Chat to coordinate or intimidate.
+closer and WAIT, CHAT, or DEFEND. Do NOT attack ALLIED or FRIENDLY combatants \
+unless they betray you. Use abilities when impactful — but beware AoE friendly \
+fire on allies. Chat to coordinate or intimidate.
 Choose your action. Respond with JSON only."""
 
 
@@ -219,61 +229,105 @@ def format_memories(memories: list[MemoryNode]) -> str:
     return "\n".join(lines)
 
 
-def format_abilities(abilities: list[dict], mana: int) -> str:
+def format_abilities(
+    abilities: list[dict],
+    mana: int,
+    *,
+    limit_break: dict | None = None,
+    limit_break_ready: bool = False,
+    limit_break_used: bool = False,
+    limit_break_uses: int = 0,
+    limit_break_tier: int = 1,
+) -> str:
     """Format the agent's abilities for the user prompt.
 
     Shows each ability's key stats, cooldown status, and tactical hints.
+    Includes limit break status with tier info if present.
     """
-    if not abilities:
+    if not abilities and not limit_break:
         return ""
     lines = ["YOUR ABILITIES:"]
     for a in abilities:
-        name = a.get("name", "?")
-        damage = a.get("damage", 0)
-        ab_range = a.get("range", 1)
-        mana_cost = a.get("mana_cost", 0)
-        pattern = a.get("aoe_pattern", "single")
-        cooldown = a.get("cooldown", 0)
-        current_cd = a.get("current_cd", 0)
-        desc = a.get("description", "").strip()
-        hint = a.get("tactical_hint", "").strip()
+        _format_one_ability(a, mana, lines)
 
-        # Status
+    # Limit Break section (two-tier system)
+    if limit_break:
+        lb_name = limit_break.get("name", "?")
+        lines.append("")
+        if limit_break_uses >= 2:
+            # Both tiers consumed
+            lines.append(f"  [LIMIT BREAK: {lb_name}] BOTH TIERS USED")
+        elif limit_break_ready and limit_break_tier == 2:
+            # LB2 available (always crits)
+            lines.append(
+                f"  [LIMIT BREAK II: {lb_name}] *** AVAILABLE — ALWAYS CRITS (2x DMG) ***"
+            )
+            _format_one_ability(limit_break, mana, lines, indent="    ")
+        elif limit_break_ready and limit_break_tier == 1:
+            # LB1 available
+            lines.append(f"  [LIMIT BREAK: {lb_name}] *** AVAILABLE ***")
+            _format_one_ability(limit_break, mana, lines, indent="    ")
+        elif limit_break_uses == 1:
+            # LB1 used, LB2 locked
+            lines.append(
+                f"  [LIMIT BREAK II: {lb_name}] LOCKED (need HP <= 25% — always crits)"
+            )
+        else:
+            # LB1 locked
+            lines.append(f"  [LIMIT BREAK: {lb_name}] LOCKED (need HP <= 50%)")
+    return "\n".join(lines)
+
+
+def _format_one_ability(
+    a: dict, mana: int, lines: list[str], indent: str = "    "
+) -> None:
+    """Append formatted lines for a single ability."""
+    name = a.get("name", "?")
+    damage = a.get("damage", 0)
+    ab_range = a.get("range", 1)
+    mana_cost = a.get("mana_cost", 0)
+    pattern = a.get("aoe_pattern", "single")
+    cooldown = a.get("cooldown", 0)
+    current_cd = a.get("current_cd", 0)
+    desc = a.get("description", "").strip()
+    hint = a.get("tactical_hint", "").strip()
+    is_lb = a.get("is_limit_break", False)
+
+    # Status line (only for non-limit-break; limit break status shown above)
+    if not is_lb:
         if current_cd > 0:
             cd_status = f"ON COOLDOWN ({current_cd} turns)"
         elif mana_cost > mana:
             cd_status = f"NOT ENOUGH MANA (need {mana_cost})"
         else:
             cd_status = "READY"
-
         lines.append(f"  [{name}] {cd_status}")
-        lines.append(
-            f"    Damage: {damage} | Range: {ab_range} | Mana: {mana_cost} | Pattern: {pattern} | Cooldown: {cooldown}"
-        )
-        if pattern != "single":
-            aoe_tip = _AOE_TIPS.get(
-                pattern, "AoE — hits multiple tiles around the target."
-            )
-            lines.append(
-                f"    *** AoE ({pattern}): {aoe_tip} Hits ALL agents in area — check ally positions! ***"
-            )
-        if desc:
-            lines.append(f"    What: {desc}")
-        if hint:
-            lines.append(f"    Hint: {hint}")
 
-        effects = a.get("effects", [])
-        if effects:
-            eff_parts = []
-            for e in effects:
-                etype = e.get("type", "?")
-                dur = e.get("duration", 1)
-                mag = e.get("magnitude", 0)
-                tgt = e.get("target", "enemy")
-                cat = e.get("category", "debuff")
-                eff_parts.append(f"{etype} ({cat}, {tgt}, {dur}t, mag={mag})")
-            lines.append(f"    Effects: {'; '.join(eff_parts)}")
-    return "\n".join(lines)
+    lines.append(
+        f"{indent}Damage: {damage} | Range: {ab_range} | Mana: {mana_cost} | Pattern: {pattern}"
+        + (f" | Cooldown: {cooldown}" if not is_lb else "")
+    )
+    if pattern != "single":
+        aoe_tip = _AOE_TIPS.get(pattern, "AoE — hits multiple tiles around the target.")
+        lines.append(
+            f"{indent}*** AoE ({pattern}): {aoe_tip} Hits ALL agents in area — check ally positions! ***"
+        )
+    if desc:
+        lines.append(f"{indent}What: {desc}")
+    if hint:
+        lines.append(f"{indent}Hint: {hint}")
+
+    effects = a.get("effects", [])
+    if effects:
+        eff_parts = []
+        for e in effects:
+            etype = e.get("type", "?")
+            dur = e.get("duration", 1)
+            mag = e.get("magnitude", 0)
+            tgt = e.get("target", "enemy")
+            cat = e.get("category", "debuff")
+            eff_parts.append(f"{etype} ({cat}, {tgt}, {dur}t, mag={mag})")
+        lines.append(f"{indent}Effects: {'; '.join(eff_parts)}")
 
 
 def build_perception_map(
@@ -385,14 +439,14 @@ def format_visible_enemies(
             disp_str = f" [{status.value.upper()} | disposition: {d:+.2f}]"
         elif social_dispositions and e["agent_id"] in social_dispositions:
             d = social_dispositions[e["agent_id"]]
-            if d > 0.5:
+            if d >= 0.5:
                 label = "allied"
-            elif d > 0.15:
+            elif d >= 0.15:
                 label = "friendly"
-            elif d < -0.3:
+            elif d <= -0.5:
                 label = "hostile"
-            elif d < -0.1:
-                label = "unfriendly"
+            elif d <= -0.15:
+                label = "enemy"
             else:
                 label = "neutral"
             disp_str = f" [{label.upper()} | disposition: {d:+.2f}]"
@@ -494,7 +548,13 @@ def build_user_prompt(
         urgency_section = ""
 
     abilities_section = format_abilities(
-        agent.attributes.abilities, agent.attributes.mana
+        agent.attributes.abilities,
+        agent.attributes.mana,
+        limit_break=agent.attributes.limit_break,
+        limit_break_ready=agent.attributes.limit_break_ready,
+        limit_break_used=agent.attributes.limit_break_used,
+        limit_break_uses=agent.attributes.limit_break_uses,
+        limit_break_tier=agent.attributes.limit_break_tier,
     )
 
     return USER_TEMPLATE.format(

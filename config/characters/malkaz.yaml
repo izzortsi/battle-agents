@@ -59,3 +59,25 @@ abilities:
     target: self
     category: buff
     chance: 1.0
+limit_break:
+  name: Ballistic Theorem
+  mana_cost: 6
+  damage: 38
+  range: 6
+  aoe_pattern: line
+  cooldown: 0
+  current_cd: 0
+  is_limit_break: true
+  description: Malkaz solves the ultimate equation — a single bullet that ricochets
+    through every calculated angle, piercing all targets along its path while leaving
+    them mathematically certain of their defeat.
+  tactical_hint: Extreme range line AoE that pierces all enemies in a row. Position
+    to line up maximum targets. Weakens survivors' damage output.
+  effects:
+  - type: proof_of_defeat
+    behavior: reduce_outgoing_damage
+    duration: 3
+    magnitude: 0.4
+    target: enemy
+    category: debuff
+    chance: 0.85

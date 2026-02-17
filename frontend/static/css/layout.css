@@ -367,6 +367,53 @@ html, body {
   text-overflow: ellipsis;
 }
 
+/* Limit Break indicator on agent cards */
+.card-lb {
+  margin-top: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  text-align: center;
+}
+.card-lb.lb-locked {
+  color: #888;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.lb-hint {
+  font-weight: 400;
+  color: #666;
+  font-size: 8px;
+}
+.card-lb.lb-ready {
+  color: #ffd700;
+  background: rgba(255, 215, 0, 0.15);
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  animation: lb-pulse 1.5s ease-in-out infinite;
+}
+.card-lb.lb-ready-crit {
+  color: #ff4444;
+  background: rgba(255, 68, 68, 0.15);
+  border: 1px solid rgba(255, 68, 68, 0.5);
+  animation: lb-pulse-crit 1.2s ease-in-out infinite;
+}
+.card-lb.lb-used {
+  color: #666;
+  text-decoration: line-through;
+  background: rgba(255, 255, 255, 0.02);
+}
+@keyframes lb-pulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; box-shadow: 0 0 6px rgba(255, 215, 0, 0.4); }
+}
+@keyframes lb-pulse-crit {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; box-shadow: 0 0 8px rgba(255, 68, 68, 0.6); }
+}
+
 /* ===== Log entries ===== */
 
 .log-entry {
@@ -606,13 +653,23 @@ html, body {
   border-radius: 3px;
 }
 
-.social-badge.ally {
-  background: rgba(60, 179, 113, 0.3);
+.social-badge.allied {
+  background: rgba(60, 179, 113, 0.35);
   color: var(--accent-green);
 }
 
+.social-badge.friendly {
+  background: rgba(100, 200, 150, 0.2);
+  color: #7ecfa0;
+}
+
 .social-badge.enemy {
-  background: rgba(233, 69, 96, 0.3);
+  background: rgba(233, 130, 96, 0.25);
+  color: #e89060;
+}
+
+.social-badge.hostile {
+  background: rgba(233, 69, 96, 0.35);
   color: var(--accent);
 }
 
@@ -867,6 +924,31 @@ html, body {
 .cs-ability-effect.movement {
   background: rgba(65, 105, 225, 0.15);
   color: var(--accent-blue);
+}
+
+/* Limit Break in character sheet */
+.cs-lb-status {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 6px;
+}
+.cs-lb-status.lb-locked { color: #555; background: rgba(255,255,255,0.05); }
+.cs-lb-status.lb-ready { color: #ffd700; background: rgba(255,215,0,0.2); }
+.cs-lb-status.lb-used { color: #666; text-decoration: line-through; }
+
+.cs-limit-break {
+  border-left: 2px solid rgba(255, 215, 0, 0.3);
+}
+.cs-limit-break.lb-ready {
+  border-left-color: #ffd700;
+  background: rgba(255, 215, 0, 0.05);
+}
+.cs-limit-break.lb-used {
+  opacity: 0.5;
 }
 
 /* ===== Cognitive panel ===== */

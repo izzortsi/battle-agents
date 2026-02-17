@@ -59,3 +59,24 @@ abilities:
     target: enemy
     category: debuff
     chance: 0.8
+limit_break:
+  name: Apocalypse Pyre
+  mana_cost: 7
+  damage: 38
+  range: 3
+  aoe_pattern: radius
+  cooldown: 0
+  current_cd: 0
+  is_limit_break: true
+  description: Marduk releases all her contained infernal energy in a catastrophic
+    eruption of hellfire that engulfs the battlefield and leaves everything burning.
+  tactical_hint: Wide AoE with devastating lingering burn. The damage-over-time will
+    finish off weakened enemies over subsequent turns.
+  effects:
+  - type: hellfire
+    behavior: damage_over_time
+    duration: 4
+    magnitude: 0.12
+    target: enemy
+    category: debuff
+    chance: 0.9

@@ -62,3 +62,24 @@ abilities:
         target: enemy
         category: debuff
         chance: 0.75
+limit_break:
+  name: Wrath of the Betrayed
+  mana_cost: 4
+  damage: 38
+  range: 1
+  aoe_pattern: cone
+  cooldown: 0
+  current_cd: 0
+  is_limit_break: true
+  description: Kael unleashes years of rage and betrayal in a devastating wide-arc
+    cleave that shatters armor and sends enemies reeling.
+  tactical_hint: Massive cone AoE. Position to catch multiple enemies in the arc.
+    The armor shred weakens survivors for follow-up attacks.
+  effects:
+    - type: armor_shatter
+      behavior: reduce_outgoing_damage
+      duration: 3
+      magnitude: 0.35
+      target: enemy
+      category: debuff
+      chance: 0.8

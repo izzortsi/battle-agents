@@ -68,3 +68,24 @@ abilities:
     target: self
     category: buff
     chance: 1.0
+limit_break:
+  name: Kuzu-ryusen
+  mana_cost: 6
+  damage: 40
+  range: 1
+  aoe_pattern: radius
+  cooldown: 0
+  current_cd: 0
+  is_limit_break: true
+  description: The ultimate Hiten Mitsurugi technique — nine simultaneous strikes
+    targeting all vital points. A devastating flurry that overwhelms all nearby foes.
+  tactical_hint: Use when surrounded or when multiple enemies are clustered nearby.
+    Massive AoE damage with a stun chance.
+  effects:
+  - type: overwhelm
+    behavior: skip_turn
+    duration: 1
+    magnitude: 0.0
+    target: enemy
+    category: debuff
+    chance: 0.6

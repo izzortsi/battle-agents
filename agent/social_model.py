@@ -119,20 +119,20 @@ class SocialModel:
         rel.alliance_turn = turn
         rel.notes.append(f"[turn {turn}] Alliance declared")
 
-    def get_allies(self, threshold: float = 0.5) -> list[str]:
-        """Return agent_ids with disposition above threshold."""
+    def get_allies(self, threshold: float = 0.15) -> list[str]:
+        """Return agent_ids with disposition at or above threshold (FRIENDLY+)."""
         return [
             aid
             for aid, rel in self._relationships.items()
-            if rel.disposition > threshold
+            if rel.disposition >= threshold
         ]
 
-    def get_enemies(self, threshold: float = -0.3) -> list[str]:
-        """Return agent_ids with disposition below threshold."""
+    def get_enemies(self, threshold: float = -0.15) -> list[str]:
+        """Return agent_ids with disposition at or below threshold (ENEMY+)."""
         return [
             aid
             for aid, rel in self._relationships.items()
-            if rel.disposition < threshold
+            if rel.disposition <= threshold
         ]
 
     def all_relationships(self) -> dict[str, Relationship]:
@@ -144,11 +144,16 @@ class SocialModel:
             return "No relationships."
         lines = []
         for rel in self._relationships.values():
-            status = (
-                "ally"
-                if rel.disposition > 0.5
-                else ("enemy" if rel.disposition < -0.3 else "neutral")
-            )
+            if rel.disposition >= 0.5:
+                status = "allied"
+            elif rel.disposition >= 0.15:
+                status = "friendly"
+            elif rel.disposition <= -0.5:
+                status = "hostile"
+            elif rel.disposition <= -0.15:
+                status = "enemy"
+            else:
+                status = "neutral"
             lines.append(
                 f"  {rel.agent_name}: {rel.disposition:+.2f} ({status}), "
                 f"trust={rel.trust:.2f}"

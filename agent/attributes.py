@@ -104,6 +104,14 @@ class Attributes:
     # Abilities — list of ability dicts from character YAML / LLM generation
     abilities: list[dict] = field(default_factory=list)
 
+    # Limit Break — powerful ability with two tiers:
+    #   LB1 unlocks at ≤50% HP (uses == 0)
+    #   LB2 unlocks at ≤25% HP (uses == 1, i.e. LB1 already used) — always crits
+    #   They do NOT stack.
+    limit_break: dict | None = None  # ability dict (from YAML)
+    limit_break_available: bool = False  # True when current tier LB is ready
+    limit_break_uses: int = 0  # 0 = none used, 1 = LB1 used, 2 = both used
+
     def __post_init__(self) -> None:
         if self.hp < 0:
             self.hp = self.max_hp
@@ -176,9 +184,24 @@ class Attributes:
     # -- Mutators ----------------------------------------------------------
 
     def take_damage(self, amount: int) -> int:
-        """Apply damage, return actual damage dealt."""
+        """Apply damage, return actual damage dealt.
+
+        Also checks HP thresholds to unlock Limit Break tiers:
+          - LB1 at ≤50% HP (when uses == 0)
+          - LB2 at ≤25% HP (when uses == 1, i.e. LB1 already consumed)
+        """
         actual = min(amount, self.hp)
         self.hp = max(0, self.hp - amount)
+        # Unlock limit break tiers
+        if (
+            not self.limit_break_available
+            and self.limit_break is not None
+            and self.max_hp > 0
+        ):
+            if self.limit_break_uses == 0 and self.hp <= self.max_hp * 0.50:
+                self.limit_break_available = True  # LB1 unlocked
+            elif self.limit_break_uses == 1 and self.hp <= self.max_hp * 0.25:
+                self.limit_break_available = True  # LB2 unlocked
         return actual
 
     def heal(self, amount: int) -> int:
@@ -249,16 +272,49 @@ class Attributes:
 
     def get_ready_abilities(self) -> list[dict]:
         """Return abilities that are off cooldown and affordable."""
-        return [
+        ready = [
             a
             for a in self.abilities
             if a.get("current_cd", 0) == 0 and a.get("mana_cost", 0) <= self.mana
         ]
+        # Include limit break if unlocked and not yet used
+        if self.limit_break_ready:
+            lb = self.limit_break
+            assert lb is not None
+            if lb.get("mana_cost", 0) <= self.mana:
+                ready.append(lb)
+        return ready
+
+    @property
+    def limit_break_ready(self) -> bool:
+        """True when the limit break can be used right now."""
+        return (
+            self.limit_break is not None
+            and self.limit_break_available
+            and self.limit_break_uses < 2
+        )
+
+    @property
+    def limit_break_tier(self) -> int:
+        """Current LB tier: 1 if LB1 is next, 2 if LB2 is next, 0 if all used."""
+        if self.limit_break_uses == 0:
+            return 1
+        elif self.limit_break_uses == 1:
+            return 2
+        return 0
+
+    @property
+    def limit_break_used(self) -> bool:
+        """True when both LB tiers have been consumed (backward compat)."""
+        return self.limit_break_uses >= 2
 
     def get_ability_by_name(self, name: str) -> dict | None:
-        """Case-insensitive lookup of an ability by name."""
+        """Case-insensitive lookup of an ability by name (includes limit break)."""
         low = name.lower().strip()
         for a in self.abilities:
             if a.get("name", "").lower().strip() == low:
                 return a
+        # Also check limit break
+        if self.limit_break and self.limit_break.get("name", "").lower().strip() == low:
+            return self.limit_break
         return None

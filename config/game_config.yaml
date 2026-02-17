@@ -26,8 +26,10 @@ combat:
   retrieval_decay: 0.85
 
 alliance:
-  allied_threshold: 0.5
-  hostile_threshold: -0.3
+  allied_threshold: 0.5     # mutual disposition >= 0.5 → ALLIED (AoE protection)
+  friendly_threshold: 0.15  # mutual disposition >= 0.15 → FRIENDLY (soft bond)
+  enemy_threshold: -0.15    # either disposition <= -0.15 → ENEMY
+  hostile_threshold: -0.5   # either disposition <= -0.5 → HOSTILE (priority target)
 
 victory:
   mode: "alliance_victory"   # "last_standing" or "alliance_victory"

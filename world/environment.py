@@ -169,7 +169,7 @@ class Environment:
                         )
                         if (
                             dist <= atk_range
-                            and alliance != AllianceStatus.ALLIED
+                            and not alliance.is_positive
                             and other.attributes.hp < other.attributes.max_hp * 0.2
                         ):
                             agent.alignment.apply_drift("spare_low_hp")
@@ -194,7 +194,7 @@ class Environment:
             # -- Alignment drift for combat events --
             alliance = self.get_alliance_status(attacker.agent_id, target.agent_id)
 
-            # Attack ally → evil drift
+            # Attack ally → evil drift (only for strong ALLIED bonds)
             if alliance == AllianceStatus.ALLIED:
                 attacker.alignment.apply_drift("attack_ally")
                 # If alliance was declared, this is betrayal
@@ -205,7 +205,7 @@ class Environment:
             # Heal/buff ally (ability with heal effects, no damage)
             if action.action_type == ActionType.ABILITY and damage == 0:
                 effects = result.details.get("effects_applied", [])
-                if effects and alliance == AllianceStatus.ALLIED:
+                if effects and alliance.is_positive:
                     attacker.alignment.apply_drift("heal_ally")
 
             # Kill blow → slight evil drift
@@ -213,13 +213,13 @@ class Environment:
                 attacker.alignment.apply_drift("kill_blow")
 
             # Honor alliance — attacking the same target an ally recently attacked
-            if alliance != AllianceStatus.ALLIED:
+            if not alliance.is_positive:
                 for ally_id, recent in self.recent_actions.items():
                     if ally_id == attacker.agent_id:
                         continue
                     ally_alliance = self.get_alliance_status(attacker.agent_id, ally_id)
                     if (
-                        ally_alliance == AllianceStatus.ALLIED
+                        ally_alliance.is_positive
                         and recent.get("action_type") in ("attack", "ability")
                         and recent.get("target_agent") == target.agent_id
                     ):
@@ -232,7 +232,7 @@ class Environment:
                 if hit_id == target.agent_id:
                     continue  # primary target, already handled
                 hit_alliance = self.get_alliance_status(attacker.agent_id, hit_id)
-                if hit_alliance == AllianceStatus.ALLIED:
+                if hit_alliance.is_positive:
                     attacker.alignment.apply_drift("aoe_hit_ally")
 
             # Target's social model: attacked by attacker
@@ -322,8 +322,6 @@ class Environment:
         self,
         agent_id: str,
         other_id: str,
-        allied_threshold: float = 0.5,
-        hostile_threshold: float = -0.3,
     ) -> AllianceStatus:
         """Return the mutual alliance status between two agents."""
         agent_a = self.agents.get(agent_id)
@@ -335,8 +333,6 @@ class Environment:
             agent_b.social,
             agent_id,
             other_id,
-            allied_threshold,
-            hostile_threshold,
         )
 
     def get_all_alliance_statuses(

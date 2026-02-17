@@ -63,3 +63,32 @@ abilities:
         target: enemy
         category: debuff
         chance: 0.8
+limit_break:
+  name: Divine Judgment
+  mana_cost: 8
+  damage: 30
+  range: 2
+  aoe_pattern: radius
+  cooldown: 0
+  current_cd: 0
+  is_limit_break: true
+  description: Mira calls down a pillar of sacred wrath, smiting enemies with holy
+    fire while bathing allies in restorative light. Her judgment heals the worthy
+    and punishes the wicked.
+  tactical_hint: Unique hybrid — damages enemies AND heals yourself significantly.
+    Use when low on HP and near enemy clusters for maximum value.
+  effects:
+    - type: holy_restoration
+      behavior: stat_modifier
+      duration: 1
+      magnitude: 0.4
+      target: self
+      category: heal
+      chance: 1.0
+    - type: sacred_burn
+      behavior: damage_over_time
+      duration: 3
+      magnitude: 0.08
+      target: enemy
+      category: debuff
+      chance: 0.85
