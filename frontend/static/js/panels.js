@@ -136,8 +136,9 @@ function renderCards(state) {
     const alignLabel = align.label || 'True Neutral';
     const alignCss = alignmentCssClass(alignLabel);
 
+    const lvl = agent.level || 1;
     card.innerHTML = `
-      <div class="card-name">${escHtml(agent.name)}</div>
+      <div class="card-name">${escHtml(agent.name)}${lvl > 1 ? ` <span class="card-level">Lv.${lvl}</span>` : ''}</div>
       <div class="card-class">${escHtml(agent.combat_class)} <span class="alignment-badge ${alignCss} small">${escHtml(alignLabel)}</span></div>
       <div class="card-bars">
         <div class="bar-row">

@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 from agent.agent import Agent
+from combat.action_resolver import find_auto_move_tile
 from combat.actions import (
     ActionType,
     CombatAction,
@@ -32,6 +33,7 @@ from combat.actions import (
     make_wait,
 )
 from combat.status_registry import get_behavior
+from cognition.decision import CombatDecision
 from config_loader import (
     load_all_characters,
     load_balance_config,
@@ -826,6 +828,43 @@ def run_battle(
             action = decision.primary_action
             result = env.resolve_action(action)
 
+            # -- Auto-move on range failure (before LLM retry) --
+            moved_this_turn = bool(decision.move_action and not decision.move_after)
+            if (
+                not result.success
+                and not moved_this_turn
+                and "tiles away (range:" in result.description
+                and action.target_agent
+                and action.action_type in (ActionType.ATTACK, ActionType.ABILITY)
+            ):
+                if action.action_type == ActionType.ABILITY and action.ability_name:
+                    ab = current.attributes.get_ability_by_name(action.ability_name)
+                    req_range = ab.get("range", 1) if ab else 1
+                else:
+                    req_range = current.attributes.attack_range
+
+                auto_tile = find_auto_move_tile(
+                    current.agent_id, action.target_agent, req_range, env
+                )
+                if auto_tile:
+                    auto_move = make_move(
+                        current.agent_id, auto_tile, "auto-move toward target"
+                    )
+                    amr = env.resolve_action(auto_move)
+                    if amr.success:
+                        log.info(
+                            f"  {current.name}: auto-moved to {auto_tile} to close range"
+                        )
+                        result = env.resolve_action(action)
+                        moved_this_turn = True
+                        if decision.move_after:
+                            decision = CombatDecision(
+                                primary_action=decision.primary_action,
+                                move_action=None,
+                                move_after=False,
+                                chat_action=decision.chat_action,
+                            )
+
             retry_count = 0
             while not result.success and retry_count < max_retries:
                 retry_count += 1
@@ -1232,6 +1271,43 @@ async def async_run_battle(
         max_retries = 4
         action = decision.primary_action
         result = env.resolve_action(action)
+
+        # -- Auto-move on range failure (before LLM retry) --
+        moved_this_turn = bool(decision.move_action and not decision.move_after)
+        if (
+            not result.success
+            and not moved_this_turn
+            and "tiles away (range:" in result.description
+            and action.target_agent
+            and action.action_type in (ActionType.ATTACK, ActionType.ABILITY)
+        ):
+            if action.action_type == ActionType.ABILITY and action.ability_name:
+                ab = current.attributes.get_ability_by_name(action.ability_name)
+                req_range = ab.get("range", 1) if ab else 1
+            else:
+                req_range = current.attributes.attack_range
+
+            auto_tile = find_auto_move_tile(
+                current.agent_id, action.target_agent, req_range, env
+            )
+            if auto_tile:
+                auto_move = make_move(
+                    current.agent_id, auto_tile, "auto-move toward target"
+                )
+                amr = env.resolve_action(auto_move)
+                if amr.success:
+                    log.info(
+                        f"  {current.name}: auto-moved to {auto_tile} to close range"
+                    )
+                    result = env.resolve_action(action)
+                    moved_this_turn = True
+                    if decision.move_after:
+                        decision = CombatDecision(
+                            primary_action=decision.primary_action,
+                            move_action=None,
+                            move_after=False,
+                            chat_action=decision.chat_action,
+                        )
 
         retry_count = 0
         while not result.success and retry_count < max_retries:

@@ -19,6 +19,7 @@ class Agent:
     identity: Identity
     attributes: Attributes = field(default_factory=Attributes)
     knowledge: AgentKnowledge = field(default_factory=AgentKnowledge)
+    level: int = 1  # campaign level (1 for standalone battles)
     social: SocialModel = field(init=False)
     alignment: MoralAlignment = field(init=False)
 

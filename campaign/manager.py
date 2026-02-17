@@ -104,6 +104,7 @@ class CampaignManager:
                 agent_id=entry.agent_id,
                 identity=identity,
                 attributes=attributes,
+                level=entry.level,
             )
             # Restore exact float alignment values (label-based init loses
             # precision from in-battle drift).

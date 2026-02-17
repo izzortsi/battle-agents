@@ -12,7 +12,8 @@ import random
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from combat.actions import ActionType, CombatAction, make_wait
+from combat.action_resolver import find_auto_move_tile
+from combat.actions import ActionType, CombatAction, make_move, make_wait
 from cognition.decision import CombatDecision
 from combat.status_registry import get_behavior
 from config_loader import (
@@ -860,6 +861,53 @@ class SimRunner:
                 max_retries = 4
                 action = decision.primary_action
                 result = self._env.resolve_action(action)
+
+                # -- Auto-move on range failure (before LLM retry) --
+                # If the action failed due to range and the agent hasn't
+                # moved yet this turn, mechanically move toward the target
+                # and re-resolve the action — saving an expensive LLM call.
+                moved_this_turn = bool(decision.move_action and not decision.move_after)
+                if (
+                    not result.success
+                    and not moved_this_turn
+                    and "tiles away (range:" in result.description
+                    and action.target_agent
+                    and action.action_type in (ActionType.ATTACK, ActionType.ABILITY)
+                ):
+                    # Determine required range
+                    if action.action_type == ActionType.ABILITY and action.ability_name:
+                        ab = current.attributes.get_ability_by_name(action.ability_name)
+                        req_range = ab.get("range", 1) if ab else 1
+                    else:
+                        req_range = current.attributes.attack_range
+
+                    auto_tile = find_auto_move_tile(
+                        current.agent_id, action.target_agent, req_range, self._env
+                    )
+                    if auto_tile:
+                        auto_move = make_move(
+                            current.agent_id, auto_tile, "auto-move toward target"
+                        )
+                        amr = self._env.resolve_action(auto_move)
+                        if amr.success:
+                            log.info(
+                                f"  {current.name}: auto-moved to {auto_tile} to close range"
+                            )
+                            move_event = serialize_action_event(
+                                auto_move, amr, self._env
+                            )
+                            await self._broadcast(move_event)
+                            # Re-resolve the original action now that we're closer
+                            result = self._env.resolve_action(action)
+                            moved_this_turn = True
+                            # Cancel any planned move-after since we already moved
+                            if decision.move_after:
+                                decision = CombatDecision(
+                                    primary_action=decision.primary_action,
+                                    move_action=None,
+                                    move_after=False,
+                                    chat_action=decision.chat_action,
+                                )
 
                 retry_count = 0
                 while not result.success and retry_count < max_retries:

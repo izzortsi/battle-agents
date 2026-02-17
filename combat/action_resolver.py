@@ -102,6 +102,72 @@ def _find_nearest_unoccupied(
     return candidates[0][1], candidates[0][2]
 
 
+def find_auto_move_tile(
+    agent_id: str,
+    target_id: str,
+    required_range: int,
+    env: "Environment",
+) -> str | None:
+    """Find the best tile within the agent's move range that puts the target
+    within *required_range*.
+
+    Returns a tile-key string (e.g. ``"3_5"``) or ``None`` if no such tile
+    exists (agent already adjacent, or no candidate reachable).
+    """
+    agent = env.agents.get(agent_id)
+    target = env.agents.get(target_id)
+    if not agent or not target:
+        return None
+
+    a_pos = env.world_state.get_position(agent_id)
+    t_pos = env.world_state.get_position(target_id)
+    if not a_pos or not t_pos:
+        return None
+
+    ax, ay = BattleGrid.parse_tile(a_pos)
+    tx, ty = BattleGrid.parse_tile(t_pos)
+
+    # Already in range — no move needed
+    if BattleGrid.manhattan(ax, ay, tx, ty) <= required_range:
+        return None
+
+    move_range = agent.attributes.move_range
+    best: tuple[int, int, int] | None = None  # (dist_to_target, nx, ny)
+
+    for dx in range(-move_range, move_range + 1):
+        for dy in range(-move_range, move_range + 1):
+            if abs(dx) + abs(dy) > move_range:
+                continue
+            nx, ny = ax + dx, ay + dy
+            if nx == ax and ny == ay:
+                continue
+            if not env.grid.is_passable(nx, ny):
+                continue
+            # Must be unoccupied (except by the agent itself)
+            tile_key = BattleGrid.tile_key(nx, ny)
+            occupants = env.world_state.agents_at(tile_key)
+            living = [
+                o
+                for o in occupants
+                if o != agent_id and env.agents.get(o) and env.agents[o].is_alive
+            ]
+            if living:
+                continue
+            dist = BattleGrid.manhattan(nx, ny, tx, ty)
+            if dist > required_range:
+                # Still out of range — only consider if it's closer than current best
+                if best is None or dist < best[0]:
+                    best = (dist, nx, ny)
+            else:
+                # In range — pick the one closest to target (prefer melee proximity)
+                if best is None or best[0] > required_range or dist < best[0]:
+                    best = (dist, nx, ny)
+
+    if best is None:
+        return None
+    return BattleGrid.tile_key(best[1], best[2])
+
+
 def _resolve_move(action: CombatAction, env: "Environment") -> "ActionResult":
     from world.environment import ActionResult
 
@@ -502,14 +568,20 @@ def _resolve_effect(
     caster: "Agent",
     target: "Agent | None",
     env: "Environment",
+    *,
+    ability_target: "Agent | None" = None,
 ) -> str:
     """Dispatch a single ability effect.  Returns a description string.
 
     Routes by category:
-      movement — find empty adjacent tile, move caster
+      movement — dash caster to an empty tile adjacent to the ability target
       heal     — restore HP based on magnitude * max_hp (self, ally, or enemy)
       buff     — append status to caster or ally (unconditional)
       debuff   — roll chance, append to target on success
+
+    *ability_target* is the agent targeted by the ability (may differ from
+    *target* when a self-targeting effect like movement is part of an
+    offensive ability).
     """
     category = effect.get("category", "debuff")
     effect_target = effect.get("target", "enemy")
@@ -518,13 +590,57 @@ def _resolve_effect(
     chance = effect.get("chance", 1.0)
     etype = effect.get("type", "unknown")
 
-    # --- Movement ---
+    # --- Movement (dash / teleport) ---
     if category == "movement":
-        # Move the caster to an adjacent passable, unoccupied tile
-        pos = env.world_state.get_position(caster.agent_id)
-        if not pos:
-            return f"{caster.name} tried to move but has no position."
-        cx, cy = BattleGrid.parse_tile(pos)
+        # Dash the caster to an unoccupied tile adjacent to the ability
+        # target.  If no ability target, fall back to the caster's vicinity.
+        caster_pos = env.world_state.get_position(caster.agent_id)
+        if not caster_pos:
+            return f"{caster.name} tried to dash but has no position."
+
+        # Determine the anchor — prefer the ability's actual target
+        dash_anchor = ability_target or target
+        if dash_anchor and dash_anchor.agent_id != caster.agent_id:
+            anchor_pos = env.world_state.get_position(dash_anchor.agent_id)
+        else:
+            anchor_pos = None
+
+        if anchor_pos:
+            # Teleport near the target: find the best empty tile adjacent
+            # to the target, preferring the one closest to the caster's
+            # current position (shortest dash distance).
+            tx, ty = BattleGrid.parse_tile(anchor_pos)
+            adj = env.grid.adjacent_tiles(tx, ty)
+            cx, cy = BattleGrid.parse_tile(caster_pos)
+            candidates: list[tuple[int, int, int]] = []
+            for ax, ay in adj:
+                tile_key = BattleGrid.tile_key(ax, ay)
+                occupants = env.world_state.agents_at(tile_key)
+                living = [
+                    o
+                    for o in occupants
+                    if o != caster.agent_id
+                    and env.agents.get(o)
+                    and env.agents[o].is_alive
+                ]
+                if not living:
+                    dist = BattleGrid.manhattan(cx, cy, ax, ay)
+                    candidates.append((dist, ax, ay))
+            if candidates:
+                candidates.sort()
+                _, bx, by = candidates[0]
+                tile_key = BattleGrid.tile_key(bx, by)
+                env.world_state.set_position(caster.agent_id, tile_key)
+                assert dash_anchor is not None  # guaranteed by anchor_pos check
+                return (
+                    f"{caster.name} dashes to ({bx},{by}) next to {dash_anchor.name}!"
+                )
+            # All tiles adjacent to target are blocked — fall through to
+            # caster-adjacent fallback below.
+
+        # Fallback: move to any adjacent passable, unoccupied tile near
+        # the caster (minor repositioning).
+        cx, cy = BattleGrid.parse_tile(caster_pos)
         adj = env.grid.adjacent_tiles(cx, cy)
         for ax, ay in adj:
             tile_key = BattleGrid.tile_key(ax, ay)
@@ -636,12 +752,13 @@ def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult"
 
     # --- Determine if self-targeting ---
     effects = ability.get("effects", [])
-    is_self_targeting = (
+    all_effects_self = (
         all(e.get("target", "enemy") == "self" for e in effects) if effects else False
     )
-    # Also self-target if ability has no damage and no enemy-targeting effects
-    if ability.get("damage", 0) == 0 and is_self_targeting:
-        is_self_targeting = True
+    # Only truly self-targeting if all effects target self AND no base damage.
+    # Abilities with damage are offensive even if their effects only buff self
+    # (e.g. Mirage Strike: 22 damage + movement dash on self).
+    is_self_targeting = all_effects_self and ability.get("damage", 0) == 0
 
     # --- Determine if ally-targeting ---
     is_ally_targeting = False
@@ -803,6 +920,9 @@ def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult"
         if not affected_agents and base_damage > 0:
             log_parts.append("But no enemies are caught in the area.")
         else:
+            # Track self-targeting effects already applied (e.g. movement
+            # dash) so AoE abilities don't fire them once per victim.
+            self_effects_done: set[str] = set()
             for affected in affected_agents:
                 # Determine alliance status for AoE friendly fire reduction
                 is_ally = False
@@ -851,8 +971,21 @@ def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult"
                 for effect in effects:
                     eff_target = effect.get("target", "enemy")
                     if eff_target == "self":
-                        # Self-targeting effect on an offensive ability (e.g., self-buff)
-                        desc = _resolve_effect(effect, agent, None, env)
+                        # Self-targeting effect on an offensive ability
+                        # (e.g., movement dash, self-buff).  Pass the
+                        # affected enemy as ability_target so movement
+                        # effects can teleport toward them.
+                        eff_key = effect.get("type", "unknown")
+                        if eff_key in self_effects_done:
+                            continue  # already applied (AoE dedup)
+                        self_effects_done.add(eff_key)
+                        desc = _resolve_effect(
+                            effect,
+                            agent,
+                            None,
+                            env,
+                            ability_target=affected,
+                        )
                     elif is_ally and effect.get("category", "debuff") == "debuff":
                         # Skip debuffs on allied targets from AoE friendly fire
                         continue
