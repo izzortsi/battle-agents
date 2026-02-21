@@ -75,7 +75,7 @@ def build_layer1_user(
 LAYER2_SYSTEM = """\
 You are a combat mechanics designer for a tactical arena game.
 Given a character's narrative identity (name, class, backstory, personality), \
-generate their combat stats and exactly 2 abilities.
+generate their combat stats, exactly 2 abilities, and 1 Limit Break.
 
 STATS (each an integer 1-20):
   - atk: Physical damage power
@@ -104,6 +104,17 @@ ABILITIES — generate exactly 2. Each ability has:
   - description: 1-2 sentences describing what it does narratively
   - tactical_hint: 1 sentence on when/why to use it
   - effects: List of effect dicts (can be empty for pure-damage abilities)
+
+LIMIT BREAK — generate exactly 1. This is an extremely powerful \
+signature ability that unlocks when the character is badly wounded. \
+It has TWO tiers: Tier 1 activates at 50% HP, Tier 2 activates at 25% HP \
+and always deals critical (2x) damage. Same schema as regular abilities but:
+  - damage: Integer 30-45 (significantly stronger than regular abilities)
+  - mana_cost: Integer 4-8 (moderate cost)
+  - cooldown: 0 (one-use enforced by code, not cooldown)
+  - current_cd: 0
+  - Should have at least one impactful effect (stun, DoT, debuff, self-heal, etc.)
+  - Should be thematically dramatic — this is their ultimate move
 
 EFFECT SCHEMA — each effect in the effects list:
   - type: A thematic name (e.g., "burn", "stun", "enrage", "poison", \
@@ -160,19 +171,21 @@ Respond with a JSON object only. No other text. Schema:
       "current_cd": 0,
       "description": "<string>",
       "tactical_hint": "<string>",
-      "effects": [
-        {
-          "type": "<string>",
-          "behavior": "<string>",
-          "duration": <int>,
-          "magnitude": <float>,
-          "target": "<self|enemy|ally>",
-          "category": "<buff|debuff|heal|movement>",
-          "chance": <float>
-        }
-      ]
+      "effects": [ ... ]
     }
-  ]
+  ],
+  "limit_break": {
+    "name": "<dramatic thematic name>",
+    "mana_cost": <int 4-8>,
+    "damage": <int 30-45>,
+    "range": <int 1-4>,
+    "aoe_pattern": "<string>",
+    "cooldown": 0,
+    "current_cd": 0,
+    "description": "<string>",
+    "tactical_hint": "<string>",
+    "effects": [ ... same schema as ability effects ... ]
+  }
 }"""
 
 
@@ -191,5 +204,5 @@ def build_layer2_user(
         f"Combat class: {combat_class}\n"
         f"Backstory: {backstory}\n"
         f"Personality: {traits_str}\n\n"
-        f"Generate combat stats and exactly 2 abilities for this character."
+        f"Generate combat stats, exactly 2 abilities, and 1 Limit Break for this character."
     )

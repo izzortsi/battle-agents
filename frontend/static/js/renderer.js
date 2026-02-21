@@ -98,6 +98,10 @@ class Renderer {
     refreshPopupIfOpen(this.state);
     renderLog(this.state);
     renderDialogue(this.state);
+    // Restore last commentary in the banner
+    if (this.state.commentaryLog.length > 0) {
+      renderCommentaryEntry(this.state);
+    }
   }
 
   _createGrid() {

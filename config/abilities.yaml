@@ -587,3 +587,39 @@
     target: self
     category: buff
     chance: 1.0
+- name: Piston Overdrive
+  mana_cost: 5
+  damage: 22
+  range: 1
+  aoe_pattern: single
+  cooldown: 3
+  description: Vex vents steam into his gauntlet's hydraulics, delivering a punch
+    that shatters armor and bone.
+  tactical_hint: Use this to soften up high-defense targets and reduce their offensive
+    capabilities.
+  effects:
+  - type: concussion
+    behavior: reduce_outgoing_damage
+    duration: 2
+    magnitude: 0.25
+    target: enemy
+    category: debuff
+    chance: 0.85
+- name: Scrap Shrapnel
+  mana_cost: 7
+  damage: 15
+  range: 3
+  aoe_pattern: radius
+  cooldown: 4
+  description: Vex tosses a pressurized canister of alchemical salts that explodes
+    into a cloud of jagged metal.
+  tactical_hint: Ideal for damaging clusters of enemies and causing lingering damage
+    over time.
+  effects:
+  - type: bleed
+    behavior: damage_over_time
+    duration: 3
+    magnitude: 0.05
+    target: enemy
+    category: debuff
+    chance: 0.7

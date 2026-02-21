@@ -198,14 +198,11 @@ function renderLog(state) {
   container.innerHTML = '';
 
   for (const entry of state.eventLog) {
+    // Commentary goes to the banner above the arena, not the log
+    if (entry.actionType === 'commentary') continue;
     const div = document.createElement('div');
-    if (entry.actionType === 'commentary') {
-      div.className = 'log-entry commentary';
-      div.textContent = entry.description;
-    } else {
-      div.className = `log-entry ${entry.actionType || ''}`;
-      div.innerHTML = `<span class="log-round">R${entry.round}</span>${escHtml(entry.description)}`;
-    }
+    div.className = `log-entry ${entry.actionType || ''}`;
+    div.innerHTML = `<span class="log-round">R${entry.round}</span>${escHtml(entry.description)}`;
     container.appendChild(div);
   }
 
@@ -736,26 +733,22 @@ function closeLorePopup() {
   }
 })();
 
-// ===== Commentary (inline in battle log) =====
+// ===== Commentary (banner above arena) =====
 
 function renderCommentaryEntry(state) {
-  // Called when a new commentary message arrives — appends to battle log
-  const container = document.getElementById('log-content');
-  if (!container) return;
+  // Called when a new commentary message arrives — shows in banner above arena
+  const banner = document.getElementById('commentary-text');
+  if (!banner) return;
 
   const latest = state.commentaryLog[state.commentaryLog.length - 1];
   if (!latest) return;
 
-  const div = document.createElement('div');
-  div.className = 'log-entry commentary';
-  div.textContent = latest;
-
-  container.appendChild(div);
-
-  // Auto-scroll
-  if (container.scrollHeight - container.scrollTop - container.clientHeight < 50) {
-    container.scrollTop = container.scrollHeight;
-  }
+  // Fade out, swap text, fade in
+  banner.classList.remove('visible');
+  setTimeout(() => {
+    banner.textContent = latest;
+    banner.classList.add('visible');
+  }, 100);
 }
 
 // ===== Helpers =====

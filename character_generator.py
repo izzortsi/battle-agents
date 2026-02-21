@@ -246,9 +246,17 @@ def generate_character(
         "personality_traits": personality_traits,
         "attributes": layer2.get("attributes", {}),
         "abilities": layer2.get("abilities", []),
+        "limit_break": layer2.get("limit_break"),
     }
 
     data = _validate_and_fix(data)
+
+    # --- Ensure limit break exists ---
+    if not data.get("limit_break"):
+        log.warning(
+            "LLM did not generate a limit break for '%s'; using fallback.", name
+        )
+        data["limit_break"] = _make_fallback_limit_break(name)
 
     # --- Sprite selection ---
     data["sprite"] = sprite if sprite else _pick_sprite(combat_class)
@@ -282,6 +290,7 @@ def to_yaml(data: dict) -> str:
         "personality_traits",
         "attributes",
         "abilities",
+        "limit_break",
     ):
         if key in data:
             ordered[key] = data[key]
@@ -380,6 +389,14 @@ def _validate_and_fix(data: dict) -> dict:
         _fix_ability(ability)
 
     data["abilities"] = abilities
+
+    # --- Limit Break ---
+    lb = data.get("limit_break")
+    if lb and isinstance(lb, dict):
+        _fix_limit_break(lb)
+        data["limit_break"] = lb
+    # If missing, caller (generate_character) is responsible for fallback.
+
     return data
 
 
@@ -456,3 +473,44 @@ def _fix_effect(effect: dict) -> None:
 
     # Register novel types with the status registry.
     ensure_registered(effect)
+
+
+def _fix_limit_break(lb: dict) -> None:
+    """Validate and fix a limit break dict in-place."""
+    _fix_ability(lb)
+    # Override LB-specific constraints
+    lb["cooldown"] = 0
+    lb["current_cd"] = 0
+    lb["is_limit_break"] = True
+    # Ensure damage is in the LB range (25-50)
+    lb["damage"] = int(_clamp(int(lb.get("damage", 35)), 25, 50))
+    # Ensure mana cost is moderate (3-10)
+    lb["mana_cost"] = int(_clamp(int(lb.get("mana_cost", 6)), 3, 10))
+
+
+def _make_fallback_limit_break(name: str) -> dict:
+    """Create a generic limit break when the LLM fails to generate one."""
+    lb = {
+        "name": f"{name}'s Last Stand",
+        "mana_cost": 5,
+        "damage": 35,
+        "range": 1,
+        "aoe_pattern": "radius",
+        "cooldown": 0,
+        "current_cd": 0,
+        "is_limit_break": True,
+        "description": f"{name} unleashes their full power in a desperate attack.",
+        "tactical_hint": "Use when critically wounded and enemies are nearby.",
+        "effects": [
+            {
+                "type": "stun",
+                "behavior": "skip_turn",
+                "duration": 1,
+                "magnitude": 0.0,
+                "target": "enemy",
+                "category": "debuff",
+                "chance": 0.5,
+            }
+        ],
+    }
+    return lb

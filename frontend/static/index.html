@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Battle-Agents</title>
-  <link rel="stylesheet" href="/static/css/layout.css?v=27">
-  <link rel="stylesheet" href="/static/css/landing.css?v=27">
-  <link rel="stylesheet" href="/static/css/sprites.css?v=27">
-  <link rel="stylesheet" href="/static/css/animations.css?v=27">
+  <link rel="stylesheet" href="/static/css/layout.css?v=28">
+  <link rel="stylesheet" href="/static/css/landing.css?v=28">
+  <link rel="stylesheet" href="/static/css/sprites.css?v=28">
+  <link rel="stylesheet" href="/static/css/animations.css?v=28">
 </head>
 <body>
   <!-- Header -->
@@ -42,6 +42,11 @@
       <div id="agent-cards"></div>
     </aside>
 
+    <!-- Commentary banner (above arena) -->
+    <div id="panel-commentary">
+      <div id="commentary-text"></div>
+    </div>
+
     <!-- Center: SVG grid -->
     <section id="panel-grid" class="panel">
       <svg id="battle-grid" xmlns="http://www.w3.org/2000/svg">
@@ -68,9 +73,9 @@
 
     <!-- Resize handles -->
     <div id="resize-right" class="resize-handle resize-handle-v"
-         style="grid-column:3; grid-row:1"></div>
+         style="grid-column:3; grid-row:1/3"></div>
     <div id="resize-bottom" class="resize-handle resize-handle-h"
-         style="grid-column:1/-1; grid-row:2"></div>
+         style="grid-column:1/-1; grid-row:3"></div>
 
     <!-- Dialogue detail popup (hidden by default) -->
     <div id="dialogue-popup" class="agent-popup hidden">
@@ -116,13 +121,13 @@
     </div>
   </main>
 
-  <script src="/static/js/constants.js?v=27"></script>
-  <script src="/static/js/state.js?v=27"></script>
-  <script src="/static/js/sprites.js?v=27"></script>
-  <script src="/static/js/panels.js?v=27"></script>
-  <script src="/static/js/renderer.js?v=27"></script>
-  <script src="/static/js/resizer.js?v=27"></script>
-  <script src="/static/js/landing.js?v=27"></script>
-  <script src="/static/js/main.js?v=27"></script>
+  <script src="/static/js/constants.js?v=28"></script>
+  <script src="/static/js/state.js?v=28"></script>
+  <script src="/static/js/sprites.js?v=28"></script>
+  <script src="/static/js/panels.js?v=28"></script>
+  <script src="/static/js/renderer.js?v=28"></script>
+  <script src="/static/js/resizer.js?v=28"></script>
+  <script src="/static/js/landing.js?v=28"></script>
+  <script src="/static/js/main.js?v=28"></script>
 </body>
 </html>
