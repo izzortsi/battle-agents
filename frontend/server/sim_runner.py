@@ -13,7 +13,16 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from combat.action_resolver import find_auto_move_tile
-from combat.actions import ActionType, CombatAction, make_move, make_wait
+from combat.actions import (
+    ActionType,
+    CombatAction,
+    make_ability,
+    make_attack,
+    make_chat,
+    make_defend,
+    make_move,
+    make_wait,
+)
 from cognition.decision import CombatDecision
 from combat.status_registry import get_behavior
 from config_loader import (
@@ -84,6 +93,8 @@ class SimRunner:
         # Campaign state (set during _setup if campaign_id in configure_data)
         self._campaign_mgr = None  # CampaignManager | None
         self._campaign_db = None  # CampaignDB | None
+        # Player-controlled agent support (Phase 1)
+        self._pending_player_future: asyncio.Future | None = None
 
     def apply_configure(self, msg: dict) -> None:
         """Store landing page configuration for use during _setup()."""
@@ -261,7 +272,13 @@ class SimRunner:
 
     def _handle_control(self, msg: dict) -> None:
         cmd = msg.get("type", "")
-        if cmd == "step":
+        if cmd == "player_action":
+            if (
+                self._pending_player_future is not None
+                and not self._pending_player_future.done()
+            ):
+                self._pending_player_future.set_result(msg)
+        elif cmd == "step":
             self._mode = "stepping"
         elif cmd == "play":
             self._mode = "playing"
@@ -278,6 +295,69 @@ class SimRunner:
                 self._handle_control(msg)
             except asyncio.QueueEmpty:
                 break
+
+    # ----------------------------------------------------------------
+    # Player-controlled agent support (Phase 1)
+    # ----------------------------------------------------------------
+
+    async def _wait_for_player_action(self, agent_id: str) -> dict:
+        """Broadcast legal actions and block until the player submits a choice."""
+        legal = self._env.get_legal_actions(agent_id)
+        await self._broadcast({
+            "type": "awaiting_player",
+            "agent_id": agent_id,
+            "legal_actions": legal,
+        })
+
+        loop = asyncio.get_event_loop()
+        self._pending_player_future = loop.create_future()
+        try:
+            # While waiting for the player, keep processing control messages
+            # (play/pause/speed) so the UI stays responsive.
+            while True:
+                try:
+                    msg = await asyncio.wait_for(
+                        self.control_queue.get(), timeout=0.1
+                    )
+                    self._handle_control(msg)
+                except asyncio.TimeoutError:
+                    pass
+
+                if self._pending_player_future.done():
+                    return self._pending_player_future.result()
+        finally:
+            self._pending_player_future = None
+
+    def _build_player_decision(self, agent, player_input: dict) -> CombatDecision:
+        """Convert a player_action message dict into a CombatDecision."""
+        aid = agent.agent_id
+        action_type = player_input.get("action_type", "wait")
+
+        if action_type == "move":
+            tile = player_input.get("target_tile", "")
+            primary = make_move(aid, tile, reasoning="player input")
+        elif action_type == "attack":
+            target = player_input.get("target_agent", "")
+            primary = make_attack(aid, target, reasoning="player input")
+        elif action_type == "ability":
+            target = player_input.get("target_agent")
+            ability_name = player_input.get("ability_name", "")
+            primary = make_ability(aid, target, ability_name, reasoning="player input")
+        elif action_type == "defend":
+            primary = make_defend(aid, reasoning="player input")
+        elif action_type == "chat":
+            target = player_input.get("target_agent", "")
+            message = player_input.get("message", "")
+            primary = make_chat(aid, target, message, reasoning="player input")
+        else:  # "wait" or unknown
+            primary = make_wait(aid, reasoning="player input")
+
+        return CombatDecision(
+            primary_action=primary,
+            move_action=None,
+            move_after=False,
+            chat_action=None,
+        )
 
     async def _run(self) -> None:
         """Main simulation loop."""
@@ -827,7 +907,38 @@ class SimRunner:
                 await self._await_advance()
                 continue
 
-            if self._cognitive_loop:
+            if current.is_player_controlled:
+                # Player-controlled agent — wait for frontend input
+                player_input = await self._wait_for_player_action(current.agent_id)
+                decision = self._build_player_decision(current, player_input)
+
+                action = decision.primary_action
+                result = self._env.resolve_action(action)
+
+                event = serialize_action_event(action, result, self._env)
+                await self._broadcast(event)
+
+                if result.success and (
+                    action.action_type == ActionType.ATTACK
+                    or (
+                        action.action_type == ActionType.ABILITY
+                        and result.details.get("damage", 0) > 0
+                    )
+                ):
+                    damage_this_round = True
+
+                # Check for kills
+                if result.details.get("killed"):
+                    target_id = action.target_agent
+                    await self._broadcast(
+                        {
+                            "type": "death",
+                            "agent_id": target_id,
+                            "killer_id": current.agent_id,
+                        }
+                    )
+
+            elif self._cognitive_loop:
                 # LLM mode: cognitive turn
                 urgency_text = ""
                 if rounds_without_damage >= max_no_damage_rounds:

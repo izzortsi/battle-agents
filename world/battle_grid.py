@@ -6,6 +6,7 @@ Supports passability checks and adjacent-tile movement.
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Iterator
@@ -28,6 +29,7 @@ class BattleGrid:
     width: int
     height: int
     _tiles: dict[tuple[int, int], TileType] = field(default_factory=dict, repr=False)
+    _heights: dict[tuple[int, int], int] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         # Default all tiles to floor
@@ -35,6 +37,12 @@ class BattleGrid:
             for x in range(self.width):
                 for y in range(self.height):
                     self._tiles[(x, y)] = TileType.FLOOR
+
+        # Default all heights to 0 (independent of tile types)
+        if not self._heights:
+            for x in range(self.width):
+                for y in range(self.height):
+                    self._heights[(x, y)] = 0
 
     # -- Tile helpers ----------------------------------------------------------
 
@@ -111,6 +119,66 @@ class BattleGrid:
     def get_tile(self, x: int, y: int) -> TileType:
         return self._tiles.get((x, y), TileType.FLOOR)
 
+    def get_height(self, x: int, y: int) -> int:
+        """Return tile elevation (0 by default)."""
+        return int(self._heights.get((x, y), 0))
+
+    def reachable_tiles(
+        self,
+        start_x: int,
+        start_y: int,
+        move_range: int,
+        jump: int,
+        occupied: set[str] | None = None,
+    ) -> set[tuple[int, int]]:
+        """Return all reachable (x, y) tiles within *move_range* steps.
+
+        Rules:
+        - 4-directional movement
+        - must be passable (tile type)
+        - cannot step onto tiles in *occupied* (tile-key strings like "x_y")
+        - each step must satisfy: abs(height(next) - height(curr)) <= jump
+        """
+        if move_range <= 0:
+            return {(start_x, start_y)}
+
+        occupied = occupied or set()
+
+        start_key = self.tile_key(start_x, start_y)
+        if start_key in occupied:
+            # Caller should not mark the actor's own tile as occupied, but be defensive.
+            occupied = set(occupied)
+            occupied.discard(start_key)
+
+        reachable: set[tuple[int, int]] = {(start_x, start_y)}
+        best_cost: dict[tuple[int, int], int] = {(start_x, start_y): 0}
+        q: deque[tuple[int, int, int]] = deque([(start_x, start_y, 0)])
+
+        while q:
+            x, y, cost = q.popleft()
+            if cost >= move_range:
+                continue
+
+            h = self.get_height(x, y)
+
+            for nx, ny in self.adjacent_tiles(x, y):
+                nkey = self.tile_key(nx, ny)
+                if nkey in occupied:
+                    continue
+                if abs(self.get_height(nx, ny) - h) > jump:
+                    continue
+
+                ncost = cost + 1
+                prev = best_cost.get((nx, ny))
+                if prev is not None and prev <= ncost:
+                    continue
+
+                best_cost[(nx, ny)] = ncost
+                reachable.add((nx, ny))
+                q.append((nx, ny, ncost))
+
+        return reachable
+
     # -- Serialisation ----------------------------------------------------------
 
     def serialize_tiles(self) -> list[list[str]]:
@@ -122,6 +190,16 @@ class BattleGrid:
         """
         return [
             [self._tiles.get((x, y), TileType.FLOOR).value for x in range(self.width)]
+            for y in range(self.height)
+        ]
+
+    def serialize_heights(self) -> list[list[int]]:
+        """Return a row-major 2D array of tile heights for the frontend.
+
+        Result is ``heights[y][x]`` where each value is an int elevation.
+        """
+        return [
+            [int(self._heights.get((x, y), 0)) for x in range(self.width)]
             for y in range(self.height)
         ]
 
@@ -288,6 +366,24 @@ class BattleGrid:
             ):
                 grid._tiles[(rx, ry)] = TileType.RUNE
 
+        # --- Elevation map (independent of tile types) ---
+        # Two simple raised platforms + a low ridge to validate jump mechanics.
+        # Default is 0 everywhere (set in __post_init__).
+        for x in range(mid_x - 1, mid_x + 1):
+            for y in range(mid_y - 1, mid_y + 1):
+                if grid.in_bounds(x, y) and grid.is_passable(x, y):
+                    grid._heights[(x, y)] = 2
+
+        for x in range(2, 4):
+            for y in range(2, 4):
+                if grid.in_bounds(x, y) and grid.is_passable(x, y):
+                    grid._heights[(x, y)] = 1
+
+        for x in range(width - 4, width - 2):
+            for y in range(height - 4, height - 2):
+                if grid.in_bounds(x, y) and grid.is_passable(x, y):
+                    grid._heights[(x, y)] = 1
+
         return grid
 
     @classmethod
@@ -331,5 +427,11 @@ class BattleGrid:
         grid._tiles[(1, 4)] = TileType.FURNITURE
         grid._tiles[(2, 4)] = TileType.FURNITURE
         grid._tiles[(3, 4)] = TileType.FURNITURE
+
+        # --- Elevation map (independent of tile types) ---
+        # A small 2×2 "stage" area.
+        for x, y in [(5, 1), (6, 1), (5, 2), (6, 2)]:
+            if grid.in_bounds(x, y) and grid.is_passable(x, y):
+                grid._heights[(x, y)] = 1
 
         return grid

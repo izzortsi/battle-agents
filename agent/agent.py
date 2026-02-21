@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Optional
 
 from agent.attributes import Attributes
 from agent.identity import Identity
@@ -20,6 +21,8 @@ class Agent:
     attributes: Attributes = field(default_factory=Attributes)
     knowledge: AgentKnowledge = field(default_factory=AgentKnowledge)
     level: int = 1  # campaign level (1 for standalone battles)
+    party_id: Optional[str] = None  # which party/faction (None = unaffiliated/enemy)
+    controller: str = "ai"  # "player" or "ai" — who decides combat actions
     social: SocialModel = field(init=False)
     alignment: MoralAlignment = field(init=False)
 
@@ -34,6 +37,11 @@ class Agent:
     @property
     def name(self) -> str:
         return self.identity.name
+
+    @property
+    def is_player_controlled(self) -> bool:
+        """Whether this agent's combat actions come from the player."""
+        return self.controller == "player"
 
     def status_summary(self) -> str:
         a = self.attributes

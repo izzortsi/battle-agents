@@ -48,6 +48,11 @@ balance:
   spd_move_threshold: 14       # SPD at which bonus move starts
   spd_move_divisor: 2          # +1 move per this many SPD above threshold
 
+  # -- Jump (FFT-style elevation constraint) --
+  jump_base: 1                 # base jump height all units can clear
+  spd_jump_threshold: 10       # SPD at which bonus jump starts
+  spd_jump_divisor: 3          # +1 jump per this many SPD above threshold
+
   # -- CT-inspired damage formula --
   # Physical:  ATK * atk_multiplier - phys_def * def_multiplier
   # Magical:   MGK * atk_multiplier - mag_def * def_multiplier

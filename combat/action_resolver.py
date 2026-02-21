@@ -68,38 +68,39 @@ def resolve(action: CombatAction, env: "Environment") -> "ActionResult":
 def _find_nearest_unoccupied(
     cx: int, cy: int, tx: int, ty: int, agent, env: "Environment"
 ) -> tuple[int, int] | None:
-    """Find the nearest passable, unoccupied tile to (tx, ty) within move range of (cx, cy).
+    """Find the nearest reachable, unoccupied tile to (tx, ty).
 
-    Used as a fallback when the intended target tile is occupied.
-    Picks the candidate closest to the intended destination so the agent
-    still moves in the right direction.
+    Reachability is computed using the same move_range + jump constraint as MOVE
+    validation (BFS over passable tiles).
     """
-    move_range = agent.attributes.move_range
-    candidates: list[tuple[int, int, int]] = []  # (dist_to_target, nx, ny)
-    for dx in range(-move_range, move_range + 1):
-        for dy in range(-move_range, move_range + 1):
-            if abs(dx) + abs(dy) > move_range:
-                continue
-            nx, ny = cx + dx, cy + dy
-            if nx == cx and ny == cy:
-                continue  # skip current position
-            if not env.grid.is_passable(nx, ny):
-                continue
-            tile_key = BattleGrid.tile_key(nx, ny)
-            occupants = env.world_state.agents_at(tile_key)
-            living = [
-                o
-                for o in occupants
-                if o != agent.agent_id and env.agents.get(o) and env.agents[o].is_alive
-            ]
-            if living:
-                continue
-            dist_to_target = BattleGrid.manhattan(nx, ny, tx, ty)
-            candidates.append((dist_to_target, nx, ny))
-    if not candidates:
+    occupied: set[str] = set()
+    for other_id, other in env.agents.items():
+        if other_id == agent.agent_id or not other.is_alive:
+            continue
+        opos = env.world_state.get_position(other_id)
+        if opos:
+            occupied.add(opos)
+
+    reachable = env.grid.reachable_tiles(
+        cx,
+        cy,
+        agent.attributes.move_range,
+        agent.attributes.jump,
+        occupied=occupied,
+    )
+
+    # Exclude current tile
+    reachable.discard((cx, cy))
+
+    best: tuple[int, int, int] | None = None  # (dist_to_intended, nx, ny)
+    for nx, ny in reachable:
+        d = BattleGrid.manhattan(nx, ny, tx, ty)
+        if best is None or d < best[0]:
+            best = (d, nx, ny)
+
+    if best is None:
         return None
-    candidates.sort()  # closest to intended destination first
-    return candidates[0][1], candidates[0][2]
+    return best[1], best[2]
 
 
 def find_auto_move_tile(
@@ -131,37 +132,35 @@ def find_auto_move_tile(
     if BattleGrid.manhattan(ax, ay, tx, ty) <= required_range:
         return None
 
-    move_range = agent.attributes.move_range
-    best: tuple[int, int, int] | None = None  # (dist_to_target, nx, ny)
+    # Jump-aware reachable tiles (exclude other living occupants)
+    occupied: set[str] = set()
+    for other_id, other in env.agents.items():
+        if other_id == agent_id or not other.is_alive:
+            continue
+        opos = env.world_state.get_position(other_id)
+        if opos:
+            occupied.add(opos)
 
-    for dx in range(-move_range, move_range + 1):
-        for dy in range(-move_range, move_range + 1):
-            if abs(dx) + abs(dy) > move_range:
-                continue
-            nx, ny = ax + dx, ay + dy
-            if nx == ax and ny == ay:
-                continue
-            if not env.grid.is_passable(nx, ny):
-                continue
-            # Must be unoccupied (except by the agent itself)
-            tile_key = BattleGrid.tile_key(nx, ny)
-            occupants = env.world_state.agents_at(tile_key)
-            living = [
-                o
-                for o in occupants
-                if o != agent_id and env.agents.get(o) and env.agents[o].is_alive
-            ]
-            if living:
-                continue
-            dist = BattleGrid.manhattan(nx, ny, tx, ty)
-            if dist > required_range:
-                # Still out of range — only consider if it's closer than current best
-                if best is None or dist < best[0]:
-                    best = (dist, nx, ny)
-            else:
-                # In range — pick the one closest to target (prefer melee proximity)
-                if best is None or best[0] > required_range or dist < best[0]:
-                    best = (dist, nx, ny)
+    reachable = env.grid.reachable_tiles(
+        ax,
+        ay,
+        agent.attributes.move_range,
+        agent.attributes.jump,
+        occupied=occupied,
+    )
+    reachable.discard((ax, ay))
+
+    best: tuple[int, int, int] | None = None  # (dist_to_target, nx, ny)
+    for nx, ny in reachable:
+        dist = BattleGrid.manhattan(nx, ny, tx, ty)
+        if dist > required_range:
+            # Still out of range — only consider if it's closer than current best
+            if best is None or dist < best[0]:
+                best = (dist, nx, ny)
+        else:
+            # In range — pick the one closest to target (prefer melee proximity)
+            if best is None or best[0] > required_range or dist < best[0]:
+                best = (dist, nx, ny)
 
     if best is None:
         return None
@@ -196,20 +195,38 @@ def _resolve_move(action: CombatAction, env: "Environment") -> "ActionResult":
     tx, ty = BattleGrid.parse_tile(action.target_tile)
     dist = BattleGrid.manhattan(cx, cy, tx, ty)
 
-    # Validate: within move range?
-    if dist > agent.attributes.move_range:
-        return ActionResult(
-            agent.agent_id,
-            False,
-            f"{agent.name} tried to move to ({tx},{ty}) but it's {dist} tiles away (range: {agent.attributes.move_range}).",
-        )
-
     # Validate: passable?
     if not env.grid.is_passable(tx, ty):
         return ActionResult(
             agent.agent_id,
             False,
             f"{agent.name} tried to move to an impassable tile ({tx},{ty}).",
+        )
+
+    # Validate: reachable within move_range under jump constraint?
+    occupied: set[str] = set()
+    for other_id, other in env.agents.items():
+        if other_id == agent.agent_id or not other.is_alive:
+            continue
+        opos = env.world_state.get_position(other_id)
+        if opos:
+            occupied.add(opos)
+
+    reachable = env.grid.reachable_tiles(
+        cx,
+        cy,
+        agent.attributes.move_range,
+        agent.attributes.jump,
+        occupied=occupied,
+    )
+    if (tx, ty) not in reachable:
+        return ActionResult(
+            agent.agent_id,
+            False,
+            (
+                f"{agent.name} tried to move to ({tx},{ty}) but it's not reachable "
+                f"within {agent.attributes.move_range} steps (jump={agent.attributes.jump}, dist={dist})."
+            ),
         )
 
     # Validate: occupied by another living agent?

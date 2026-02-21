@@ -100,6 +100,149 @@ class Environment:
         obs = self.get_perceptions(agent)
         return self.perception_engine.format_perception_text(agent, obs)
 
+    # -- Player action support -------------------------------------------------
+
+    def get_legal_actions(self, agent_id: str) -> dict:
+        """Compute all legal actions for a player-controlled agent.
+
+        Returns a dict suitable for serialization and broadcast to the
+        frontend as part of the ``awaiting_player`` WebSocket message.
+        """
+        agent = self.agents.get(agent_id)
+        if not agent or not agent.is_alive:
+            return {"agent_id": agent_id, "actions": {}}
+
+        pos = self.world_state.get_position(agent_id)
+        if pos is None:
+            return {"agent_id": agent_id, "actions": {}}
+
+        ax, ay = BattleGrid.parse_tile(pos)
+        attrs = agent.attributes
+
+        # Occupied tile keys (can't move onto another agent)
+        occupied: set[str] = set()
+        for other in self.alive_agents():
+            if other.agent_id == agent_id:
+                continue
+            opos = self.world_state.get_position(other.agent_id)
+            if opos:
+                occupied.add(opos)
+
+        # -- Movement tiles --
+        reachable = self.grid.reachable_tiles(
+            ax,
+            ay,
+            attrs.move_range,
+            attrs.jump,
+            occupied=occupied,
+        )
+        valid_moves = [
+            BattleGrid.tile_key(mx, my)
+            for (mx, my) in reachable
+            if BattleGrid.tile_key(mx, my) != pos
+        ]
+        valid_moves.sort(key=lambda t: BattleGrid.tile_distance(pos, t))
+
+        # -- Attack targets --
+        attack_targets = []
+        for other in self.alive_agents():
+            if other.agent_id == agent_id:
+                continue
+            opos = self.world_state.get_position(other.agent_id)
+            if opos is None:
+                continue
+            ox, oy = BattleGrid.parse_tile(opos)
+            dist = BattleGrid.manhattan(ax, ay, ox, oy)
+            if dist <= attrs.attack_range:
+                attack_targets.append({
+                    "agent_id": other.agent_id,
+                    "name": other.name,
+                    "distance": dist,
+                    "hp": other.attributes.hp,
+                    "max_hp": other.attributes.max_hp,
+                })
+
+        # -- Abilities --
+        abilities_info = []
+        for ability in getattr(attrs, "abilities", []):
+            cd = ability.get("current_cd", 0)
+            mana_cost = ability.get("mana_cost", 0)
+            can_use = cd <= 0 and attrs.mana >= mana_cost
+            ab_range = ability.get("range", 1)
+
+            # Self-targeting check: any effect with target="self"
+            effects = ability.get("effects", [])
+            is_self = any(
+                e.get("target") == "self" for e in effects if isinstance(e, dict)
+            )
+
+            targets = []
+            if is_self:
+                targets.append({
+                    "agent_id": agent_id,
+                    "name": agent.name,
+                    "distance": 0,
+                })
+
+            for other in self.alive_agents():
+                if other.agent_id == agent_id:
+                    continue
+                opos = self.world_state.get_position(other.agent_id)
+                if opos is None:
+                    continue
+                ox, oy = BattleGrid.parse_tile(opos)
+                dist = BattleGrid.manhattan(ax, ay, ox, oy)
+                if dist <= ab_range:
+                    targets.append({
+                        "agent_id": other.agent_id,
+                        "name": other.name,
+                        "distance": dist,
+                    })
+
+            abilities_info.append({
+                "name": ability.get("name", "Unknown"),
+                "mana_cost": mana_cost,
+                "damage": ability.get("damage", 0),
+                "range": ab_range,
+                "aoe_pattern": ability.get("aoe_pattern", "single"),
+                "cooldown_remaining": cd,
+                "can_use": can_use,
+                "description": ability.get("description", ""),
+                "is_self_targeting": is_self,
+                "targets": targets,
+            })
+
+        # -- Chat targets --
+        chat_targets = []
+        for other in self.alive_agents():
+            if other.agent_id == agent_id:
+                continue
+            opos = self.world_state.get_position(other.agent_id)
+            if opos is None:
+                continue
+            ox, oy = BattleGrid.parse_tile(opos)
+            dist = BattleGrid.manhattan(ax, ay, ox, oy)
+            if dist <= self.chat_speak_radius:
+                chat_targets.append({
+                    "agent_id": other.agent_id,
+                    "name": other.name,
+                    "distance": dist,
+                })
+
+        return {
+            "agent_id": agent_id,
+            "position": {"x": ax, "y": ay},
+            "move_range": attrs.move_range,
+            "jump": attrs.jump,
+            "valid_moves": valid_moves,
+            "attack_range": attrs.attack_range,
+            "attack_targets": attack_targets,
+            "abilities": abilities_info,
+            "chat_targets": chat_targets,
+            "can_defend": True,
+            "can_wait": True,
+        }
+
     # -- Action resolution -----------------------------------------------------
 
     def resolve_action(self, action: CombatAction) -> ActionResult:

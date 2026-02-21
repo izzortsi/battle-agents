@@ -31,6 +31,11 @@ class BalanceConfig:
     spd_move_threshold: int = 14
     spd_move_divisor: int = 2
 
+    # Jump (FFT-style elevation constraint)
+    jump_base: int = 1
+    spd_jump_threshold: int = 10
+    spd_jump_divisor: int = 3
+
     # CT damage formula
     atk_multiplier: float = 2.0
     def_multiplier: float = 0.667
@@ -147,6 +152,13 @@ class Attributes:
         b = _balance
         bonus = max(0, (self.spd - b.spd_move_threshold) // b.spd_move_divisor)
         return b.move_base + bonus
+
+    @property
+    def jump(self) -> int:
+        """FFT-style jump height derived from SPD."""
+        b = _balance
+        bonus = max(0, (self.spd - b.spd_jump_threshold) // b.spd_jump_divisor)
+        return b.jump_base + bonus
 
     @property
     def damage_type(self) -> str:

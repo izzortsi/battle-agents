@@ -400,6 +400,8 @@ async def websocket_endpoint(ws: WebSocket):
             elif cmd == "start":
                 if not SPECTATOR_MODE:
                     await runner.start()
+            elif cmd == "player_action":
+                await runner.control_queue.put(msg)
             elif cmd in ("step", "play", "pause", "speed"):
                 if cmd == "speed":
                     msg["delay"] = msg.get("delay", 500) / 1000.0

@@ -17,6 +17,7 @@ def serialize_agent(agent: Agent, env: Environment) -> dict:
     """Serialize a single agent to a JSON-safe dict."""
     pos = env.world_state.get_position(agent.agent_id)
     x, y = BattleGrid.parse_tile(pos) if pos else (0, 0)
+    z = env.grid.get_height(x, y) if pos else 0
     a = agent.attributes
     return {
         "id": agent.agent_id,
@@ -27,6 +28,10 @@ def serialize_agent(agent: Agent, env: Environment) -> dict:
         "sprite": agent.identity.sprite,
         "x": x,
         "y": y,
+        "z": z,
+        "party_id": agent.party_id,
+        "controller": agent.controller,
+        "is_player_controlled": agent.is_player_controlled,
         "hp": a.hp,
         "max_hp": a.max_hp,
         "mana": a.mana,
@@ -151,6 +156,7 @@ def serialize_snapshot(
             "width": env.grid.width,
             "height": env.grid.height,
             "tiles": env.grid.serialize_tiles(),
+            "heights": env.grid.serialize_heights(),
         },
         "agents": agents,
         "social": social,
