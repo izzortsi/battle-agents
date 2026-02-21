@@ -8,6 +8,8 @@ services:
     envVars:
       - key: OPENROUTER_API_KEY
         sync: false
+      - key: CLAUDE_CODE_OAUTH_TOKEN
+        sync: false  
       - key: SPECTATOR_MODE
         value: "true"
       - key: PYTHON_VERSION
