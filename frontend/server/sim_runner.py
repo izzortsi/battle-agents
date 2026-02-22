@@ -138,6 +138,14 @@ class SimRunner:
             restore["lore"] = self._lore.to_dict()
         if self._commentary_log:
             restore["commentary_log"] = self._commentary_log[-50:]
+        # Re-broadcast pending player turn so the action card survives browser refresh.
+        if self._pending_player_agent_id is not None and self._env is not None:
+            restore["awaiting_player"] = {
+                "agent_id": self._pending_player_agent_id,
+                "legal_actions": self._env.get_legal_actions(
+                    self._pending_player_agent_id
+                ),
+            }
         return restore
 
     def _record(self, data: dict) -> None:

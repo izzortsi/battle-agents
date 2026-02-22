@@ -189,16 +189,72 @@
       // Highlights from backend legal actions (authoritative)
       const awaiting = this.state.awaitingPlayer;
       const legal = awaiting ? (awaiting.legalActions || {}) : null;
-      const mode = this.state.playerMode || 'idle';
+      // Committed mode takes priority; fall back to hover preview when idle.
+      const mode = (this.state.playerMode && this.state.playerMode !== 'idle')
+        ? this.state.playerMode
+        : (this.state.hoverMode || 'idle');
       const moveSet = new Set((legal && legal.valid_moves) || []);
       const attackSet = new Set(((legal && legal.attack_targets) || []).map(t => t.agent_id));
 
-      // Ability target set — resolved from the currently selected ability
+      const awaitingAgentId = awaiting ? awaiting.agentId : null;
+      const awaitingAgent = awaitingAgentId ? (this.state.agents || {})[awaitingAgentId] : null;
+
+      const buildRangeTileSet = (range) => {
+        const set = new Set();
+        if (!awaitingAgent || range == null) return set;
+        const ax = awaitingAgent.x;
+        const ay = awaitingAgent.y;
+        if (typeof ax !== 'number' || typeof ay !== 'number') return set;
+
+        for (let dx = -range; dx <= range; dx++) {
+          for (let dy = -range; dy <= range; dy++) {
+            if (Math.abs(dx) + Math.abs(dy) > range) continue;
+            const nx = ax + dx;
+            const ny = ay + dy;
+            if (nx < 0 || ny < 0 || nx >= gw || ny >= gh) continue;
+            set.add(`${nx}_${ny}`);
+          }
+        }
+        return set;
+      };
+
+      // Ability target set — resolved from selected ability or hover preview
       const abilityTargetSet = new Set();
-      if (mode === 'ability' && this.state.selectedAbilityName) {
-        const legalAbs = (legal && legal.abilities) || [];
-        const selAb = legalAbs.find(ab => ab.name === this.state.selectedAbilityName);
-        if (selAb) for (const t of (selAb.targets || [])) abilityTargetSet.add(t.agent_id);
+      let selectedAbility = null;
+      if (mode === 'ability') {
+        const abilityName = this.state.selectedAbilityName || this.state.hoverAbilityName;
+        if (abilityName) {
+          const legalAbs = (legal && legal.abilities) || [];
+          selectedAbility = legalAbs.find(ab => ab.name === abilityName);
+          if (selectedAbility) for (const t of (selectedAbility.targets || [])) abilityTargetSet.add(t.agent_id);
+        }
+      }
+
+      // Tile-position sets: resolve agent_id → "x_y" tile key for target tile highlights.
+      // We look up state.agents[id].x/y so the highlight lands on the correct diamond.
+      const _ags = this.state.agents || {};
+      const _agTile = (id) => { const a = _ags[id]; return (a && a.is_alive !== false) ? `${a.x}_${a.y}` : null; };
+
+      const attackTileSet = new Set();
+      if (mode === 'attack') {
+        const attackRange = legal ? legal.attack_range : null;
+        for (const t of buildRangeTileSet(attackRange)) attackTileSet.add(t);
+      }
+      for (const id of attackSet) { const tk = _agTile(id); if (tk) attackTileSet.add(tk); }
+
+      const abilityTileSet = new Set();
+      if (mode === 'ability' && selectedAbility) {
+        for (const t of buildRangeTileSet(selectedAbility.range)) abilityTileSet.add(t);
+      }
+      for (const id of abilityTargetSet) { const tk = _agTile(id); if (tk) abilityTileSet.add(tk); }
+
+      const chatTileSet = new Set();
+      if (mode === 'chat') {
+        const chatRange = legal ? legal.chat_range : null;
+        for (const t of buildRangeTileSet(chatRange)) chatTileSet.add(t);
+      }
+      for (const t of ((legal && legal.chat_targets) || [])) {
+        if (t && t.agent_id) { const tk = _agTile(t.agent_id); if (tk) chatTileSet.add(tk); }
       }
 
       this._hitTiles = [];
@@ -253,11 +309,35 @@
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // Move highlight
+        // Move target tiles — green
         if (mode === 'move' && moveSet.has(tileKey)) {
-          ctx.fillStyle = 'rgba(60,179,113,0.20)'; // accent-green
+          ctx.fillStyle = 'rgba(60,179,113,0.20)';
           ctx.fill();
           ctx.strokeStyle = 'rgba(60,179,113,0.55)';
+          ctx.stroke();
+        }
+
+        // Attack target tiles — red (matches unit ring color)
+        if (mode === 'attack' && attackTileSet.has(tileKey)) {
+          ctx.fillStyle = 'rgba(233,69,96,0.18)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(233,69,96,0.55)';
+          ctx.stroke();
+        }
+
+        // Ability target tiles — purple (matches unit ring color)
+        if (mode === 'ability' && abilityTileSet.has(tileKey)) {
+          ctx.fillStyle = 'rgba(162,155,254,0.18)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(162,155,254,0.55)';
+          ctx.stroke();
+        }
+
+        // Chat target tiles — gold (wired for when chat mode button is added)
+        if (mode === 'chat' && chatTileSet.has(tileKey)) {
+          ctx.fillStyle = 'rgba(218,165,32,0.15)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(218,165,32,0.45)';
           ctx.stroke();
         }
       }

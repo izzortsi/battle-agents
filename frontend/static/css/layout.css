@@ -378,6 +378,16 @@ html, body {
   color: var(--accent);
 }
 
+.action-ab-lb {
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffd700;
+  background: rgba(255, 215, 0, 0.15);
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
 .action-ab-meta {
   font-size: 10px;
   color: var(--text-dim);

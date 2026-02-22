@@ -102,7 +102,6 @@
 
     const legal = awaiting.legalActions || {};
     const canMove = legal.valid_moves && legal.valid_moves.length > 0;
-    const canAttack = legal.attack_targets && legal.attack_targets.length > 0;
     const canAbility = (legal.abilities || []).some(a => a.can_use);
 
     const btnMove = qs('btn-act-move');
@@ -110,7 +109,7 @@
     const btnAbilities = qs('btn-act-abilities');
 
     if (btnMove) btnMove.disabled = !canMove;
-    if (btnAttack) btnAttack.disabled = !canAttack;
+    if (btnAttack) btnAttack.disabled = false;  // always allow; player may move first then attack
     if (btnAbilities) btnAbilities.disabled = !canAbility;
 
     if (state.playerMode === 'move') {
@@ -137,6 +136,9 @@
     const { state } = g;
 
     state.playerMode = mode;
+    // Clear hover preview when committing to a mode.
+    state.hoverMode = null;
+    state.hoverAbilityName = null;
     // Reuse existing renderer hook: awaiting_player triggers canvas repaint.
     state.notify('awaiting_player', { agent_id: state.awaitingPlayer?.agentId || '' });
     updateOverlay();
@@ -185,10 +187,12 @@
         ? ` <span class="action-ab-cd">CD:${ab.cooldown_remaining}</span>` : '';
       const selfTag = ab.is_self_targeting
         ? ' <span style="font-size:10px;color:var(--accent-gold)">[self]</span>' : '';
+      const lbTag = ab.is_limit_break
+        ? ' <span class="action-ab-lb">LB</span>' : '';
 
       card.innerHTML =
         `<div class="action-ab-header">` +
-          `<span class="action-ab-name">${esc(ab.name)}${selfTag}</span>` +
+          `<span class="action-ab-name">${esc(ab.name)}${selfTag}${lbTag}</span>` +
           `<span class="action-ab-cost">${ab.mana_cost}MP</span>` +
           cdHtml +
         `</div>` +
@@ -214,6 +218,21 @@
             container.classList.add('hidden');
           }
         });
+        // Hover preview: show ability targets on canvas without committing to the mode
+        card.addEventListener('mouseenter', () => {
+          const gHov = ensureGlobals();
+          if (!gHov || gHov.state.playerMode !== 'idle') return;
+          gHov.state.hoverMode = 'ability';
+          gHov.state.hoverAbilityName = ab.name;
+          gHov.iso.setState(gHov.state); gHov.iso.renderFull();
+        });
+        card.addEventListener('mouseleave', () => {
+          const gHov = ensureGlobals();
+          if (!gHov || gHov.state.hoverAbilityName !== ab.name) return;
+          gHov.state.hoverMode = null;
+          gHov.state.hoverAbilityName = null;
+          gHov.iso.setState(gHov.state); gHov.iso.renderFull();
+        });
       }
 
       container.appendChild(card);
@@ -226,8 +245,36 @@
     const btnAbilities = qs('btn-act-abilities');
     const btnWait = qs('btn-act-wait');
 
-    if (btnMove) btnMove.addEventListener('click', () => setMode('move'));
-    if (btnAttack) btnAttack.addEventListener('click', () => setMode('attack'));
+    if (btnMove) {
+      btnMove.addEventListener('click', () => setMode('move'));
+      btnMove.addEventListener('mouseenter', () => {
+        const g = ensureGlobals();
+        if (!g || !g.state.awaitingPlayer || g.state.playerMode !== 'idle') return;
+        g.state.hoverMode = 'move';
+        g.iso.setState(g.state); g.iso.renderFull();
+      });
+      btnMove.addEventListener('mouseleave', () => {
+        const g = ensureGlobals();
+        if (!g || g.state.hoverMode !== 'move') return;
+        g.state.hoverMode = null;
+        g.iso.setState(g.state); g.iso.renderFull();
+      });
+    }
+    if (btnAttack) {
+      btnAttack.addEventListener('click', () => setMode('attack'));
+      btnAttack.addEventListener('mouseenter', () => {
+        const g = ensureGlobals();
+        if (!g || !g.state.awaitingPlayer || g.state.playerMode !== 'idle') return;
+        g.state.hoverMode = 'attack';
+        g.iso.setState(g.state); g.iso.renderFull();
+      });
+      btnAttack.addEventListener('mouseleave', () => {
+        const g = ensureGlobals();
+        if (!g || g.state.hoverMode !== 'attack') return;
+        g.state.hoverMode = null;
+        g.iso.setState(g.state); g.iso.renderFull();
+      });
+    }
 
     if (btnAbilities) btnAbilities.addEventListener('click', () => {
       const container = qs('ability-list');

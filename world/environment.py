@@ -164,7 +164,10 @@ class Environment:
 
         # -- Abilities --
         abilities_info = []
-        for ability in getattr(attrs, "abilities", []):
+        abilities_source = list(getattr(attrs, "abilities", []))
+        if attrs.limit_break_ready and attrs.limit_break is not None:
+            abilities_source.append(attrs.limit_break)
+        for ability in abilities_source:
             cd = ability.get("current_cd", 0)
             mana_cost = ability.get("mana_cost", 0)
             can_use = cd <= 0 and attrs.mana >= mana_cost
@@ -209,6 +212,7 @@ class Environment:
                 "can_use": can_use,
                 "description": ability.get("description", ""),
                 "is_self_targeting": is_self,
+                "is_limit_break": ability.get("is_limit_break", False),
                 "targets": targets,
             })
 
@@ -238,6 +242,7 @@ class Environment:
             "attack_range": attrs.attack_range,
             "attack_targets": attack_targets,
             "abilities": abilities_info,
+            "chat_range": self.chat_speak_radius,
             "chat_targets": chat_targets,
             "can_defend": True,
             "can_wait": True,

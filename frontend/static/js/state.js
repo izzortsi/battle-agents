@@ -23,6 +23,8 @@ class GameState {
     this.awaitingPlayer = null;      // { agentId, legalActions } | null
     this.playerMode = 'idle';        // idle | move | attack | ability
     this.selectedAbilityName = null; // name of ability pending target selection
+    this.hoverMode = null;           // mode previewed on button hover (not committed)
+    this.hoverAbilityName = null;    // ability name previewed on card hover
 
     this._listeners = [];
   }
@@ -111,6 +113,15 @@ class GameState {
     }
     if (data.commentary_log) {
       this.commentaryLog = data.commentary_log;
+    }
+
+    // Restore pending player action card (survives browser refresh)
+    if (data.awaiting_player) {
+      this.awaitingPlayer = {
+        agentId: data.awaiting_player.agent_id,
+        legalActions: data.awaiting_player.legal_actions || {},
+      };
+      this.playerMode = 'idle';
     }
 
     this.notify('snapshot');  // triggers full re-render without animations

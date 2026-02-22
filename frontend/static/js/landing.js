@@ -93,6 +93,13 @@ class LandingPage {
       this._spritePresets = await spritesRes.json();
       this._campaigns = await campaignsRes.json();
 
+      // Default controllers to player unless explicitly changed
+      for (const c of this._characters) {
+        if (!this._controllerAssignments[c.id]) {
+          this._controllerAssignments[c.id] = 'player';
+        }
+      }
+
       // No characters selected by default — user picks manually
 
       // YAML sprites always win — override any stale localStorage value
@@ -150,7 +157,7 @@ class LandingPage {
       const alignLabel = (c.moral_alignment || 'true_neutral').replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
       const alignCss = this._alignmentCssClass(c.moral_alignment || 'true_neutral');
 
-      const ctrl = this._controllerAssignments[c.id] || 'ai';
+      const ctrl = this._controllerAssignments[c.id] || 'player';
       const ctrlHtml = `
         <select class="char-controller-select">
           <option value="ai" ${ctrl === 'ai' ? 'selected' : ''}>AI</option>
@@ -335,6 +342,9 @@ class LandingPage {
       const data = await res.json();
       this._generated.push(data);
       this._selectedIds.add(data.id);
+      if (!this._controllerAssignments[data.id]) {
+        this._controllerAssignments[data.id] = 'player';
+      }
 
       // Auto-assign the generated sprite
       if (data.sprite) {
@@ -473,7 +483,10 @@ class LandingPage {
       const campMorality = (r.morality != null ? r.morality : 0).toFixed(2);
       const campOrder = (r.order_value != null ? r.order_value : 0).toFixed(2);
 
-      const ctrl = this._controllerAssignments[r.agent_id] || 'ai';
+      if (!this._controllerAssignments[r.agent_id]) {
+        this._controllerAssignments[r.agent_id] = 'player';
+      }
+      const ctrl = this._controllerAssignments[r.agent_id] || 'player';
       const ctrlHtml = `
         <select class="char-controller-select">
           <option value="ai" ${ctrl === 'ai' ? 'selected' : ''}>AI</option>
