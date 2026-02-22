@@ -386,6 +386,16 @@ class Environment:
                 agent_name=attacker.name,
             )
 
+            # Tension spike for player-controlled targets taking damage
+            if target.is_player_controlled and damage > 0 and target.attributes.max_hp > 0:
+                spike = int((damage / target.attributes.max_hp) * 50)
+                if spike > 0:
+                    target.tension = min(100, target.tension + spike)
+                    log.info(
+                        f"  {target.name}: tension +{spike} (took {damage} damage) "
+                        f"→ {target.tension}"
+                    )
+
             # All other alive agents react based on their relationships
             for observer in self.alive_agents():
                 if observer.agent_id in (attacker.agent_id, target.agent_id):
@@ -404,6 +414,13 @@ class Environment:
                             turn=turn,
                             agent_name=attacker.name,
                         )
+                        # Tension spike for player-controlled observers
+                        if observer.is_player_controlled:
+                            observer.tension = min(100, observer.tension + 20)
+                            log.info(
+                                f"  {observer.name}: tension +20 (ally {target.name} killed) "
+                                f"→ {observer.tension}"
+                            )
                     elif obs_disp_target < -0.15:
                         # Target was an enemy — positive toward killer
                         observer.social.on_enemy_killed(

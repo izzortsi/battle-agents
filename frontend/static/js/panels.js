@@ -174,6 +174,14 @@ function renderCards(state) {
           <div class="bar-bg"><div class="bar-fill mana" style="width:${manaPct * 100}%"></div></div>
           <span class="bar-value">${agent.mana}/${agent.max_mana}</span>
         </div>
+        ${agent.is_player_controlled ? `<div class="bar-row">
+          <span class="bar-label">TEN</span>
+          <div class="bar-bg">
+            <div class="bar-fill tension${agent.tension >= (agent.compliance_threshold || 50) ? ' tension-critical' : ''}" style="width:${agent.tension || 0}%"></div>
+            ${agent.compliance_threshold ? `<div class="tension-threshold" style="left:${agent.compliance_threshold}%"></div>` : ''}
+          </div>
+          <span class="bar-value">${agent.tension || 0}</span>
+        </div>` : ''}
       </div>
       ${lbHtml}
       <div class="card-stats">ATK:${agent.atk} MGK:${agent.mgk} SPD:${agent.spd} CON:${agent.con} HIT:${agent.hit}</div>
@@ -530,6 +538,14 @@ function renderCharacterSheet(state) {
         <div class="bar-bg"><div class="bar-fill mana" style="width:${manaPct * 100}%"></div></div>
         <span class="cs-stat-val">${agent.mana}/${agent.max_mana}</span>
       </div>
+      ${agent.is_player_controlled ? `<div class="cs-stat-row">
+        <span class="cs-stat-name">TEN</span>
+        <div class="bar-bg">
+          <div class="bar-fill tension${agent.tension >= (agent.compliance_threshold || 50) ? ' tension-critical' : ''}" style="width:${agent.tension || 0}%"></div>
+          ${agent.compliance_threshold ? `<div class="tension-threshold" style="left:${agent.compliance_threshold}%"></div>` : ''}
+        </div>
+        <span class="cs-stat-val">${agent.tension || 0}/${agent.compliance_threshold || '?'}</span>
+      </div>` : ''}
       <div class="cs-stats-inline">
         <span class="cs-stat-chip" title="Attack">ATK <b>${agent.atk}</b></span>
         <span class="cs-stat-chip" title="Magic">MGK <b>${agent.mgk}</b></span>

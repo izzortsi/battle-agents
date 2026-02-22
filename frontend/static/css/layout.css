@@ -407,6 +407,7 @@ html, body {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 3px;
   overflow: hidden;
+  position: relative;
 }
 
 .bar-fill {
@@ -430,6 +431,30 @@ html, body {
 
 .bar-fill.mana {
   background: var(--accent-blue);
+}
+
+.bar-fill.tension {
+  background: linear-gradient(90deg, #e67e22, #e94560);
+  transition: width 0.4s ease;
+}
+
+.bar-fill.tension-critical {
+  background: linear-gradient(90deg, #e94560, #ff1744);
+  animation: tension-pulse 0.8s ease-in-out infinite alternate;
+}
+
+.tension-threshold {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.6);
+  pointer-events: none;
+}
+
+@keyframes tension-pulse {
+  from { opacity: 0.7; }
+  to { opacity: 1.0; }
 }
 
 .bar-value {

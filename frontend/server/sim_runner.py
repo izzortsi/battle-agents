@@ -920,6 +920,9 @@ class SimRunner:
                 continue
 
             if current.is_player_controlled:
+                # Tension decay: -5 per turn, floor at 0
+                current.tension = max(0, current.tension - 5)
+
                 # Player-controlled agent — loop until turn is complete (Wait or Move+Act)
                 has_moved = False
                 has_acted = False
@@ -946,6 +949,103 @@ class SimRunner:
                         await self._broadcast(event)
                         break
 
+                    # -- Tension spike: grievous order (attacking someone liked) --
+                    if (
+                        action.action_type in (ActionType.ATTACK, ActionType.ABILITY)
+                        and action.target_agent
+                    ):
+                        disp = current.social.get_disposition(action.target_agent)
+                        if disp > 0.15:
+                            current.tension = min(100, current.tension + 30)
+                            log.info(
+                                f"  {current.name}: tension +30 (attacking liked target, "
+                                f"disp={disp:.2f}) → {current.tension}"
+                            )
+
+                    # -- Compliance check: intercept if tension >= threshold --
+                    if current.tension >= current.compliance_threshold:
+                        from cognition.compliance import (
+                            evaluate_compliance,
+                            apply_compliance_result,
+                        )
+
+                        compliance_llm = (
+                            self._cognitive_loop._get_llm("action_decision")
+                            if self._cognitive_loop
+                            else None
+                        )
+                        if compliance_llm:
+                            compliance_result = await asyncio.to_thread(
+                                evaluate_compliance,
+                                current,
+                                action,
+                                self._env,
+                                compliance_llm,
+                            )
+                            apply_compliance_result(current, compliance_result)
+                            log.info(
+                                f"  {current.name}: compliance={compliance_result['outcome']} "
+                                f"tension→{current.tension}"
+                            )
+
+                            # Broadcast agent's verbal reaction as a minimal dialogue_session
+                            # so it actually renders in the Dialogue panel.
+                            if compliance_result.get("dialogue"):
+                                responder_id = action.target_agent or current.agent_id
+                                resp_agent = self._env.agents.get(responder_id)
+                                await self._broadcast(
+                                    {
+                                        "type": "dialogue_session",
+                                        "initiator": current.agent_id,
+                                        "initiator_name": current.name,
+                                        "responder": responder_id,
+                                        "responder_name": resp_agent.name if resp_agent else responder_id,
+                                        "exchanges": [
+                                            {
+                                                "speaker": current.agent_id,
+                                                "speaker_name": current.name,
+                                                "message": compliance_result["dialogue"],
+                                                "disposition_shift": 0,
+                                            }
+                                        ],
+                                        "summaries": {},
+                                        "status": "complete",
+                                        "exchange_count": 1,
+                                    }
+                                )
+
+                            if compliance_result["outcome"] == "refuse":
+                                action = make_wait(
+                                    current.agent_id,
+                                    f"REFUSED: {compliance_result.get('reasoning', '')}",
+                                )
+                            elif compliance_result["outcome"] == "rebel":
+                                rebel = compliance_result.get("rebel_action", {}) or {}
+                                rebel_type = rebel.get("action_type", "wait")
+
+                                if rebel_type == "attack" and rebel.get("target_agent"):
+                                    action = make_attack(
+                                        current.agent_id,
+                                        rebel["target_agent"],
+                                        f"REBEL: {rebel.get('reasoning', '')}",
+                                    )
+                                elif rebel_type == "move" and rebel.get("target_tile"):
+                                    action = make_move(
+                                        current.agent_id,
+                                        rebel["target_tile"],
+                                        f"REBEL: {rebel.get('reasoning', '')}",
+                                    )
+                                elif rebel_type == "defend":
+                                    action = make_defend(
+                                        current.agent_id,
+                                        f"REBEL: {rebel.get('reasoning', '')}",
+                                    )
+                                else:
+                                    action = make_wait(
+                                        current.agent_id,
+                                        f"REBEL: {rebel.get('reasoning', '')}",
+                                    )
+
                     result = self._env.resolve_action(action)
                     event = serialize_action_event(action, result, self._env)
                     await self._broadcast(event)
@@ -959,6 +1059,16 @@ class SimRunner:
                                 damage_this_round = True
                         elif action.action_type == ActionType.DEFEND:
                             has_acted = True
+
+                    # -- Tension spike: taking damage (counter-attack) --
+                    counter_dmg = result.details.get("counter_damage", 0)
+                    if counter_dmg > 0 and current.attributes.max_hp > 0:
+                        spike = int((counter_dmg / current.attributes.max_hp) * 50)
+                        if spike > 0:
+                            current.tension = min(100, current.tension + spike)
+                            log.info(
+                                f"  {current.name}: tension +{spike} (took {counter_dmg} counter damage) → {current.tension}"
+                            )
 
                     # Check for kills
                     if result.details.get("killed"):
