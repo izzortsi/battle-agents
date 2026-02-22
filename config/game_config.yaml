@@ -5,7 +5,7 @@ grid:
   height: 10
 
 pre_battle:
-  enabled: true        # Phase 4: social phase before combat
+  enabled: false       # Phase 4: social phase before combat (opt-in)
   duration_ticks: 4
   tick_mode: simultaneous
   chat_max_rounds: 2

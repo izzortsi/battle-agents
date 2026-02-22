@@ -20,8 +20,9 @@ class GameState {
     this.commentaryLog = []; // [ string ]
 
     // Player input (set when backend emits awaiting_player)
-    this.awaitingPlayer = null; // { agentId, legalActions } | null
-    this.playerMode = 'idle';   // idle | move | attack
+    this.awaitingPlayer = null;      // { agentId, legalActions } | null
+    this.playerMode = 'idle';        // idle | move | attack | ability
+    this.selectedAbilityName = null; // name of ability pending target selection
 
     this._listeners = [];
   }
@@ -161,6 +162,7 @@ class GameState {
     if (this.awaitingPlayer && event.agent_id === this.awaitingPlayer.agentId) {
       this.awaitingPlayer = null;
       this.playerMode = 'idle';
+      this.selectedAbilityName = null;
     }
 
     this.notify('action', event);
@@ -296,6 +298,7 @@ class GameState {
       legalActions: data.legal_actions || {},
     };
     this.playerMode = 'idle';
+    this.selectedAbilityName = null;
     this.notify('awaiting_player', data);
   }
 

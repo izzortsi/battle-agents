@@ -95,6 +95,7 @@ class SimRunner:
         self._campaign_db = None  # CampaignDB | None
         # Player-controlled agent support (Phase 1)
         self._pending_player_future: asyncio.Future | None = None
+        self._pending_player_agent_id: str | None = None  # awaiting_player routing guard
 
     def apply_configure(self, msg: dict) -> None:
         """Store landing page configuration for use during _setup()."""
@@ -277,6 +278,16 @@ class SimRunner:
                 self._pending_player_future is not None
                 and not self._pending_player_future.done()
             ):
+                # If the client provides agent_id, require it matches the agent we're awaiting.
+                expected = self._pending_player_agent_id
+                got = msg.get("agent_id")
+                if expected is not None and got is not None and got != expected:
+                    log.warning(
+                        "Ignoring player_action for wrong agent (got=%s, expected=%s)",
+                        got,
+                        expected,
+                    )
+                    return
                 self._pending_player_future.set_result(msg)
         elif cmd == "step":
             self._mode = "stepping"
@@ -313,6 +324,7 @@ class SimRunner:
 
         loop = asyncio.get_event_loop()
         self._pending_player_future = loop.create_future()
+        self._pending_player_agent_id = agent_id
         try:
             # While waiting for the player, keep processing control messages
             # (play/pause/speed) so the UI stays responsive.
@@ -329,6 +341,122 @@ class SimRunner:
                     return self._pending_player_future.result()
         finally:
             self._pending_player_future = None
+            self._pending_player_agent_id = None
+
+    def _validate_player_action(
+        self,
+        agent,
+        player_input: dict,
+        legal: dict,
+    ) -> tuple[bool, str]:
+        """Validate a player_action payload against a legal_actions snapshot.
+
+        Frontend highlighting is UX only; server remains authoritative.
+        """
+        if not isinstance(player_input, dict):
+            return False, "player_action payload is not an object"
+
+        got_aid = player_input.get("agent_id")
+        if got_aid is not None and got_aid != agent.agent_id:
+            return False, f"agent_id mismatch (got={got_aid}, expected={agent.agent_id})"
+
+        action_type = player_input.get("action_type", "wait")
+        if not isinstance(action_type, str):
+            return False, "action_type not a string"
+        action_type = action_type.lower()
+
+        if action_type not in ("move", "attack", "ability", "defend", "chat", "wait"):
+            return False, f"unknown action_type: {action_type}"
+
+        legal = legal or {}
+        valid_moves = set(legal.get("valid_moves", []) or [])
+        attack_targets = {
+            t.get("agent_id")
+            for t in (legal.get("attack_targets", []) or [])
+            if isinstance(t, dict)
+        }
+        chat_targets = {
+            t.get("agent_id")
+            for t in (legal.get("chat_targets", []) or [])
+            if isinstance(t, dict)
+        }
+
+        if action_type == "move":
+            tile = player_input.get("target_tile", "")
+            if not isinstance(tile, str) or not tile:
+                return False, "move missing target_tile"
+            if tile not in valid_moves:
+                return False, f"illegal move tile: {tile}"
+            return True, ""
+
+        if action_type == "attack":
+            target = player_input.get("target_agent", "")
+            if not isinstance(target, str) or not target:
+                return False, "attack missing target_agent"
+            if target not in attack_targets:
+                return False, f"illegal attack target: {target}"
+            return True, ""
+
+        if action_type == "defend":
+            if not legal.get("can_defend", False):
+                return False, "defend not legal right now"
+            return True, ""
+
+        if action_type == "wait":
+            if not legal.get("can_wait", False):
+                return False, "wait not legal right now"
+            return True, ""
+
+        if action_type == "chat":
+            target = player_input.get("target_agent", "")
+            if not isinstance(target, str) or not target:
+                return False, "chat missing target_agent"
+            if target not in chat_targets:
+                return False, f"illegal chat target: {target}"
+            msg = player_input.get("message", "")
+            if not isinstance(msg, str):
+                return False, "chat message not a string"
+            if len(msg) > 500:
+                return False, "chat message too long (>500 chars)"
+            return True, ""
+
+        # ability
+        ability_name = player_input.get("ability_name", "")
+        if not isinstance(ability_name, str) or not ability_name.strip():
+            return False, "ability missing ability_name"
+        low = ability_name.strip().lower()
+
+        chosen = None
+        for ab in (legal.get("abilities", []) or []):
+            if not isinstance(ab, dict):
+                continue
+            if str(ab.get("name", "")).strip().lower() == low:
+                chosen = ab
+                break
+        if not chosen:
+            return False, f"unknown ability: {ability_name}"
+        if not chosen.get("can_use", False):
+            return False, f"ability not usable (cd/mana): {ability_name}"
+
+        target = player_input.get("target_agent")
+        is_self = bool(chosen.get("is_self_targeting", False))
+        target_ids = {
+            t.get("agent_id")
+            for t in (chosen.get("targets", []) or [])
+            if isinstance(t, dict)
+        }
+
+        if target is None:
+            if is_self:
+                return True, ""
+            return False, "ability missing target_agent"
+
+        if not isinstance(target, str) or not target:
+            return False, "ability target_agent not a string"
+        if target not in target_ids:
+            return False, f"illegal ability target: {target}"
+
+        return True, ""
 
     def _build_player_decision(self, agent, player_input: dict) -> CombatDecision:
         """Convert a player_action message dict into a CombatDecision."""
@@ -939,6 +1067,17 @@ class SimRunner:
                     player_input = await self._wait_for_player_action(
                         current.agent_id, broadcast_legal=True, legal=legal
                     )
+
+                    ok, err = self._validate_player_action(current, player_input, legal)
+                    if not ok:
+                        log.warning(
+                            "Invalid player_action for %s: %s (payload=%s)",
+                            current.name,
+                            err,
+                            player_input,
+                        )
+                        continue
+
                     decision = self._build_player_decision(current, player_input)
                     action = decision.primary_action
 

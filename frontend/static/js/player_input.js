@@ -88,6 +88,9 @@
 
     if (!awaiting) {
       setHidden(overlay, true);
+      // Collapse ability list when turn ends
+      const al = qs('ability-list');
+      if (al) al.classList.add('hidden');
       return;
     }
 
@@ -100,17 +103,22 @@
     const legal = awaiting.legalActions || {};
     const canMove = legal.valid_moves && legal.valid_moves.length > 0;
     const canAttack = legal.attack_targets && legal.attack_targets.length > 0;
+    const canAbility = (legal.abilities || []).some(a => a.can_use);
 
     const btnMove = qs('btn-act-move');
     const btnAttack = qs('btn-act-attack');
+    const btnAbilities = qs('btn-act-abilities');
 
     if (btnMove) btnMove.disabled = !canMove;
     if (btnAttack) btnAttack.disabled = !canAttack;
+    if (btnAbilities) btnAbilities.disabled = !canAbility;
 
     if (state.playerMode === 'move') {
-      setHint('Move: click a highlighted tile.');
+      setHint('Move: click a highlighted tile. [Esc] to cancel.');
     } else if (state.playerMode === 'attack') {
-      setHint('Attack: click a highlighted enemy.');
+      setHint('Attack: click a highlighted enemy. [Esc] to cancel.');
+    } else if (state.playerMode === 'ability') {
+      setHint(`${state.selectedAbilityName || 'Ability'}: click a highlighted target. [Esc] to cancel.`);
     } else {
       setHint('Choose an action.');
     }
@@ -137,17 +145,104 @@
   function sendPlayerAction(payload) {
     const g = ensureGlobals();
     if (!g) return;
-    g.send({ type: 'player_action', ...payload });
+
+    const awaiting = g.state.awaitingPlayer;
+    const agentId = awaiting ? awaiting.agentId : null;
+
+    g.send({ type: 'player_action', agent_id: agentId || undefined, ...payload });
     setHint('Submitted. Waiting for resolution...');
+  }
+
+  function renderAbilityList() {
+    const g = ensureGlobals();
+    if (!g) return;
+    const { state } = g;
+
+    const container = qs('ability-list');
+    if (!container) return;
+
+    const awaiting = state.awaitingPlayer;
+    if (!awaiting) { container.classList.add('hidden'); return; }
+
+    const legal = awaiting.legalActions || {};
+    const abilities = legal.abilities || [];
+
+    container.innerHTML = '';
+
+    if (abilities.length === 0) {
+      container.innerHTML = '<div style="font-size:11px;color:var(--text-dim);padding:4px 0">No abilities available.</div>';
+      return;
+    }
+
+    for (const ab of abilities) {
+      const card = document.createElement('div');
+      const isSelected = state.selectedAbilityName === ab.name;
+      card.className = 'action-ability-card'
+        + (ab.can_use ? '' : ' action-ability-card-disabled')
+        + (isSelected ? ' action-ability-card-selected' : '');
+
+      const cdHtml = ab.cooldown_remaining > 0
+        ? ` <span class="action-ab-cd">CD:${ab.cooldown_remaining}</span>` : '';
+      const selfTag = ab.is_self_targeting
+        ? ' <span style="font-size:10px;color:var(--accent-gold)">[self]</span>' : '';
+
+      card.innerHTML =
+        `<div class="action-ab-header">` +
+          `<span class="action-ab-name">${esc(ab.name)}${selfTag}</span>` +
+          `<span class="action-ab-cost">${ab.mana_cost}MP</span>` +
+          cdHtml +
+        `</div>` +
+        `<div class="action-ab-meta">DMG:${ab.damage} | Rng:${ab.range} | ${esc(ab.aoe_pattern)}</div>` +
+        (ab.description ? `<div class="action-ab-desc">${esc(ab.description)}</div>` : '');
+
+      if (ab.can_use) {
+        card.addEventListener('click', () => {
+          if (ab.is_self_targeting) {
+            // Self-targeting: no target selection needed — send immediately
+            sendPlayerAction({ action_type: 'ability', ability_name: ab.name });
+            container.classList.add('hidden');
+          } else if (ab.targets && ab.targets.length === 0) {
+            // No reachable targets right now — do nothing
+            setHint(`${ab.name}: no targets in range.`);
+          } else {
+            // Enter ability-target mode
+            const gInner = ensureGlobals();
+            if (gInner) {
+              gInner.state.selectedAbilityName = ab.name;
+              setMode('ability');
+            }
+            container.classList.add('hidden');
+          }
+        });
+      }
+
+      container.appendChild(card);
+    }
   }
 
   function wireButtons() {
     const btnMove = qs('btn-act-move');
     const btnAttack = qs('btn-act-attack');
+    const btnAbilities = qs('btn-act-abilities');
     const btnWait = qs('btn-act-wait');
 
     if (btnMove) btnMove.addEventListener('click', () => setMode('move'));
     if (btnAttack) btnAttack.addEventListener('click', () => setMode('attack'));
+
+    if (btnAbilities) btnAbilities.addEventListener('click', () => {
+      const container = qs('ability-list');
+      if (!container) return;
+      if (container.classList.contains('hidden')) {
+        renderAbilityList();
+        container.classList.remove('hidden');
+        // Show list without changing action mode
+        const g = ensureGlobals();
+        if (g && g.state.playerMode !== 'idle') setMode('idle');
+      } else {
+        container.classList.add('hidden');
+      }
+    });
+
     if (btnWait) btnWait.addEventListener('click', () => {
       const g = ensureGlobals();
       if (!g) return;
@@ -190,12 +285,40 @@
         sendPlayerAction({ action_type: 'attack', target_agent: pick.agentId });
         return;
       }
+
+      if (state.playerMode === 'ability' && state.selectedAbilityName && pick.kind === 'unit') {
+        const abilityName = state.selectedAbilityName;
+        const legalAbs = legal.abilities || [];
+        const ab = legalAbs.find(a => a.name === abilityName);
+        if (!ab || !ab.can_use) return;
+        const targetIds = new Set((ab.targets || []).map(t => t.agent_id));
+        if (!targetIds.has(pick.agentId)) return;
+        sendPlayerAction({ action_type: 'ability', ability_name: abilityName, target_agent: pick.agentId });
+        return;
+      }
+    });
+  }
+
+  function wireEscCancel() {
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      const g = ensureGlobals();
+      if (!g) return;
+      const { state } = g;
+      if (!state.awaitingPlayer) return;
+      if (state.playerMode !== 'idle') {
+        state.selectedAbilityName = null;
+        setMode('idle');
+        const al = qs('ability-list');
+        if (al) al.classList.add('hidden');
+      }
     });
   }
 
   function init() {
     wireButtons();
     wireCanvasClicks();
+    wireEscCancel();
 
     const g = ensureGlobals();
     if (!g) return;

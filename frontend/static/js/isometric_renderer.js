@@ -193,6 +193,14 @@
       const moveSet = new Set((legal && legal.valid_moves) || []);
       const attackSet = new Set(((legal && legal.attack_targets) || []).map(t => t.agent_id));
 
+      // Ability target set — resolved from the currently selected ability
+      const abilityTargetSet = new Set();
+      if (mode === 'ability' && this.state.selectedAbilityName) {
+        const legalAbs = (legal && legal.abilities) || [];
+        const selAb = legalAbs.find(ab => ab.name === this.state.selectedAbilityName);
+        if (selAb) for (const t of (selAb.targets || [])) abilityTargetSet.add(t.agent_id);
+      }
+
       this._hitTiles = [];
       this._hitUnits = [];
 
@@ -273,10 +281,21 @@
         // Attack highlight: red ring on valid targets
         if (mode === 'attack' && attackSet.has(u.id)) {
           ctx.save();
-          ctx.strokeStyle = 'rgba(233,69,96,0.85)'; // accent
+          ctx.strokeStyle = 'rgba(233,69,96,0.85)'; // accent-red
           ctx.lineWidth = 2;
           ctx.beginPath();
           ctx.ellipse(cx, cy - 10, 18, 8, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // Ability target highlight: purple ring
+        if (mode === 'ability' && abilityTargetSet.has(u.id)) {
+          ctx.save();
+          ctx.strokeStyle = 'rgba(162,155,254,0.90)'; // accent-purple
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.ellipse(cx, cy - 10, 20, 9, 0, 0, Math.PI * 2);
           ctx.stroke();
           ctx.restore();
         }
