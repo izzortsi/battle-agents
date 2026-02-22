@@ -300,14 +300,16 @@ class SimRunner:
     # Player-controlled agent support (Phase 1)
     # ----------------------------------------------------------------
 
-    async def _wait_for_player_action(self, agent_id: str) -> dict:
+    async def _wait_for_player_action(self, agent_id: str, broadcast_legal: bool = True, legal: dict | None = None) -> dict:
         """Broadcast legal actions and block until the player submits a choice."""
-        legal = self._env.get_legal_actions(agent_id)
-        await self._broadcast({
-            "type": "awaiting_player",
-            "agent_id": agent_id,
-            "legal_actions": legal,
-        })
+        if broadcast_legal:
+            if legal is None:
+                legal = self._env.get_legal_actions(agent_id)
+            await self._broadcast({
+                "type": "awaiting_player",
+                "agent_id": agent_id,
+                "legal_actions": legal,
+            })
 
         loop = asyncio.get_event_loop()
         self._pending_player_future = loop.create_future()
@@ -477,6 +479,16 @@ class SimRunner:
                     agent.identity.sprite = sprite_map[agent.agent_id]
                     log.info(
                         f"  Sprite override: {agent.name} -> {sprite_map[agent.agent_id]}"
+                    )
+
+        # Apply controller overrides from landing page
+        if self._configure_data and self._configure_data.get("controllers"):
+            ctrl_map = self._configure_data["controllers"]
+            for agent in agents:
+                if agent.agent_id in ctrl_map:
+                    agent.controller = ctrl_map[agent.agent_id]
+                    log.info(
+                        f"  Controller override: {agent.name} -> {agent.controller}"
                     )
 
         if use_tavern:
@@ -908,35 +920,69 @@ class SimRunner:
                 continue
 
             if current.is_player_controlled:
-                # Player-controlled agent — wait for frontend input
-                player_input = await self._wait_for_player_action(current.agent_id)
-                decision = self._build_player_decision(current, player_input)
+                # Player-controlled agent — loop until turn is complete (Wait or Move+Act)
+                has_moved = False
+                has_acted = False
 
-                action = decision.primary_action
-                result = self._env.resolve_action(action)
+                while not (has_moved and has_acted):
+                    legal = self._env.get_legal_actions(current.agent_id)
+                    
+                    if has_moved:
+                        legal["valid_moves"] = []
+                    if has_acted:
+                        legal["attack_targets"] = []
+                        legal["abilities"] = []
 
-                event = serialize_action_event(action, result, self._env)
-                await self._broadcast(event)
-
-                if result.success and (
-                    action.action_type == ActionType.ATTACK
-                    or (
-                        action.action_type == ActionType.ABILITY
-                        and result.details.get("damage", 0) > 0
+                    player_input = await self._wait_for_player_action(
+                        current.agent_id, broadcast_legal=True, legal=legal
                     )
-                ):
-                    damage_this_round = True
+                    decision = self._build_player_decision(current, player_input)
+                    action = decision.primary_action
 
-                # Check for kills
-                if result.details.get("killed"):
-                    target_id = action.target_agent
-                    await self._broadcast(
-                        {
-                            "type": "death",
-                            "agent_id": target_id,
-                            "killer_id": current.agent_id,
-                        }
-                    )
+                    if action.action_type == ActionType.WAIT:
+                        # Player explicitly ends turn
+                        result = self._env.resolve_action(action)
+                        event = serialize_action_event(action, result, self._env)
+                        await self._broadcast(event)
+                        break
+
+                    result = self._env.resolve_action(action)
+                    event = serialize_action_event(action, result, self._env)
+                    await self._broadcast(event)
+
+                    if result.success:
+                        if action.action_type == ActionType.MOVE:
+                            has_moved = True
+                        elif action.action_type in (ActionType.ATTACK, ActionType.ABILITY):
+                            has_acted = True
+                            if result.details.get("damage", 0) > 0:
+                                damage_this_round = True
+                        elif action.action_type == ActionType.DEFEND:
+                            has_acted = True
+
+                    # Check for kills
+                    if result.details.get("killed"):
+                        target_id = action.target_agent
+                        await self._broadcast(
+                            {
+                                "type": "death",
+                                "agent_id": target_id,
+                                "killer_id": current.agent_id,
+                            }
+                        )
+                        # Death commentary
+                        if self._commentator and target_id:
+                            victim = self._env.agents.get(target_id)
+                            victim_name = victim.name if victim else target_id
+                            text = await asyncio.to_thread(
+                                self._commentator.comment_on_death,
+                                victim_name,
+                                current.name,
+                            )
+                            await self._commentary(text)
+
+                    if self._env.is_combat_over() or not current.is_alive:
+                        break
 
             elif self._cognitive_loop:
                 # LLM mode: cognitive turn

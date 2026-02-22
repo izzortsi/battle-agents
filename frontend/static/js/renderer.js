@@ -5,10 +5,21 @@
 class Renderer {
   constructor(state) {
     this.state = state;
-    this._sprites = {};   // agent_id -> <g> element
+    this._sprites = {};   // agent_id -> <g> element (SVG mode only)
     this._gridCreated = false;
 
-    this.svg = document.getElementById('battle-grid');
+    const gridEl = document.getElementById('battle-grid');
+    this._gridEl = gridEl;
+
+    // Canvas/isometric mode
+    this._iso = null;
+    if (gridEl && gridEl.tagName === 'CANVAS' && window.IsometricRenderer) {
+      this._iso = new window.IsometricRenderer(gridEl, state);
+      window._iso = this._iso;
+    }
+
+    // SVG mode (legacy)
+    this.svg = gridEl && gridEl.tagName === 'svg' ? gridEl : null;
     this.layerTiles = document.getElementById('layer-tiles');
     this.layerHighlights = document.getElementById('layer-highlights');
     this.layerSocialLines = document.getElementById('layer-social-lines');
@@ -28,14 +39,24 @@ class Renderer {
         this._updateHeader();
         break;
       case 'turn_start':
-        this._updateActiveTurn();
+        if (this._iso) {
+          this._iso.setState(this.state);
+          this._iso.renderFull();
+        } else {
+          this._updateActiveTurn();
+        }
         this._updateHeader();
         renderCards(this.state);
         break;
       case 'action':
-        this._clearThinkingEmoji(detail && detail.agent_id);
-        this._updateAgents();
-        this._playActionAnimation(detail);
+        if (this._iso) {
+          this._iso.setState(this.state);
+          this._iso.renderFull();
+        } else {
+          this._clearThinkingEmoji(detail && detail.agent_id);
+          this._updateAgents();
+          this._playActionAnimation(detail);
+        }
         renderLog(this.state);
         renderCards(this.state);
         refreshPopupIfOpen(this.state);
@@ -59,8 +80,13 @@ class Renderer {
         refreshPopupIfOpen(this.state);
         break;
       case 'death':
-        this._playDeathAnimation(detail);
-        this._updateAgents();
+        if (this._iso) {
+          this._iso.setState(this.state);
+          this._iso.renderFull();
+        } else {
+          this._playDeathAnimation(detail);
+          this._updateAgents();
+        }
         renderCards(this.state);
         renderLog(this.state);
         break;
@@ -81,6 +107,14 @@ class Renderer {
       case 'social_update':
         refreshPopupIfOpen(this.state);
         break;
+      case 'awaiting_player':
+        if (this._iso) {
+          this._iso.setState(this.state);
+          this._iso.renderFull();
+        }
+        renderCards(this.state);
+        refreshPopupIfOpen(this.state);
+        break;
       case 'select':
         renderCards(this.state);
         refreshPopupIfOpen(this.state);
@@ -89,11 +123,17 @@ class Renderer {
   }
 
   _renderFull() {
-    this._createGrid();
-    this._createSprites();
+    if (this._iso) {
+      this._iso.setState(this.state);
+      this._iso.renderFull();
+    } else {
+      this._createGrid();
+      this._createSprites();
+      this._updateActiveTurn();
+    }
+
     this._updateHeader();
     renderLore(this.state);
-    this._updateActiveTurn();
     renderCards(this.state);
     refreshPopupIfOpen(this.state);
     renderLog(this.state);

@@ -50,6 +50,8 @@
       ws.send(JSON.stringify(msg));
     }
   }
+  // Expose for player_input.js (Phase 2B)
+  window._sendWS = send;
 
   function routeMessage(msg) {
     switch (msg.type) {
@@ -105,6 +107,9 @@
         break;
       case 'commentary':
         state.applyCommentary(msg);
+        break;
+      case 'awaiting_player':
+        state.applyAwaitingPlayer(msg);
         break;
       default:
         console.warn('Unknown message type:', msg.type);

@@ -12,6 +12,7 @@ class LandingPage {
     this._modelOverrides = this._loadModelOverrides(); // user-selected overrides (persisted)
     this._spritePresets = [];  // available sprite presets from /api/sprites
     this._spriteAssignments = this._loadSpriteAssignments(); // char_id -> preset_id
+    this._controllerAssignments = {}; // char_id -> 'ai' or 'player'
 
     // Campaign state
     this._campaigns = [];
@@ -149,8 +150,17 @@ class LandingPage {
       const alignLabel = (c.moral_alignment || 'true_neutral').replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
       const alignCss = this._alignmentCssClass(c.moral_alignment || 'true_neutral');
 
+      const ctrl = this._controllerAssignments[c.id] || 'ai';
+      const ctrlHtml = `
+        <select class="char-controller-select">
+          <option value="ai" ${ctrl === 'ai' ? 'selected' : ''}>AI</option>
+          <option value="player" ${ctrl === 'player' ? 'selected' : ''}>Player</option>
+        </select>
+      `;
+
       div.innerHTML = `
         <input type="checkbox" ${this._selectedIds.has(c.id) ? 'checked' : ''}>
+        ${ctrlHtml}
         ${previewHtml}
         <div class="char-roster-info">
           <div class="char-roster-name">${this._esc(c.name)}</div>
@@ -222,6 +232,14 @@ class LandingPage {
 
           div.appendChild(spriteSelect);
         }
+      }
+
+      const ctrlSelect = div.querySelector('.char-controller-select');
+      if (ctrlSelect) {
+        ctrlSelect.addEventListener('click', (e) => e.stopPropagation());
+        ctrlSelect.addEventListener('change', (e) => {
+          this._controllerAssignments[c.id] = e.target.value;
+        });
       }
 
       const checkbox = div.querySelector('input[type="checkbox"]');
@@ -455,7 +473,16 @@ class LandingPage {
       const campMorality = (r.morality != null ? r.morality : 0).toFixed(2);
       const campOrder = (r.order_value != null ? r.order_value : 0).toFixed(2);
 
+      const ctrl = this._controllerAssignments[r.agent_id] || 'ai';
+      const ctrlHtml = `
+        <select class="char-controller-select">
+          <option value="ai" ${ctrl === 'ai' ? 'selected' : ''}>AI</option>
+          <option value="player" ${ctrl === 'player' ? 'selected' : ''}>Player</option>
+        </select>
+      `;
+
       entry.innerHTML = `
+        ${ctrlHtml}
         ${spriteHtml}
         <div class="campaign-roster-info">
           <div class="campaign-roster-name">
@@ -477,6 +504,14 @@ class LandingPage {
           </div>
         </div>
       `;
+
+      const ctrlSelect = entry.querySelector('.char-controller-select');
+      if (ctrlSelect) {
+        ctrlSelect.addEventListener('click', (e) => e.stopPropagation());
+        ctrlSelect.addEventListener('change', (e) => {
+          this._controllerAssignments[r.agent_id] = e.target.value;
+        });
+      }
 
       container.appendChild(entry);
     }
@@ -585,6 +620,7 @@ class LandingPage {
         campaign_id: this._activeCampaignId,
         lore_prompt: lorePrompt,
         models: Object.keys(this._modelOverrides).length > 0 ? this._modelOverrides : null,
+        controllers: Object.keys(this._controllerAssignments).length > 0 ? this._controllerAssignments : null,
       };
 
       this._onBeginBattle(config);
@@ -619,6 +655,7 @@ class LandingPage {
       lore_prompt: lorePrompt,
       models: Object.keys(this._modelOverrides).length > 0 ? this._modelOverrides : null,
       sprites: Object.keys(sprites).length > 0 ? sprites : null,
+      controllers: Object.keys(this._controllerAssignments).length > 0 ? this._controllerAssignments : null,
     };
 
     this._onBeginBattle(config);

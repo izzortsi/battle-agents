@@ -47,16 +47,20 @@
       <div id="commentary-text"></div>
     </div>
 
-    <!-- Center: SVG grid -->
+    <!-- Center: Isometric canvas (replaces SVG grid) -->
     <section id="panel-grid" class="panel">
-      <svg id="battle-grid" xmlns="http://www.w3.org/2000/svg">
-        <defs id="svg-defs"></defs>
-        <g id="layer-tiles"></g>
-        <g id="layer-highlights"></g>
-        <g id="layer-social-lines"></g>
-        <g id="layer-agents"></g>
-        <g id="layer-effects"></g>
-      </svg>
+      <canvas id="battle-grid"></canvas>
+
+      <!-- Player action overlay (shown only when backend requests input) -->
+      <div id="player-action-overlay" class="hidden">
+        <div id="player-action-title" class="player-action-title">Your Turn</div>
+        <div class="player-action-buttons">
+          <button id="btn-act-move" class="btn-mini">Move</button>
+          <button id="btn-act-attack" class="btn-mini">Attack</button>
+          <button id="btn-act-wait" class="btn-mini">Wait</button>
+        </div>
+        <div id="player-action-hint" class="player-action-hint"></div>
+      </div>
     </section>
 
     <!-- Right panel: Battle log -->
@@ -125,9 +129,11 @@
   <script src="/static/js/state.js?v=28"></script>
   <script src="/static/js/sprites.js?v=28"></script>
   <script src="/static/js/panels.js?v=28"></script>
+  <script src="/static/js/isometric_renderer.js?v=1"></script>
   <script src="/static/js/renderer.js?v=28"></script>
   <script src="/static/js/resizer.js?v=28"></script>
   <script src="/static/js/landing.js?v=28"></script>
   <script src="/static/js/main.js?v=28"></script>
+  <script src="/static/js/player_input.js?v=1"></script>
 </body>
 </html>

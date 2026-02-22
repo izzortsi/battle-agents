@@ -18,6 +18,11 @@ class GameState {
     this.selectedAgent = null;
     this.lore = null;        // { world_description, key_facts, character_connections }
     this.commentaryLog = []; // [ string ]
+
+    // Player input (set when backend emits awaiting_player)
+    this.awaitingPlayer = null; // { agentId, legalActions } | null
+    this.playerMode = 'idle';   // idle | move | attack
+
     this._listeners = [];
   }
 
@@ -151,6 +156,13 @@ class GameState {
       this.eventLog = this.eventLog.slice(-200);
     }
 
+    // If we were awaiting player input for this same agent, clear it once
+    // the authoritative action arrives.
+    if (this.awaitingPlayer && event.agent_id === this.awaitingPlayer.agentId) {
+      this.awaitingPlayer = null;
+      this.playerMode = 'idle';
+    }
+
     this.notify('action', event);
   }
 
@@ -276,6 +288,15 @@ class GameState {
       details: {},
     });
     this.notify('commentary', data);
+  }
+
+  applyAwaitingPlayer(data) {
+    this.awaitingPlayer = {
+      agentId: data.agent_id,
+      legalActions: data.legal_actions || {},
+    };
+    this.playerMode = 'idle';
+    this.notify('awaiting_player', data);
   }
 
   selectAgent(agentId) {

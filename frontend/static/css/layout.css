@@ -255,6 +255,62 @@ html, body {
   height: 100%;
 }
 
+/* ===== Player action overlay (Phase 2B) ===== */
+
+#player-action-overlay {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  background: rgba(15, 52, 96, 0.75);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  min-width: 220px;
+  backdrop-filter: blur(2px);
+  z-index: 20;
+}
+
+.player-action-title {
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--accent-gold);
+  margin-bottom: 6px;
+}
+
+.player-action-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.btn-mini {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-panel);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s;
+}
+
+.btn-mini:hover:not(:disabled) {
+  background: var(--accent);
+}
+
+.btn-mini:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.player-action-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
 /* Right panel: Battle log */
 #panel-log {
   grid-row: 1 / 3;
