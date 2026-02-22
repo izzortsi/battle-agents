@@ -32,6 +32,8 @@ def serialize_agent(agent: Agent, env: Environment) -> dict:
         "party_id": agent.party_id,
         "controller": agent.controller,
         "is_player_controlled": agent.is_player_controlled,
+        "tension": agent.tension,
+        "compliance_threshold": agent.compliance_threshold,
         "hp": a.hp,
         "max_hp": a.max_hp,
         "mana": a.mana,

@@ -22,14 +22,14 @@ The lore should feel like it could influence combat decisions — characters \
 should have personal stakes in the outcome.
 
 Respond with a JSON object:
-{{
+{
   "world_description": "<2-3 sentences describing the setting>",
   "key_facts": ["<fact 1>", "<fact 2>", ...],
   "character_connections": [
-    {{"characters": ["<name1>", "<name2>"], "connection": "<description>"}},
+    {"characters": ["<name1>", "<name2>"], "connection": "<description>"},
     ...
   ]
-}}
+}
 """
 
 USER_TEMPLATE = """\

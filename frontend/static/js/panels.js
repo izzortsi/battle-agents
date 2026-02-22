@@ -684,7 +684,12 @@ function renderLore(state) {
     let connectionsHtml = '';
     if (lore.character_connections && lore.character_connections.length > 0) {
       connectionsHtml = '<div class="cs-label" style="margin-top:12px">Character Connections</div><ul style="margin:4px 0 0 16px;padding:0">' +
-        lore.character_connections.map(c => `<li>${escHtml(c)}</li>`).join('') + '</ul>';
+        lore.character_connections.map(c => {
+          if (typeof c === 'string') return `<li>${escHtml(c)}</li>`;
+          const names = (c.characters || []).join(', ');
+          const desc = c.connection || '';
+          return `<li><strong>${escHtml(names)}</strong>: ${escHtml(desc)}</li>`;
+        }).join('') + '</ul>';
     }
 
     container.innerHTML = `

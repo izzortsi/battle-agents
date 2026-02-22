@@ -23,6 +23,7 @@ class Agent:
     level: int = 1  # campaign level (1 for standalone battles)
     party_id: Optional[str] = None  # which party/faction (None = unaffiliated/enemy)
     controller: str = "ai"  # "player" or "ai" — who decides combat actions
+    tension: int = 0  # accumulated tension from grievous player orders (Phase 3)
     social: SocialModel = field(init=False)
     alignment: MoralAlignment = field(init=False)
 
@@ -42,6 +43,17 @@ class Agent:
     def is_player_controlled(self) -> bool:
         """Whether this agent's combat actions come from the player."""
         return self.controller == "player"
+
+    @property
+    def compliance_threshold(self) -> int:
+        """Tension threshold before compliance check fires.
+
+        Derived from alignment order-axis:
+          Lawful  (order ≈ +0.66) → ~70 (obedient, tolerates more)
+          Neutral (order ≈  0.0)  → ~50
+          Chaotic (order ≈ -0.66) → ~30 (independent, breaks easily)
+        """
+        return max(20, min(80, int(50 + 30 * self.alignment.order)))
 
     def status_summary(self) -> str:
         a = self.attributes
