@@ -40,6 +40,10 @@ class Renderer {
         break;
       case 'turn_start':
         if (this._iso) {
+          this._iso.clearAllEmojis();
+          if (this.state.activeAgent) {
+            this._iso.setEmoji(this.state.activeAgent, '\uD83E\uDD14');
+          }
           this._iso.setState(this.state);
           this._iso.renderFull();
         } else {
@@ -50,6 +54,10 @@ class Renderer {
         break;
       case 'action':
         if (this._iso) {
+          if (detail && detail.agent_id) {
+            this._iso.clearEmoji(detail.agent_id);
+          }
+          this._isoActionEffects(detail);
           this._iso.setState(this.state);
           this._iso.renderFull();
         } else {
@@ -64,15 +72,27 @@ class Renderer {
       case 'dialogue':
         // Show talking emoji on the speaker
         if (detail) {
-          this._showTalkingEmoji(detail.speaker);
-          this._showTalkingEmoji(detail.target);
+          if (this._iso) {
+            this._iso.setEmoji(detail.speaker, '\uD83D\uDDE3\uFE0F');
+            this._iso.setEmoji(detail.target, '\uD83D\uDDE3\uFE0F');
+            this._iso.renderFull();
+          } else {
+            this._showTalkingEmoji(detail.speaker);
+            this._showTalkingEmoji(detail.target);
+          }
         }
         break;
       case 'dialogue_session':
         // Clear talking emojis from both participants
         if (detail) {
-          this._clearThinkingEmoji(detail.initiator);
-          this._clearThinkingEmoji(detail.responder);
+          if (this._iso) {
+            this._iso.clearEmoji(detail.initiator);
+            this._iso.clearEmoji(detail.responder);
+            this._iso.renderFull();
+          } else {
+            this._clearThinkingEmoji(detail.initiator);
+            this._clearThinkingEmoji(detail.responder);
+          }
         }
         renderDialogue(this.state);
         break;
@@ -334,6 +354,34 @@ class Renderer {
     const g = this._sprites[data.agent_id];
     if (g) {
       g.classList.add('anim-death');
+    }
+  }
+
+  _isoActionEffects(event) {
+    if (!this._iso || !event) return;
+    const details = event.details || {};
+    const targetId = event.target_agent || details.target;
+
+    if (event.action_type === 'attack' || event.action_type === 'ability') {
+      if (details.hit === false) {
+        if (targetId) this._iso.spawnFloatingText(targetId, 'MISS', '#999');
+      } else if (details.damage > 0) {
+        const isCrit = details.crit;
+        const text = isCrit ? `${details.damage}!` : String(details.damage);
+        const color = isCrit ? '#ff4444' : '#e94560';
+        if (targetId) this._iso.spawnFloatingText(targetId, text, color);
+      }
+
+      if (details.counter && details.counter_damage > 0) {
+        this._iso.spawnFloatingText(event.agent_id, String(details.counter_damage), '#ff8a50');
+      }
+    }
+
+    if (event.action_type === 'ability' && event.description) {
+      const healMatch = event.description.match(/heals for (\d+) HP/);
+      if (healMatch) {
+        this._iso.spawnFloatingText(event.agent_id, '+' + healMatch[1], '#69f0ae');
+      }
     }
   }
 }

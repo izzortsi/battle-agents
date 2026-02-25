@@ -15,6 +15,7 @@ Falls back to WAIT if the LLM produces an unparseable or invalid action.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -286,17 +287,56 @@ def _compute_can_ability(
     return result, result_after_move
 
 
+_AGENT_REF_PAREN_RE = re.compile(r"\(([^()]+)\)")
+
+
+def _extract_agent_ref(raw: object) -> str:
+    """Normalize common LLM target formats to an agent identifier-ish token.
+
+    Examples accepted:
+      - "lyra" -> "lyra"
+      - "Lyra" -> "Lyra"   (name resolution happens later)
+      - "Lyra (lyra)" -> "lyra"
+      - "[ALLY] Lyra (lyra)" -> "lyra"
+    """
+    if raw is None:
+        return ""
+    s = str(raw).strip()
+    if not s:
+        return ""
+
+    # Prefer the *last* (...) group (models often echo "Name (id)").
+    last = None
+    for m in _AGENT_REF_PAREN_RE.finditer(s):
+        last = m
+    if last:
+        inner = last.group(1).strip()
+        # If inner looks like "agent_id: lyra", take the tail.
+        if ":" in inner:
+            tail = inner.split(":")[-1].strip()
+            if tail:
+                return tail
+        if inner:
+            return inner
+
+    # Also accept "Name [id]" style.
+    if "]" in s and "[" in s and s.rfind("[") < s.rfind("]"):
+        inner = s[s.rfind("[") + 1 : s.rfind("]")].strip()
+        if inner:
+            return inner
+
+    return s
+
+
 def _resolve_chat_target(target: str, agent: Agent, env: Environment) -> str | None:
     """Resolve a chat target string to an agent_id, or None if invalid."""
-    if target and target in env.agents and env.agents[target].is_alive:
-        return target
+    t = _extract_agent_ref(target)
+    if t and t in env.agents and env.agents[t].is_alive:
+        return t
     for other in env.alive_agents():
         if other.agent_id == agent.agent_id:
             continue
-        if target and (
-            target.lower() == other.identity.name.lower()
-            or target.lower() == other.agent_id.lower()
-        ):
+        if t and (t.lower() == other.identity.name.lower() or t.lower() == other.agent_id.lower()):
             return other.agent_id
     return None
 
@@ -356,11 +396,11 @@ def _parse_action(
     primary: CombatAction
 
     if action_str == "attack":
-        target = raw.get("target_agent", "")
+        target = _extract_agent_ref(raw.get("target_agent", ""))
         if target and target in env.agents and env.agents[target].is_alive:
             primary = make_attack(agent.agent_id, target, reasoning)
         else:
-            # Try to match by name
+            # Try to match by name (or id string) after normalization
             resolved = None
             for other in env.alive_agents():
                 if other.agent_id == agent.agent_id:
@@ -417,7 +457,7 @@ def _parse_action(
                     )
                 elif is_ally_target:
                     # Ally-targeting: self is a valid target
-                    target_str = raw.get("target_agent", "")
+                    target_str = _extract_agent_ref(raw.get("target_agent", ""))
                     resolved = None
                     if not target_str or target_str == "self":
                         # No target or explicit "self" → target self
@@ -445,7 +485,7 @@ def _parse_action(
                             agent.agent_id, f"invalid ally-ability target: {target_str}"
                         )
                 else:
-                    target_str = raw.get("target_agent", "")
+                    target_str = _extract_agent_ref(raw.get("target_agent", ""))
                     resolved = None
                     if (
                         target_str

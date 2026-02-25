@@ -80,6 +80,9 @@
       this._lastSizeKey = '';
       this._hitTiles = [];
       this._hitUnits = [];
+      this._emojis = {};         // agentId -> emoji string
+      this._floatingTexts = [];  // [{agentId, text, color, born, duration}]
+      this._animating = false;
 
       // Auto-redraw when the canvas is resized by the layout/resizer handles.
       this._resizeQueued = false;
@@ -124,6 +127,35 @@
     rotateCW() {
       this._rotation = (this._rotation + 1) % 4;
       this.renderFull();
+    }
+
+    setEmoji(agentId, emoji) { this._emojis[agentId] = emoji; }
+    clearEmoji(agentId) { delete this._emojis[agentId]; }
+    clearAllEmojis() { this._emojis = {}; }
+
+    spawnFloatingText(agentId, text, color, duration) {
+      this._floatingTexts.push({
+        agentId, text, color: color || '#fff',
+        born: performance.now(),
+        duration: duration || 1200,
+      });
+      this._startFloatAnimation();
+    }
+
+    _startFloatAnimation() {
+      if (this._animating) return;
+      this._animating = true;
+      const tick = () => {
+        const now = performance.now();
+        this._floatingTexts = this._floatingTexts.filter(ft => (now - ft.born) < ft.duration);
+        this.renderFull();
+        if (this._floatingTexts.length > 0) {
+          requestAnimationFrame(tick);
+        } else {
+          this._animating = false;
+        }
+      };
+      requestAnimationFrame(tick);
     }
 
     _rotateCoord(x, y, gw, gh) {
@@ -458,6 +490,80 @@
         ctx.fillStyle = 'rgba(224,224,224,0.85)';
         ctx.textAlign = 'center';
         ctx.fillText(u.name || u.id || '?', cx, cy + 22);
+
+        // HP bar
+        const barW = 28, barH = 3;
+        const barX = cx - barW / 2;
+        const hpY = cy + 25;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(barX, hpY, barW, barH);
+        const hpRatio = Math.max(0, Math.min(1, (u.hp || 0) / (u.max_hp || 1)));
+        ctx.fillStyle = hpRatio > 0.5 ? '#3cb371' : hpRatio > 0.25 ? '#daa520' : '#e94560';
+        ctx.fillRect(barX, hpY, Math.round(barW * hpRatio), barH);
+
+        // MP bar
+        if (u.max_mana > 0) {
+          const mpY = hpY + 4;
+          ctx.fillStyle = 'rgba(0,0,0,0.5)';
+          ctx.fillRect(barX, mpY, barW, barH);
+          const mpRatio = Math.max(0, Math.min(1, (u.mana || 0) / (u.max_mana || 1)));
+          ctx.fillStyle = '#4a9eff';
+          ctx.fillRect(barX, mpY, Math.round(barW * mpRatio), barH);
+        }
+
+        // Status effect dots
+        const effs = u.status_effects || [];
+        if (effs.length > 0) {
+          const dotY = hpY + (u.max_mana > 0 ? 9 : 5);
+          const dotSpacing = 6;
+          const dotStartX = cx - ((effs.length - 1) * dotSpacing) / 2;
+          for (let ei = 0; ei < Math.min(effs.length, 5); ei++) {
+            const etype = (effs[ei].type || '').toLowerCase();
+            let dotColor = '#aaa';
+            if (etype === 'defend') dotColor = '#4fc3f7';
+            else if (etype.includes('poison') || etype.includes('burn')) dotColor = '#e94560';
+            else if (etype.includes('stun') || etype.includes('freeze') || etype.includes('lag') || etype.includes('root') || etype === 'system_crash') dotColor = '#ffd740';
+            else if (etype.includes('blind')) dotColor = '#888';
+            else if (etype.includes('overclock') || etype.includes('recompile') || etype.includes('boost') || etype.includes('regen')) dotColor = '#69f0ae';
+            ctx.fillStyle = dotColor;
+            ctx.beginPath();
+            ctx.arc(dotStartX + ei * dotSpacing, dotY, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        // Emoji above sprite
+        const emojiStr = this._emojis && this._emojis[u.id];
+        if (emojiStr) {
+          ctx.font = '16px serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(emojiStr, cx, cy - 54);
+        }
+      }
+
+      // Floating damage/heal texts
+      const floatNow = performance.now();
+      for (const ft of this._floatingTexts) {
+        const ftAgent = (this.state.agents || {})[ft.agentId];
+        if (!ftAgent) continue;
+        const fz = (typeof ftAgent.z === 'number') ? ftAgent.z : heightAt(grid, ftAgent.x, ftAgent.y);
+        const { rx: frx, ry: fry } = this._rotateCoord(ftAgent.x, ftAgent.y, gw, gh);
+        const { sx: fsx, sy: fsy } = this.gridToScreen(frx, fry, fz, originX, originY);
+        const fcx = fsx + this.tileW / 2;
+        const fcy = fsy + this.tileH / 2 - 40;
+        const elapsed = floatNow - ft.born;
+        const progress = elapsed / ft.duration;
+        const alpha = Math.max(0, 1 - progress);
+        const yOff = progress * 30;
+        ctx.save();
+        ctx.font = 'bold 14px Consolas, monospace';
+        ctx.textAlign = 'center';
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillText(ft.text, fcx + 1, fcy - yOff + 1);
+        ctx.fillStyle = ft.color;
+        ctx.fillText(ft.text, fcx, fcy - yOff);
+        ctx.restore();
       }
     }
   }
