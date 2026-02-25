@@ -76,7 +76,7 @@ class CognitiveLoop:
         llm: LLMAdapter,
         retrieval_top_k: int = 7,
         retrieval_decay: float = 0.85,
-        chat_max_rounds: int = 2,
+        chat_max_rounds: int = 1,
         reflection_threshold: float = 50.0,
         pre_battle_chat_max_rounds: int = 4,
         chat_cooldown: int = 3,

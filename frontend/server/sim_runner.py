@@ -964,6 +964,8 @@ class SimRunner:
                     # Bonus actions (LLM mode only)
                     if self._cognitive_loop and not self._env.is_combat_over():
                         for a in list(self._env.alive_agents()):
+                            if a.is_player_controlled:
+                                continue
                             if a.attributes.spd >= 15:
                                 chance = 10 + (a.attributes.spd - 15) * 2
                                 if random.random() * 100 < chance:
@@ -1062,6 +1064,7 @@ class SimRunner:
                 # Player-controlled agent — loop until turn is complete (Wait or Move+Act)
                 has_moved = False
                 has_acted = False
+                has_chatted = False
 
                 while not (has_moved and has_acted):
                     legal = self._env.get_legal_actions(current.agent_id)
@@ -1071,6 +1074,9 @@ class SimRunner:
                     if has_acted:
                         legal["attack_targets"] = []
                         legal["abilities"] = []
+                        legal["can_defend"] = False
+                    if has_chatted:
+                        legal["chat_targets"] = []
 
                     player_input = await self._wait_for_player_action(
                         current.agent_id, broadcast_legal=True, legal=legal
@@ -1094,6 +1100,12 @@ class SimRunner:
                         result = self._env.resolve_action(action)
                         event = serialize_action_event(action, result, self._env)
                         await self._broadcast(event)
+                        if self._commentator:
+                            text = await asyncio.to_thread(
+                                self._commentator.comment_on_action,
+                                event.get("description", ""),
+                            )
+                            await self._commentary(text)
                         break
 
                     # -- Tension spike: grievous order (attacking someone liked) --
@@ -1197,6 +1209,16 @@ class SimRunner:
                     event = serialize_action_event(action, result, self._env)
                     await self._broadcast(event)
 
+                    # Commentary on action-slot actions (not free actions like move/chat)
+                    if self._commentator and action.action_type in (
+                        ActionType.ATTACK, ActionType.ABILITY, ActionType.DEFEND,
+                    ):
+                        text = await asyncio.to_thread(
+                            self._commentator.comment_on_action,
+                            event.get("description", ""),
+                        )
+                        await self._commentary(text)
+
                     if result.success:
                         if action.action_type == ActionType.MOVE:
                             has_moved = True
@@ -1206,6 +1228,10 @@ class SimRunner:
                                 damage_this_round = True
                         elif action.action_type == ActionType.DEFEND:
                             has_acted = True
+                        elif action.action_type == ActionType.CHAT:
+                            # Chat is free — do not consume the action slot,
+                            # but limit to one chat per turn.
+                            has_chatted = True
 
                     # -- Tension spike: taking damage (counter-attack) --
                     counter_dmg = result.details.get("counter_damage", 0)
@@ -1217,7 +1243,7 @@ class SimRunner:
                                 f"  {current.name}: tension +{spike} (took {counter_dmg} counter damage) → {current.tension}"
                             )
 
-                    # Check for kills
+                    # Check for kills (basic attack: singular bool)
                     if result.details.get("killed"):
                         target_id = action.target_agent
                         await self._broadcast(
@@ -1237,6 +1263,64 @@ class SimRunner:
                                 current.name,
                             )
                             await self._commentary(text)
+
+                    # Check for AoE ability kills (list of agent_ids)
+                    for victim_id in result.details.get("kill_ids", []):
+                        await self._broadcast(
+                            {
+                                "type": "death",
+                                "agent_id": victim_id,
+                                "killer_id": current.agent_id,
+                            }
+                        )
+                        if self._commentator:
+                            victim = self._env.agents.get(victim_id)
+                            victim_name = victim.name if victim else victim_id
+                            text = await asyncio.to_thread(
+                                self._commentator.comment_on_death,
+                                victim_name,
+                                current.name,
+                            )
+                            await self._commentary(text)
+
+                    # Handle chat (player-controlled)
+                    if (
+                        action.action_type == ActionType.CHAT
+                        and action.target_agent
+                        and self._cognitive_loop
+                        and self._cognitive_loop.can_chat_combat(current.agent_id, round_num)
+                    ):
+                        session = await asyncio.to_thread(
+                            self._cognitive_loop._handle_chat,
+                            current,
+                            action,
+                            self._env,
+                            round_num,
+                        )
+                        self._cognitive_loop.record_chat(current.agent_id, round_num)
+                        if session:
+                            for ex in session.exchanges:
+                                target_id = (
+                                    action.target_agent
+                                    if ex.speaker == current.agent_id
+                                    else current.agent_id
+                                )
+                                await self._broadcast(
+                                    {
+                                        "type": "dialogue",
+                                        "speaker": ex.speaker,
+                                        "speaker_name": ex.speaker_name,
+                                        "target": target_id,
+                                        "message": ex.message,
+                                        "disposition_shift": ex.disposition_shift,
+                                    }
+                                )
+                            resp_agent = self._env.agents.get(action.target_agent)
+                            await self._broadcast(
+                                self._serialize_dialogue_session(
+                                    session, current, resp_agent
+                                )
+                            )
 
                     if self._env.is_combat_over() or not current.is_alive:
                         break
@@ -1395,7 +1479,7 @@ class SimRunner:
                 ):
                     damage_this_round = True
 
-                # Check for kills
+                # Check for kills (basic attack: singular bool)
                 if result.details.get("killed"):
                     target_id = action.target_agent
                     await self._broadcast(
@@ -1409,6 +1493,25 @@ class SimRunner:
                     if self._commentator and target_id:
                         victim = self._env.agents.get(target_id)
                         victim_name = victim.name if victim else target_id
+                        text = await asyncio.to_thread(
+                            self._commentator.comment_on_death,
+                            victim_name,
+                            current.name,
+                        )
+                        await self._commentary(text)
+
+                # Check for AoE ability kills (list of agent_ids)
+                for victim_id in result.details.get("kill_ids", []):
+                    await self._broadcast(
+                        {
+                            "type": "death",
+                            "agent_id": victim_id,
+                            "killer_id": current.agent_id,
+                        }
+                    )
+                    if self._commentator:
+                        victim = self._env.agents.get(victim_id)
+                        victim_name = victim.name if victim else victim_id
                         text = await asyncio.to_thread(
                             self._commentator.comment_on_death,
                             victim_name,

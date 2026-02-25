@@ -179,8 +179,14 @@ class Environment:
                 e.get("target") == "self" for e in effects if isinstance(e, dict)
             )
 
+            # Ally-targeting support (damage-free abilities with ally effects)
+            has_ally_effects = any(
+                e.get("target") == "ally" for e in effects if isinstance(e, dict)
+            )
+            is_ally_targeting = has_ally_effects and ability.get("damage", 0) == 0
+
             targets = []
-            if is_self:
+            if is_self or is_ally_targeting:
                 targets.append({
                     "agent_id": agent_id,
                     "name": agent.name,

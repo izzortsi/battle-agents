@@ -107,19 +107,37 @@
     const btnMove = qs('btn-act-move');
     const btnAttack = qs('btn-act-attack');
     const btnAbilities = qs('btn-act-abilities');
+    const btnChat = qs('btn-act-chat');
+    const chatRow = qs('player-chat-row');
+    const chatInput = qs('player-chat-input');
+
+    const btnDefend = qs('btn-act-defend');
+
+    const canAttack = legal.attack_targets && legal.attack_targets.length > 0;
+    const canChat = legal.chat_targets && legal.chat_targets.length > 0;
 
     if (btnMove) btnMove.disabled = !canMove;
-    if (btnAttack) btnAttack.disabled = false;  // always allow; player may move first then attack
+    if (btnAttack) btnAttack.disabled = !canAttack;
     if (btnAbilities) btnAbilities.disabled = !canAbility;
+    if (btnChat) btnChat.disabled = !canChat;
+    if (btnDefend) btnDefend.disabled = !legal.can_defend;
 
     if (state.playerMode === 'move') {
       setHint('Move: click a highlighted tile. [Esc] to cancel.');
+      if (chatRow) chatRow.classList.add('hidden');
     } else if (state.playerMode === 'attack') {
       setHint('Attack: click a highlighted enemy. [Esc] to cancel.');
+      if (chatRow) chatRow.classList.add('hidden');
     } else if (state.playerMode === 'ability') {
       setHint(`${state.selectedAbilityName || 'Ability'}: click a highlighted target. [Esc] to cancel.`);
+      if (chatRow) chatRow.classList.add('hidden');
+    } else if (state.playerMode === 'chat') {
+      setHint('Chat: type a message, then click a highlighted target. [Esc] to cancel.');
+      if (chatRow) chatRow.classList.remove('hidden');
+      if (chatInput) chatInput.focus();
     } else {
       setHint('Choose an action.');
+      if (chatRow) chatRow.classList.add('hidden');
     }
   }
 
@@ -243,6 +261,8 @@
     const btnMove = qs('btn-act-move');
     const btnAttack = qs('btn-act-attack');
     const btnAbilities = qs('btn-act-abilities');
+    const btnChat = qs('btn-act-chat');
+    const btnDefend = qs('btn-act-defend');
     const btnWait = qs('btn-act-wait');
 
     if (btnMove) {
@@ -275,6 +295,21 @@
         g.iso.setState(g.state); g.iso.renderFull();
       });
     }
+    if (btnChat) {
+      btnChat.addEventListener('click', () => setMode('chat'));
+      btnChat.addEventListener('mouseenter', () => {
+        const g = ensureGlobals();
+        if (!g || !g.state.awaitingPlayer || g.state.playerMode !== 'idle') return;
+        g.state.hoverMode = 'chat';
+        g.iso.setState(g.state); g.iso.renderFull();
+      });
+      btnChat.addEventListener('mouseleave', () => {
+        const g = ensureGlobals();
+        if (!g || g.state.hoverMode !== 'chat') return;
+        g.state.hoverMode = null;
+        g.iso.setState(g.state); g.iso.renderFull();
+      });
+    }
 
     if (btnAbilities) btnAbilities.addEventListener('click', () => {
       const container = qs('ability-list');
@@ -290,6 +325,14 @@
       }
     });
 
+    if (btnDefend) btnDefend.addEventListener('click', () => {
+      const g = ensureGlobals();
+      if (!g) return;
+      const awaiting = g.state.awaitingPlayer;
+      if (!awaiting) return;
+      sendPlayerAction({ action_type: 'defend' });
+    });
+
     if (btnWait) btnWait.addEventListener('click', () => {
       const g = ensureGlobals();
       if (!g) return;
@@ -297,6 +340,19 @@
       if (!awaiting) return;
       sendPlayerAction({ action_type: 'wait' });
     });
+  }
+
+  function wireCanvasZoom() {
+    const canvas = qs('battle-grid');
+    if (!canvas) return;
+
+    canvas.addEventListener('wheel', (evt) => {
+      if (!evt.ctrlKey) return;
+      const g = ensureGlobals();
+      if (!g || !g.iso || typeof g.iso.adjustZoom !== 'function') return;
+      evt.preventDefault();
+      g.iso.adjustZoom(evt.deltaY);
+    }, { passive: false });
   }
 
   function wireCanvasClicks() {
@@ -307,6 +363,12 @@
       const g = ensureGlobals();
       if (!g) return;
       const { state, iso } = g;
+
+      if (evt.ctrlKey && iso && typeof iso.rotateCW === 'function') {
+        evt.preventDefault();
+        iso.rotateCW();
+        return;
+      }
 
       const awaiting = state.awaitingPlayer;
       if (!awaiting) return;
@@ -330,6 +392,17 @@
         const targets = buildAttackTargetSet(legal);
         if (!targets.has(pick.agentId)) return;
         sendPlayerAction({ action_type: 'attack', target_agent: pick.agentId });
+        return;
+      }
+
+      if (state.playerMode === 'chat' && pick.kind === 'unit') {
+        const targets = new Set((legal.chat_targets || []).map(t => t.agent_id));
+        if (!targets.has(pick.agentId)) return;
+        const input = qs('player-chat-input');
+        const message = input ? input.value : '';
+        sendPlayerAction({ action_type: 'chat', target_agent: pick.agentId, message });
+        if (input) input.value = '';
+        setMode('idle');
         return;
       }
 
@@ -362,10 +435,39 @@
     });
   }
 
+  function wireChatInput() {
+    const input = qs('player-chat-input');
+    if (!input) return;
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+
+      const g = ensureGlobals();
+      if (!g) return;
+      const { state } = g;
+
+      if (!state.awaitingPlayer || state.playerMode !== 'chat') return;
+
+      const legal = state.awaitingPlayer.legalActions || {};
+      const targets = (legal.chat_targets || []).map(t => t.agent_id).filter(Boolean);
+      const message = input.value || '';
+
+      if (targets.length === 1) {
+        sendPlayerAction({ action_type: 'chat', target_agent: targets[0], message });
+        input.value = '';
+        setMode('idle');
+      } else {
+        setHint('Select a target to send your message.');
+      }
+    });
+  }
+
   function init() {
     wireButtons();
+    wireCanvasZoom();
     wireCanvasClicks();
     wireEscCancel();
+    wireChatInput();
 
     const g = ensureGlobals();
     if (!g) return;

@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import random
+import socket
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -411,6 +412,21 @@ async def websocket_endpoint(ws: WebSocket):
         manager.disconnect(ws)
 
 
+def _find_available_port(start_port: int, host: str = "0.0.0.0", max_tries: int = 10) -> int:
+    """Find the first available port starting at start_port."""
+    for port in range(start_port, start_port + max_tries):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind((host, port))
+            except OSError:
+                continue
+            return port
+    raise RuntimeError(
+        f"No available port found in range {start_port}-{start_port + max_tries - 1}"
+    )
+
+
 def main() -> None:
     import argparse
 
@@ -452,7 +468,10 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     log.info(f"Battle-Agents frontend — mode: {mode}")
 
-    uvicorn.run(app, host="0.0.0.0", port=args.port)
+    port = _find_available_port(args.port, host="0.0.0.0")
+    if port != args.port:
+        log.warning(f"Port {args.port} is in use — falling back to {port}")
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 
 if __name__ == "__main__":

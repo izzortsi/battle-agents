@@ -941,6 +941,7 @@ def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult"
     log_parts: list[str] = [f"{agent.name} uses {ability['name']}!{lb_prefix}"]
     total_damage = 0
     kills: list[str] = []
+    kill_ids: list[str] = []
 
     # Collect all agents on affected tiles
     affected_agents: list["Agent"] = []
@@ -1012,6 +1013,7 @@ def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult"
                             round_num=env.turn_manager.global_turn,
                         )
                         kills.append(affected.name)
+                        kill_ids.append(affected.agent_id)
                         log_parts.append(f"{affected.name} has been slain!")
                         continue  # Dead — don't apply effects
 
@@ -1055,6 +1057,7 @@ def _resolve_ability(action: CombatAction, env: "Environment") -> "ActionResult"
             "damage": total_damage,
             "hit": True,
             "kills": kills,
+            "kill_ids": kill_ids,
             "aoe_pattern": aoe_pattern,
             "affected_count": len(affected_agents),
         },

@@ -72,10 +72,10 @@
       this.ctx = canvas.getContext('2d');
       this._spriteCache = new SpriteCache();
 
-      const base = (typeof CELL_SIZE !== 'undefined') ? CELL_SIZE : 52;
-      this.tileW = Math.round(base * 1.35);
-      this.tileH = Math.round(this.tileW * 0.5);
-      this.heightStep = 10;
+      this._baseCell = (typeof CELL_SIZE !== 'undefined') ? CELL_SIZE : 52;
+      this._zoom = 1.0;
+      this._rotation = 0; // 0=0°,1=90° CW,2=180°,3=270° CW
+      this._updateTileMetrics();
 
       this._lastSizeKey = '';
       this._hitTiles = [];
@@ -99,6 +99,44 @@
 
     setState(state) {
       this.state = state;
+    }
+
+    _updateTileMetrics() {
+      const base = this._baseCell * this._zoom;
+      this.tileW = Math.round(base * 1.35);
+      this.tileH = Math.round(this.tileW * 0.5);
+      this.heightStep = Math.round(base * 0.2);
+    }
+
+    setZoom(zoom) {
+      const clamped = Math.max(0.6, Math.min(2.0, zoom));
+      if (clamped === this._zoom) return;
+      this._zoom = clamped;
+      this._updateTileMetrics();
+      this.renderFull();
+    }
+
+    adjustZoom(deltaY) {
+      const factor = deltaY < 0 ? 1.1 : 0.9;
+      this.setZoom(this._zoom * factor);
+    }
+
+    rotateCW() {
+      this._rotation = (this._rotation + 1) % 4;
+      this.renderFull();
+    }
+
+    _rotateCoord(x, y, gw, gh) {
+      switch (this._rotation) {
+        case 1:
+          return { rx: (gh - 1) - y, ry: x };
+        case 2:
+          return { rx: (gw - 1) - x, ry: (gh - 1) - y };
+        case 3:
+          return { rx: y, ry: (gw - 1) - x };
+        default:
+          return { rx: x, ry: y };
+      }
     }
 
     resizeToFit() {
@@ -181,10 +219,11 @@
       const order = [];
       for (let y = 0; y < gh; y++) {
         for (let x = 0; x < gw; x++) {
-          order.push({ x, y, k: x + y });
+          const { rx, ry } = this._rotateCoord(x, y, gw, gh);
+          order.push({ x, y, rx, ry, k: rx + ry });
         }
       }
-      order.sort((a, b) => (a.k - b.k) || (a.y - b.y) || (a.x - b.x));
+      order.sort((a, b) => (a.k - b.k) || (a.ry - b.ry) || (a.rx - b.rx));
 
       // Highlights from backend legal actions (authoritative)
       const awaiting = this.state.awaitingPlayer;
@@ -262,8 +301,9 @@
 
       for (const cell of order) {
         const x = cell.x, y = cell.y;
+        const rx = cell.rx, ry = cell.ry;
         const z = heightAt(grid, x, y);
-        const { sx, sy } = this.gridToScreen(x, y, z, originX, originY);
+        const { sx, sy } = this.gridToScreen(rx, ry, z, originX, originY);
         const tileKey = `${x}_${y}`;
 
         this._hitTiles.push({ sx, sy, tileKey, x, y });
@@ -350,7 +390,8 @@
         if (!u || u.is_alive === false) continue;
 
         const z = (typeof u.z === 'number') ? u.z : heightAt(grid, u.x, u.y);
-        const { sx, sy } = this.gridToScreen(u.x, u.y, z, originX, originY);
+        const { rx, ry } = this._rotateCoord(u.x, u.y, gw, gh);
+        const { sx, sy } = this.gridToScreen(rx, ry, z, originX, originY);
 
         const cx = sx + this.tileW / 2;
         const cy = sy + this.tileH / 2;

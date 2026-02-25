@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background squircle -->
+  <rect width="512" height="512" rx="96" fill="#1a1a2e"/>
+  <rect x="4" y="4" width="504" height="504" rx="92" fill="none" stroke="#2a2a4a" stroke-width="4"/>
+
+  <!-- Isometric diamond tile -->
+  <path d="M256 68 L444 256 L256 444 L68 256 Z"
+        fill="#16213e" stroke="#e94560" stroke-width="6" stroke-linejoin="round"/>
+
+  <!-- Subtle inner grid lines on the diamond -->
+  <line x1="256" y1="68" x2="256" y2="444" stroke="#e94560" stroke-width="1.5" opacity="0.15"/>
+  <line x1="68" y1="256" x2="444" y2="256" stroke="#e94560" stroke-width="1.5" opacity="0.15"/>
+
+  <!-- Crossed swords -->
+  <!-- Blade 1 (top-left to bottom-right) -->
+  <line x1="156" y1="156" x2="356" y2="356" stroke="#daa520" stroke-width="14" stroke-linecap="round"/>
+  <!-- Blade 2 (top-right to bottom-left) -->
+  <line x1="356" y1="156" x2="156" y2="356" stroke="#daa520" stroke-width="14" stroke-linecap="round"/>
+
+  <!-- Crossguards -->
+  <line x1="178" y1="206" x2="206" y2="178" stroke="#b8860b" stroke-width="10" stroke-linecap="round"/>
+  <line x1="306" y1="178" x2="334" y2="206" stroke="#b8860b" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- Pommels -->
+  <circle cx="148" cy="148" r="12" fill="#daa520"/>
+  <circle cx="364" cy="148" r="12" fill="#daa520"/>
+
+  <!-- Blade tips (small flares) -->
+  <circle cx="362" cy="362" r="6" fill="#daa520"/>
+  <circle cx="150" cy="362" r="6" fill="#daa520"/>
+
+  <!-- Center orb -->
+  <circle cx="256" cy="256" r="32" fill="#e94560"/>
+  <circle cx="256" cy="256" r="22" fill="#ff5070" opacity="0.6"/>
+  <circle cx="248" cy="248" r="8" fill="white" opacity="0.3"/>
+</svg>
